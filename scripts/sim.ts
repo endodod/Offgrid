@@ -1,0 +1,48 @@
+// Bot-vs-bot balance simulation:  npm run sim -- [--n 200] [--seed 1] [--max-turns 40] [--objective none|player|both]
+import { RULES, type ObjectiveCapture } from '../src/data/rules';
+import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
+import { TRAINING_GROUNDS } from '../src/data/trainingGrounds';
+import { playMatch, type MatchResult } from '../src/core/sim';
+import type { Team } from '../src/core/types';
+
+const args = process.argv.slice(2);
+const num = (flag: string, fallback: number) => {
+  const i = args.indexOf(flag);
+  return i >= 0 ? Number(args[i + 1]) : fallback;
+};
+const n = num('--n', 200);
+const seed0 = num('--seed', 1);
+const maxTurns = num('--max-turns', RULES.maxTurns);
+// 'none' (default) = pure elimination, so the numbers measure combat balance. 'both' lets either AI win by capture.
+const oi = args.indexOf('--objective');
+const objectiveCapture = (oi >= 0 ? args[oi + 1] : 'none') as ObjectiveCapture;
+
+const results: MatchResult[] = [];
+for (let i = 0; i < n; i++) results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture }, maxTurns));
+
+const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
+const count = (f: (r: MatchResult) => boolean) => results.filter(f).length;
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+console.log(`${TRAINING_GROUNDS.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
+  `objective capture: ${objectiveCapture}`);
+console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
+  `draw ${pct(count((r) => r.winner === 'draw'))}`);
+console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +
+  `timeout ${pct(count((r) => r.via === 'timeout'))}`);
+console.log(`Average length ${avg(results.map((r) => r.turns)).toFixed(1)} turns`);
+
+console.log('\nPer class (averages per match)');
+console.log('team    class    dmg dealt  dmg taken  kills  survival');
+for (const team of ['player', 'enemy'] as Team[]) {
+  for (const cls of CLASS_ORDER as ClassId[]) {
+    const rows = results.flatMap((r) => r.units.filter((u) => u.team === team && u.cls === cls));
+    if (!rows.length) continue; // this team does not field the class
+    console.log(
+      `${team.padEnd(8)}${CLASSES[cls].name.padEnd(9)}` +
+      `${avg(rows.map((u) => u.dmgDealt)).toFixed(2).padStart(9)}  ${avg(rows.map((u) => u.dmgTaken)).toFixed(2).padStart(9)}  ` +
+      `${avg(rows.map((u) => u.kills)).toFixed(2).padStart(5)}  ${pct(rows.filter((u) => u.survived).length * (n / rows.length)).padStart(8)}`,
+    );
+  }
+}
+console.log('\nNote: the simulated AI does not use gadgets (enemies have none by design), so player-side numbers exclude them.');

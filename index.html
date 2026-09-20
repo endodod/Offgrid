@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offgrid</title>
+  </head>
+  <body>
+    <section id="home">
+      <div class="home-inner">
+        <h1>OFFGRID</h1>
+        <p class="dim">Turn-based squad tactics. Fog of war, cover, overwatch.</p>
+        <h2>Select mission</h2>
+        <div id="missions"></div>
+        <p class="dim help">Combat log, hit chances and cover are shown in-game. Numbers live in <code>src/data</code>.</p>
+      </div>
+    </section>
+
+    <section id="builder" hidden>
+      <div class="builder-inner">
+        <div class="b-main">
+          <div class="b-top"><h2 id="b-title"></h2><span id="b-msg"></span></div>
+          <canvas id="bcanvas" width="864" height="576"></canvas>
+          <p class="dim help">Pick a tool, then drag on the map. Right-drag erases. Q / wheel rotates low cover. Painting the same unit onto its tile removes it.</p>
+        </div>
+        <aside class="b-side">
+          <div class="panel">
+            <h3>Tools</h3>
+            <div id="b-tools"></div>
+            <label class="row">Unit class <select id="b-class"></select></label>
+            <div class="row"><button id="b-rot">Rotate low cover (Q)</button><span id="b-rotlabel"></span></div>
+          </div>
+          <div class="panel"><h3>Checks</h3><ul id="b-checks"></ul></div>
+          <div class="panel btns">
+            <button id="b-play">Play test</button>
+            <button id="b-save">Save</button>
+            <button id="b-default">Reset to default</button>
+            <button id="b-back">Back</button>
+          </div>
+          <div class="panel">
+            <h3>Import / export (JSON)</h3>
+            <textarea id="b-json" rows="7" spellcheck="false"></textarea>
+            <div class="btns"><button id="b-export">Export</button><button id="b-import">Import</button></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <main id="game" hidden>
+      <section id="board-col">
+        <div id="topbar">
+          <div id="phase"></div>
+          <button id="ow-toggle" title="Show the range of active friendly and enemy overwatch (V)">Overwatch view<kbd>V</kbd></button>
+          <button id="to-builder" hidden>Back to builder</button>
+          <button id="menu">Main menu</button>
+        </div>
+        <div id="objective"></div>
+        <div class="canvas-wrap">
+          <canvas id="board" width="864" height="576"></canvas>
+          <div id="tip" hidden></div>
+          <div id="banner" hidden>
+            <div id="banner-text"></div>
+            <div class="btns">
+              <button id="banner-reset">Play again</button>
+              <button id="banner-menu">Main menu</button>
+            </div>
+          </div>
+        </div>
+        <div id="ow-legend" hidden><i class="sw friend"></i> friendly overwatch <i class="sw foe"></i> enemy overwatch (weapon range + line of sight of units currently on overwatch)</div>
+        <div id="status"></div>
+        <div id="actionbar"></div>
+        <p class="dim help">Click a unit to select (click it again to deselect). With a unit selected, click a tile to move or an enemy to attack. Right-click / Esc cancels, then deselects. Keys: 1-5 select, M A R G O F I, E = end turn, V = overwatch view, Q / wheel = rotate cover while placing it.</p>
+      </section>
+      <aside>
+        <div id="roster"></div>
+        <div id="card"></div>
+        <div id="log-wrap"><h3>Combat log</h3><div id="log"></div></div>
+        <div id="debug" hidden>
+          <h3>Debug</h3>
+          <label><input type="checkbox" id="dbg-fog" checked /> Fog of war</label>
+          <label><input type="checkbox" id="dbg-skip" /> Skip enemy phase</label>
+          <div class="btns">
+            <button id="dbg-reset">Reset map</button>
+            <button id="dbg-reseed">Reseed RNG</button>
+          </div>
+          <div class="dim">seed <span id="seed"></span></div>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

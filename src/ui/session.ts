@@ -1,0 +1,319 @@
+import { CLASSES } from '../data/units';
+import { GADGETS } from '../data/gadgets';
+import type { MapDef } from '../data/trainingGrounds';
+import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, validate, type Action } from '../core/actions';
+import { aiTurn } from '../core/ai';
+import { coverAgainst, damageAgainst, hitChance, targetBlock } from '../core/combat';
+import { idx, inBounds, reachable } from '../core/grid';
+import { createGame, reseed } from '../core/state';
+import { refreshVision } from '../core/vision';
+import type { GameEvent, GameState, Pos, Unit } from '../core/types';
+import type { Floater, View } from '../render/renderer';
+import { describe, nameOf, type LogLine } from './log';
+
+export type Mode = 'move' | 'attack' | 'gadget' | 'aid';
+export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'interact' | 'endTurn';
+export interface ButtonState { enabled: boolean; reason: string | null; label: string; active: boolean }
+
+/** UI state + input rules. Turns clicks into core actions; never implements game rules itself. */
+export class Session {
+  state!: GameState;
+  seed = 1;
+  selectedId: number | null = null;
+  mode: Mode = 'move';
+  hover: Pos | null = null;
+  floaters: Floater[] = [];
+  log: LogLine[] = [];
+  status = '';
+  busy = false; // true while the enemy phase is playing out
+  skipEnemyPhase = false; // debug
+  coverRot = 0; // rotation the tank gives the cover it places (Q / wheel)
+  showOverwatch = false; // overwatch view: coverage of units on overwatch
+  onChange: () => void = () => {};
+  private runId = 0;
+
+  constructor(private map: MapDef) {
+    this.reset();
+  }
+
+  // ---------- lifecycle / debug ----------
+  /** Start a (new) mission from the home screen. */
+  load(map: MapDef) {
+    this.map = map;
+    this.reset();
+  }
+
+  reset(seed = this.seed) {
+    this.runId++; // cancels an enemy phase that is still animating
+    this.seed = seed;
+    this.state = createGame(this.map, seed);
+    this.busy = false;
+    this.floaters = [];
+    this.coverRot = 0;
+    this.showOverwatch = false;
+    this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];
+    this.status = 'Your turn. Click a unit, then a tile to move or an enemy to attack.';
+    this.mode = 'move';
+    this.selectedId = this.state.units.find((u) => u.team === 'player')!.id;
+    this.flush();
+    this.onChange();
+  }
+
+  reseedRng() {
+    this.seed = Math.floor(Math.random() * 2 ** 31);
+    reseed(this.state, this.seed);
+    this.say(`RNG reseeded (${this.seed}).`, 'system');
+  }
+
+  toggleFog(on: boolean) {
+    this.state.fogEnabled = on;
+    refreshVision(this.state);
+    this.onChange();
+  }
+
+  // ---------- selection ----------
+  selected(): Unit | null {
+    const u = this.selectedId === null ? null : this.state.units[this.selectedId];
+    return u && u.alive ? u : null;
+  }
+
+  select(id: number) {
+    const u = this.state.units[id];
+    if (!u || !u.alive || u.team !== 'player') return;
+    this.selectedId = id;
+    this.mode = 'move';
+    this.onChange();
+  }
+
+  /** Esc / right-click: leave a targeting mode first; with nothing pending, deselect the unit. */
+  cancel() {
+    if (this.mode !== 'move') this.mode = 'move';
+    else this.selectedId = null;
+    this.status = '';
+    this.onChange();
+  }
+
+  /** Select a unit, or deselect it if it already is the selection. */
+  toggleSelect(id: number) {
+    if (this.selectedId === id) this.cancelSelection();
+    else this.select(id);
+  }
+
+  private cancelSelection() {
+    this.selectedId = null;
+    this.mode = 'move';
+    this.status = '';
+    this.onChange();
+  }
+
+  toggleOverwatchView() {
+    this.showOverwatch = !this.showOverwatch;
+    this.onChange();
+  }
+
+  /** Rotate the cover piece the tank is about to place. */
+  rotateCover(dir: 1 | -1) {
+    if (this.mode !== 'gadget' || this.selected()?.gadget?.id !== 'cover') return;
+    this.coverRot = (this.coverRot + dir + 4) % 4;
+    this.onChange();
+  }
+
+  private get ready() {
+    return this.state.phase === 'player' && !this.busy && !this.state.winner;
+  }
+
+  private visibleUnitAt(p: Pos): Unit | undefined {
+    return this.state.units.find((u) => u.alive && u.x === p.x && u.y === p.y && (u.team === 'player' || this.state.seenUnits.player.has(u.id)));
+  }
+
+  // ---------- mouse ----------
+  setHover(p: Pos | null) {
+    const next = p && inBounds(this.state, p.x, p.y) ? p : null;
+    if (next?.x === this.hover?.x && next?.y === this.hover?.y) return;
+    this.hover = next;
+    this.onChange();
+  }
+
+  click(p: Pos) {
+    if (!this.ready || !inBounds(this.state, p.x, p.y)) return;
+    const sel = this.selected();
+    const at = this.visibleUnitAt(p);
+    if (sel && this.mode === 'gadget') {
+      if (this.try({ type: 'gadget', unit: sel.id, target: p, rotation: this.coverRot })) this.mode = 'move';
+    } else if (sel && this.mode === 'aid') {
+      if (at?.team === 'player' && this.try({ type: 'aid', unit: sel.id, target: at.id })) this.mode = 'move';
+    } else if (at?.team === 'player') {
+      this.toggleSelect(at.id); // clicking the selected unit again deselects it
+    } else if (sel && at) {
+      this.try({ type: 'attack', unit: sel.id, target: at.id });
+    } else if (sel) {
+      this.try({ type: 'move', unit: sel.id, to: p });
+    }
+    this.onChange();
+  }
+
+  // ---------- action bar ----------
+  buttonState(b: ButtonId): ButtonState {
+    const u = this.selected();
+    const off = (reason: string): ButtonState => ({ enabled: false, reason, label: b, active: false });
+    if (b === 'endTurn') return this.ready ? { enabled: true, reason: null, label: 'End turn', active: false } : off('Not your phase');
+    if (!this.ready) return off('Not your phase');
+    if (!u) return off('Select a unit');
+    const gate = (reason: string | null, label: string, active = false): ButtonState => ({ enabled: !reason, reason, label, active });
+    switch (b) {
+      case 'move': return gate(u.actions > 0 ? null : 'No actions left', 'Move', this.mode === 'move');
+      case 'attack': return gate(u.actions <= 0 ? 'No actions left' : u.overwatch ? 'Weapon reserved for overwatch' : u.ammo <= 0 ? 'Out of ammo' : null, 'Attack', this.mode === 'attack');
+      case 'reload': return gate(validate(this.state, { type: 'reload', unit: u.id }), 'Reload');
+      case 'gadget': return gate(gadgetBlock(u), u.gadget ? GADGETS[u.gadget.id].name : 'Gadget', this.mode === 'gadget');
+      case 'overwatch': return gate(validate(this.state, { type: 'overwatch', unit: u.id }), 'Overwatch');
+      case 'aid': return gate(aidBlock(u), 'First aid', this.mode === 'aid');
+      case 'interact': return gate(interactBlock(this.state, u), 'Interact');
+    }
+  }
+
+  press(b: ButtonId) {
+    if (!this.buttonState(b).enabled) return;
+    const u = this.selected();
+    if (b === 'endTurn') return this.endTurn();
+    if (!u) return;
+    switch (b) {
+      case 'move':
+      case 'attack': this.mode = b; break;
+      case 'reload': this.try({ type: 'reload', unit: u.id }); break;
+      case 'overwatch': this.try({ type: 'overwatch', unit: u.id }); break;
+      case 'interact': this.try({ type: 'interact', unit: u.id }); break;
+      case 'gadget':
+        if (GADGETS[u.gadget!.id].target === 'none') this.try({ type: 'gadget', unit: u.id });
+        else {
+          this.mode = this.mode === 'gadget' ? 'move' : 'gadget';
+          this.status = this.mode !== 'gadget' ? '' : u.gadget!.id === 'cover' ? 'Pick a tile within 2. Q / mouse wheel rotates the piece.' : 'Pick a target.';
+        }
+        break;
+      case 'aid': {
+        const targets = this.state.units.filter((t) => aidBlock(u, t) === null);
+        if (targets.length === 1) this.try({ type: 'aid', unit: u.id, target: targets[0].id }); // only one option: just do it
+        else if (targets.length === 0) this.status = 'No wounded ally in reach (self or adjacent).';
+        else this.mode = this.mode === 'aid' ? 'move' : 'aid';
+        break;
+      }
+    }
+    this.onChange();
+  }
+
+  // ---------- turn flow ----------
+  endTurn() {
+    if (!this.try({ type: 'endTurn' })) return;
+    this.mode = 'move';
+    this.busy = true;
+    const runId = ++this.runId;
+    if (this.skipEnemyPhase) { // debug: the enemy passes
+      this.try({ type: 'endTurn' });
+      this.finishEnemyPhase();
+      return;
+    }
+    const gen = aiTurn(this.state, 'enemy'); // one action per step so the player can follow what happens
+    const step = () => {
+      if (runId !== this.runId) return;
+      const r = gen.next();
+      this.flush();
+      this.onChange();
+      if (r.done || this.state.winner) this.finishEnemyPhase();
+      else setTimeout(step, 420);
+    };
+    this.status = 'Enemy phase...';
+    setTimeout(step, 250);
+  }
+
+  private finishEnemyPhase() {
+    this.busy = false; // selection is left alone: nothing selected stays nothing selected
+    this.status = this.state.winner ? '' : 'Your turn.';
+    this.onChange();
+  }
+
+  // ---------- helpers ----------
+  private try(a: Action): boolean {
+    const r = perform(this.state, a);
+    this.flush();
+    this.status = r.ok ? '' : r.error;
+    return r.ok;
+  }
+
+  private say(text: string, kind: LogLine['kind']) {
+    this.log.push({ kind, text });
+    this.onChange();
+  }
+
+  /** Move engine events into the log and floating texts. */
+  private flush() {
+    const s = this.state;
+    const now = performance.now();
+    let n = 0; // stagger floating texts so a burst reads as separate shots
+    for (const e of s.events.splice(0)) {
+      const line = describe(s, e);
+      if (line) this.log.push(line);
+      if (e.seen && this.floaterFor(e, now + n * 260)) n++;
+    }
+    if (this.selectedId !== null && !this.selected()) this.selectedId = null;
+  }
+
+  /** Returns true if the event produced a floating text. */
+  private floaterFor(e: GameEvent, born: number): boolean {
+    const add = (p: Pos, text: string, color: string) => { this.floaters.push({ x: p.x, y: p.y, text, color, born }); return true; };
+    if (e.t === 'shot') return add(e.at, e.hit ? `-${e.damage}` : 'MISS', e.hit ? '#ff7a63' : '#b8b8a8');
+    if (e.t === 'damage') return add(e.at, `-${e.amount}`, '#ff7a63');
+    if (e.t === 'heal') return add(e.at, `+${e.amount}`, '#8fd19a');
+    if (e.t === 'died') return add(e.at, 'DOWN', '#e6e0c8');
+    return false;
+  }
+
+  // ---------- read models for render / HUD ----------
+  view(now: number): View {
+    const s = this.state;
+    const u = this.selected();
+    this.floaters = this.floaters.filter((f) => now - f.born < 1400);
+    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now };
+    if (!u || !this.ready) return view;
+    if (this.mode === 'move' && u.actions > 0) {
+      view.reach = new Set([...reachable(s, u, moveRange(u)).keys()].filter((i) => i !== idx(s, u.x, u.y)));
+    }
+    if (this.mode === 'attack') for (const t of s.units) if (t.team === 'enemy' && validate(s, { type: 'attack', unit: u.id, target: t.id }) === null) view.ringed.add(t.id);
+    if (this.mode === 'aid') for (const t of s.units) if (aidBlock(u, t) === null) view.ringed.add(t.id);
+    if (this.mode === 'gadget' && u.gadget && GADGETS[u.gadget.id].range !== undefined) {
+      const r = GADGETS[u.gadget.id].range!;
+      for (let y = u.y - r; y <= u.y + r; y++)
+        for (let x = u.x - r; x <= u.x + r; x++)
+          if (inBounds(s, x, y) && gadgetTargetBlock(s, u, { x, y }) === null) view.aimTiles.add(idx(s, x, y));
+    }
+    return view;
+  }
+
+  /** Tooltip lines for the hovered tile (enemy: hit chance, damage, cover state relative to the selected unit). */
+  hoverInfo(): string[] | null {
+    const p = this.hover;
+    if (!p) return null;
+    const s = this.state;
+    const at = this.visibleUnitAt(p);
+    const sel = this.selected();
+    if (at?.team === 'enemy') {
+      const def = CLASSES[at.cls];
+      const lines = [`${nameOf(at)}  HP ${at.hp}/${def.hp}  Armor ${def.armor}`];
+      if (!sel) return [...lines, 'Select a unit to see hit chance.'];
+      const cover = coverAgainst(s, at, sel);
+      const w = CLASSES[sel.cls].weapon;
+      if (at.exposed) lines.push('Exposed: visible in the bush until its next turn');
+      lines.push(`Cover: ${cover.state}${cover.penalty ? ` (-${cover.penalty}% to hit)` : ''}`);
+      lines.push(`Hit chance ${hitChance(s, sel, at)}%   Damage ${damageAgainst(w.damage, def.armor)}${w.shots > 1 ? ` x${w.shots} shots` : ''}`);
+      const blocked = targetBlock(s, sel, at);
+      if (blocked) lines.push(`Cannot fire: ${blocked}`);
+      return lines;
+    }
+    if (at) return [`${nameOf(at)}  HP ${at.hp}/${CLASSES[at.cls].hp}  Ammo ${at.ammo}/${CLASSES[at.cls].weapon.magazine}`, ...(at.exposed ? ['Exposed: visible in the bush until your next turn'] : [])];
+    const ghost = Object.entries(s.memory.player.lastSeen).find(([id, g]) => g.x === p.x && g.y === p.y && s.units[Number(id)].alive);
+    if (ghost) return [`Last seen: ${nameOf(s.units[Number(ghost[0])])}`];
+    const i = idx(s, p.x, p.y);
+    const seen = s.visible.player[i] === 1;
+    const cover = s.cover[i];
+    const what = s.terrain[i] === 'wall' ? 'Wall' : cover ? `${cover === 'high' ? 'High' : 'Low'} cover` : s.terrain[i] === 'bush' ? 'Bush (hides units)' : null;
+    return what ? [`${what}${seen ? '' : ' - out of sight'}`] : null;
+  }
+}

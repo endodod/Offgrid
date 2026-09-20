@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest';
+import { TRAINING_GROUNDS } from '../data/trainingGrounds';
+import { CLASSES } from '../data/units';
+import { runAiTurn } from './ai';
+import { distanceMap, idx } from './grid';
+import { playMatch } from './sim';
+import { createGame } from './state';
+import { act, blank, makeGame, place, rolls, unit } from './testkit';
+
+const shotsBy = (s: ReturnType<typeof makeGame>, team: 'player' | 'enemy') =>
+  s.events.filter((e) => e.t === 'shot' && s.units[e.attacker].team === team);
+
+describe('enemy AI', () => {
+  it('shoots a visible target', () => {
+    const s = makeGame(blank(16, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } });
+    act(s, { type: 'endTurn' });
+    rolls(s, 0);
+    runAiTurn(s, 'enemy');
+    expect(shotsBy(s, 'enemy').length).toBeGreaterThan(0);
+    expect(unit(s, 'player', 'soldier').hp).toBeLessThan(12);
+    expect(s.phase).toBe('player'); // it ended its phase
+  });
+
+  it('reloads when empty, then fires', () => {
+    const s = makeGame(blank(16, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } });
+    act(s, { type: 'endTurn' });
+    unit(s, 'enemy', 'soldier').ammo = 0;
+    rolls(s, 0.99);
+    runAiTurn(s, 'enemy');
+    expect(s.events.some((e) => e.t === 'reload')).toBe(true);
+    expect(shotsBy(s, 'enemy')).toHaveLength(1);
+  });
+
+  it('obeys fog: never shoots or chases a target it cannot see (bush)', () => {
+    const s = makeGame(blank(16, 5, [[2, 2, 'b']]), { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } });
+    act(s, { type: 'endTurn' });
+    expect(s.seenUnits.enemy.size).toBe(0);
+    runAiTurn(s, 'enemy');
+    expect(shotsBy(s, 'enemy')).toHaveLength(0);
+    expect(s.memory.enemy.lastSeen).toEqual({});
+  });
+
+  it('obeys fog: an unseen player behind a wall does not attract fire', () => {
+    const s = makeGame(blank(16, 5, [[4, 1, '#'], [4, 2, '#'], [4, 3, '#']]), { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } });
+    act(s, { type: 'endTurn' });
+    runAiTurn(s, 'enemy');
+    expect(shotsBy(s, 'enemy')).toHaveLength(0);
+  });
+
+  it('with no target it advances and finishes on overwatch', () => {
+    const s = makeGame(blank(30, 5), { player: { soldier: [1, 2] }, enemy: { tank: [28, 2] } });
+    s.map.searchPoints.enemy = [[5, 2]];
+    act(s, { type: 'endTurn' });
+    runAiTurn(s, 'enemy');
+    const t = unit(s, 'enemy', 'tank');
+    expect(t.x).toBeLessThan(28);
+    expect(t.overwatch).toBe(true);
+  });
+
+  it('takes cover on the way to a shot when it has actions to spare', () => {
+    // Enemy soldier can shoot from (7,2) in the open, or from (7,3) which has low cover to its west at (6,3).
+    const s = makeGame(blank(16, 6, [[6, 3, 'l']]), { player: { soldier: [2, 3] }, enemy: { soldier: [8, 2] } });
+    act(s, { type: 'endTurn' });
+    rolls(s, 0.99);
+    runAiTurn(s, 'enemy');
+    const e = unit(s, 'enemy', 'soldier');
+    expect([e.x, e.y]).toEqual([7, 3]);
+  });
+});
+
+describe('simulation', () => {
+  it('is deterministic for a given seed and terminates', () => {
+    const a = playMatch(TRAINING_GROUNDS, 7, { objectiveCapture: 'both' });
+    const b = playMatch(TRAINING_GROUNDS, 7, { objectiveCapture: 'both' });
+    expect(a).toEqual(b);
+    expect(a.turns).toBeLessThanOrEqual(41);
+  });
+  it('different seeds can play out differently', () => {
+    const results = new Set(Array.from({ length: 6 }, (_, i) => JSON.stringify(playMatch(TRAINING_GROUNDS, i + 1, { objectiveCapture: 'both' }))));
+    expect(results.size).toBeGreaterThan(1);
+  });
+});
+
+describe('Training Grounds map data', () => {
+  const s = createGame(TRAINING_GROUNDS, 1);
+  it('is about 24 x 16: 5 friendly units (one per class) vs 3 enemy soldiers, all on open tiles', () => {
+    expect([s.width, s.height]).toEqual([24, 16]);
+    expect(s.units.filter((u) => u.team === 'player').map((u) => u.cls).sort()).toEqual(Object.keys(CLASSES).sort());
+    expect(s.units.filter((u) => u.team === 'enemy').map((u) => u.cls)).toEqual(['soldier', 'soldier', 'soldier']);
+    for (const u of s.units) {
+      expect(s.terrain[idx(s, u.x, u.y)]).not.toBe('wall');
+      expect(s.cover[idx(s, u.x, u.y)]).toBeNull();
+    }
+    const spots = new Set(s.units.map((u) => `${u.x},${u.y}`));
+    expect(spots.size).toBe(8);
+  });
+  it('spawns bottom-left (player) and top-right (enemy)', () => {
+    for (const u of s.units) {
+      if (u.team === 'player') expect(u.x < 8 && u.y > 8).toBe(true);
+      else expect(u.x > 15 && u.y < 6).toBe(true);
+    }
+  });
+  it('has one objective reachable from both spawns, and the hidden room is reachable', () => {
+    expect(s.objective).toEqual({ x: 11, y: 2 });
+    const d = distanceMap(s, s.objective!);
+    for (const u of s.units) expect(d[idx(s, u.x, u.y)]).toBeGreaterThan(0);
+    const room = distanceMap(s, { x: 17, y: 11 });
+    expect(room[idx(s, 4, 12)]).toBeGreaterThan(0);
+  });
+  it('contains every mechanic: low + high cover, bushes, walls', () => {
+    expect(s.cover).toContain('low');
+    expect(s.cover).toContain('high');
+    expect(s.terrain).toContain('bush');
+    expect(s.terrain).toContain('wall');
+  });
+  it('the objective is out of sight at the start (fog)', () => {
+    expect(s.memory.player.objectiveSeen).toBe(false);
+    place(s, unit(s, 'player', 'sniper'), 1, 14);
+    expect(s.seenUnits.player.size).toBe(0);
+  });
+});
