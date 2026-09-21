@@ -6,14 +6,12 @@ import { TIME_ORDER, TIMES_OF_DAY } from '../data/timeOfDay';
 import { WEATHER_ORDER, WEATHERS } from '../data/weather';
 import { envMods, scaledMove, scaledVision } from '../core/environment';
 import type { GameState } from '../core/types';
+import { keyFor } from './input';
+import { displayKey } from './keybindings';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
 
-const BUTTONS: { id: ButtonId; key: string }[] = [
-  { id: 'move', key: 'M' }, { id: 'attack', key: 'A' }, { id: 'reload', key: 'R' }, { id: 'gadget', key: 'G' },
-  { id: 'overwatch', key: 'O' }, { id: 'aid', key: 'F' }, { id: 'revive', key: 'U' }, { id: 'interact', key: 'I' },
-  { id: 'endTurn', key: 'E' },
-];
+const BUTTON_ORDER: ButtonId[] = ['move', 'attack', 'reload', 'gadget', 'overwatch', 'aid', 'revive', 'interact', 'endTurn'];
 
 /** One-line description and AP/resource cost shown in the button tooltip; every action costs 1 action unless noted. */
 const BUTTON_INFO: Record<ButtonId, { desc: string; cost: string }> = {
@@ -121,7 +119,7 @@ export class Hud {
     const g = this.session.selected()?.gadget;
     // the gadget button's own description depends on which gadget the selected unit actually carries
     const info = b === 'gadget' && g ? { desc: GADGETS[g.id].blurb, cost: '1 action, 1 use' } : BUTTON_INFO[b];
-    return [info.desc, `Cost: ${info.cost}`, ...(st.reason ? [`Disabled: ${st.reason}`] : [])];
+    return [info.desc, `Cost: ${info.cost}   Key: ${displayKey(keyFor(b))}`, ...(st.reason ? [`Disabled: ${st.reason}`] : [])];
   }
 
   update() {
@@ -143,9 +141,9 @@ export class Hud {
     // aria-disabled + a class, not the disabled attribute: a truly disabled button can't be hovered or
     // focused in most browsers, which would make it impossible to show the tooltip explaining *why*.
     // Session.press() already no-ops when the button isn't enabled, so this is safe to still click.
-    $('actionbar').innerHTML = BUTTONS.map(({ id, key }) => {
+    $('actionbar').innerHTML = BUTTON_ORDER.map((id) => {
       const st = this.session.buttonState(id);
-      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${st.active ? 'active' : ''} ${st.enabled ? '' : 'disabled'}">${st.label}<kbd>${key}</kbd></button>`;
+      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${st.active ? 'active' : ''} ${st.enabled ? '' : 'disabled'}">${st.label}<kbd>${displayKey(keyFor(id))}</kbd></button>`;
     }).join('');
 
     $('roster').innerHTML = s.units.filter((u) => u.team === 'player').map((u, n) => {

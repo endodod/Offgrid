@@ -65,10 +65,14 @@ kbd { margin-left: 6px; font-size: 10px; color: var(--dim); }
 #home[hidden], #game[hidden] { display: none; }
 
 /* home screen */
-#home { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+#home, #settings { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .home-inner { width: min(720px, 100%); }
-#home h1 { margin: 0; font-size: 44px; letter-spacing: 0.3em; color: #b7c9a8; }
-#home h2 { margin: 28px 0 10px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+#home h1, #settings h1 { margin: 0; font-size: 44px; letter-spacing: 0.3em; color: #b7c9a8; }
+#home h2, #settings h2 { margin: 28px 0 10px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.home-header { display: flex; justify-content: space-between; align-items: baseline; }
+.kb-row { justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.kb-row button { min-width: 100px; }
+.kb-row button.active { border-color: var(--accent); color: var(--accent); }
 .mission { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--player); padding: 14px 16px; margin-bottom: 12px; }
 .mission h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: 0.05em; color: var(--text); text-transform: none; }
 .mission p { margin: 6px 0; }

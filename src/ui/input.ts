@@ -1,12 +1,36 @@
 import { TILE } from '../render/renderer';
 import type { Hud } from './hud';
 import { isGameVisible } from './home';
+import {
+  BINDABLE_ACTIONS, DEFAULT_BINDINGS, RESERVED_KEY, keyOf, loadBindings, saveBindings,
+  type BindableAction, type KeyBindings,
+} from './keybindings';
 import type { ButtonId, Session } from './session';
 
-const KEYS: Record<string, ButtonId> = {
-  m: 'move', a: 'attack', r: 'reload', g: 'gadget', o: 'overwatch', f: 'aid', u: 'revive', i: 'interact',
-  e: 'endTurn', Enter: 'endTurn',
-};
+let bindings: KeyBindings = loadBindings();
+
+export const getBindings = (): KeyBindings => bindings;
+export const keyFor = (a: BindableAction): string => bindings[a];
+
+/** The action already using this key, if any (excluding `except` itself) - for conflict detection while rebinding. */
+export function actionUsing(key: string, except?: BindableAction): BindableAction | null {
+  return BINDABLE_ACTIONS.find((a) => a !== except && bindings[a] === key) ?? null;
+}
+
+/** Rebinds `action` to `key`. Returns null on success, or the reason it was refused. */
+export function rebindAction(action: BindableAction, key: string): 'reserved' | BindableAction | null {
+  if (key === RESERVED_KEY) return 'reserved';
+  const conflict = actionUsing(key, action);
+  if (conflict) return conflict;
+  bindings = { ...bindings, [action]: key };
+  saveBindings(bindings);
+  return null;
+}
+
+export function resetBindings() {
+  bindings = { ...DEFAULT_BINDINGS };
+  saveBindings(bindings);
+}
 
 export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud) {
   const tileAt = (ev: MouseEvent) => {
@@ -26,17 +50,19 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud)
 
   window.addEventListener('keydown', (ev) => {
     if (!isGameVisible() || ev.ctrlKey || ev.metaKey || ev.altKey || (ev.target as HTMLElement).tagName === 'INPUT') return;
-    if (ev.key === 'Escape') return session.cancel();
-    if (ev.key.toLowerCase() === 'v') return session.toggleOverwatchView();
-    if (ev.key.toLowerCase() === 'p') return session.toggleAutoRun();
-    if (ev.key.toLowerCase() === 'q') return session.rotateCover(ev.shiftKey ? -1 : 1);
-    if (ev.key >= '1' && ev.key <= '5') {
+    if (ev.key === RESERVED_KEY) return session.cancel(); // always cancel, never rebindable
+    const action = BINDABLE_ACTIONS.find((a) => bindings[a] === keyOf(ev));
+    if (!action) return;
+    ev.preventDefault();
+    if (action === 'toggleOverwatchView') return session.toggleOverwatchView();
+    if (action === 'toggleAutoRun') return session.toggleAutoRun();
+    if (action === 'rotateCoverCW') return session.rotateCover(ev.shiftKey ? -1 : 1);
+    if (action.startsWith('selectUnit')) {
       const mine = session.state.units.filter((u) => u.team === 'player');
-      const u = mine[Number(ev.key) - 1];
+      const u = mine[Number(action.slice('selectUnit'.length)) - 1];
       if (u) session.toggleSelect(u.id);
       return;
     }
-    const b = KEYS[ev.key] ?? KEYS[ev.key.toLowerCase()];
-    if (b) { ev.preventDefault(); session.press(b); }
+    session.press(action as ButtonId);
   });
 }

@@ -4,10 +4,11 @@ import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
 import { draw, TILE } from './render/renderer';
 import { Builder } from './ui/builder';
-import { initHome, showScreen } from './ui/home';
+import { initHome, showScreen, type Screen } from './ui/home';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
+import { initSettings } from './ui/settings';
 import { Session } from './ui/session';
 
 const el = (id: string) => document.getElementById(id)!;
@@ -69,6 +70,13 @@ refreshHome = initHome(MISSIONS, {
 const toMenu = () => { refreshHome(); showScreen('home'); };
 el('menu').addEventListener('click', toMenu);
 el('banner-menu').addEventListener('click', toMenu);
+
+// Settings can be opened from the home screen or mid-mission; remember which to return to.
+let settingsReturnTo: Screen = 'home';
+initSettings({ onBack: () => showScreen(settingsReturnTo) });
+el('home-settings').addEventListener('click', () => { settingsReturnTo = 'home'; showScreen('settings'); });
+el('game-settings').addEventListener('click', () => { settingsReturnTo = 'game'; showScreen('settings'); });
+
 showScreen('home');
 
 if (DEBUG) (window as unknown as { session: Session }).session = session; // handy in the devtools console

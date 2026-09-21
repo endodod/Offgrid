@@ -146,25 +146,20 @@ Profile resolves in three tiers, each overriding the last: `Spawn`'s optional 4t
 
 ## 0e. Hotkey settings
 
+**Status: done.**
+
 **Goal:** the player can see and rebind every keyboard shortcut instead of living with a fixed layout.
 
-**Where we are:** `ui/input.ts` hard-codes a single `KEYS` map (`m`/`a`/`r`/`g`/`o`/`f`/`i`/`e`/`Enter` to buttons) plus a handful of inline checks (`Escape` to cancel, `v` to toggle overwatch view, `q`/`shift+q` to rotate cover, `1`-`5` to select a unit). There is no settings/config concept anywhere in the UI layer, no persistence, and no in-game list of what any key does.
+**Where we are:** `ui/keybindings.ts` (new) defines `BindableAction` (every `ButtonId` plus `toggleOverwatchView`, `toggleAutoRun`, `rotateCoverCW`, and `selectUnit1`-`selectUnit5`), `DEFAULT_BINDINGS` (reproduces the old hard-coded `KEYS` map and inline checks exactly), and pure `loadBindings`/`saveBindings` (`localStorage`, gracefully falling back to defaults if storage is corrupt or unavailable - never throws). `ui/input.ts` now owns the live `KeyBindings` instance and exposes `getBindings`/`keyFor`/`actionUsing`/`rebindAction`/`resetBindings`; `bindInput`'s keydown handler looks the pressed key up in the live bindings instead of the old hard-coded map, so every shortcut is rebindable, not just the ones already routed through `KEYS`. A new settings screen (`ui/settings.ts`, reachable from a "Settings" button on the home screen and in the game topbar, remembers which to return to) lists every binding with a click-then-press-a-key rebind control, inline conflict/reserved-key messages, and a reset-to-defaults button. `ui/hud.ts`'s action bar and button tooltips now read the live binding (`keyFor`/`displayKey`) instead of a hard-coded key label, so they stay correct automatically after a rebind - the 0a tie-in the design sketch called for.
 
-**Design sketch**
-- A `KeyBindings` structure (new, e.g. `ui/keybindings.ts`) mapping each bindable action (`ButtonId` plus the extra actions above: cancel, toggle overwatch view, rotate cover CW/CCW, select unit 1-5) to a key, with the current `KEYS` map becoming the shipped default rather than the only option.
-- A settings screen listing every binding with a "click to rebind" control (press a key to capture it), conflict detection (warn or block if a key is already bound to something else), and a reset-to-default action.
-- Persist bindings in `localStorage` (this is a single-player, browser-side concern today; if a save-file system arrives with the campaign layer (#5) it's a natural place to store this too, but it shouldn't have to wait for that).
-- `bindInput` reads from the active `KeyBindings` instead of the hard-coded map and inline `ev.key` checks, so every one of today's shortcuts becomes rebindable, not just the ones already routed through `KEYS`.
-- Ties into the 0a hover/tooltip work: once actions show hover tooltips, the tooltip is the natural place to also show the currently bound key (and stays correct automatically after a rebind).
+**Resolved**
+- Keyboard only for v1, not mouse-bound actions (right-click-to-cancel stays fixed) - the settings screen and capture flow are keyboard-specific; rebinding a mouse button would need a different capture UI, not just a different key string.
+- One set of rebindable defaults, no named presets (e.g. left-handed) - nothing stops a player from just rebinding everything themselves, and a curated preset can be added later as a second `KeyBindings` constant without touching the rebinding mechanism itself.
+- `Escape` (cancel) is reserved and hard-coded, never in `BindableAction`/`DEFAULT_BINDINGS` at all - both `bindInput` and the settings screen's rebind-capture treat it specially (always cancels; during a capture, aborts the rebind instead of being assignable), so a player can never lock themselves out of canceling.
+- One deliberate behavioural change from the old fixed layout: `Enter` no longer also triggers End Turn alongside `E`. The old `KEYS` map bound two raw keys to one action; the new model is one key per `BindableAction`. Keeping a hidden second hard-coded key for exactly one action would be inconsistent with "every shortcut is rebindable, and the settings screen shows the whole truth" - a player who wants `Enter` back can just rebind End Turn to it.
+- Rotating cover the other way (`Shift+Q` today) is not an independently bindable action - it's always Shift + whatever `rotateCoverCW` is bound to, avoiding the complexity of encoding modifier combinations as distinct rebindable key strings for a single, minor, paired action.
 
-**Touches:** `ui/input.ts` (read bindings instead of the hard-coded map and inline checks), `ui/keybindings.ts` (new: default bindings, load/save), a new settings screen/UI, `ui/hud.ts`/action tooltips (show the bound key once 0a lands).
-
-**Open questions**
-- Does this cover mouse-bound actions too (e.g. rebinding right-click-to-cancel), or keyboard only for the first version?
-- Should there be more than one named profile (e.g. presets for left-handed play), or just one set of rebindable defaults?
-- Any reserved keys that should never be rebindable (`Escape`, for instance) to avoid a player locking themselves out of canceling an action?
-
-**Tests:** default bindings match today's behaviour exactly (regression safety); rebinding a key changes what `bindInput` dispatches for that key and stops dispatching on the old one; conflicting bindings are caught; bindings persist across a reload; reset-to-default restores the shipped `KEYS` map.
+**Tests:** `ui/keybindings.test.ts` - defaults cover every action with distinct, non-reserved keys; `loadBindings` returns defaults with nothing saved, round-trips after `saveBindings`, falls back cleanly on corrupt JSON or a missing `localStorage`, and fills in any action missing from an old save from defaults; `keyOf`/`displayKey` normalization. `ui/input.test.ts` - rebinding succeeds and is reflected by `keyFor`/`getBindings`; the reserved key and an already-used key are both refused (the latter naming the conflicting action) while the binding stays unchanged; rebinding an action to the key it already has is a no-op, not a self-conflict; freeing a key by moving it lets another action take it; `resetBindings` restores every default. The settings screen itself (rebind capture, conflict/reserved messaging, reset, and the action bar picking up a rebind live) was verified in a driven headless browser.
 
 ---
 

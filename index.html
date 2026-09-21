@@ -8,11 +8,28 @@
   <body>
     <section id="home">
       <div class="home-inner">
-        <h1>OFFGRID</h1>
+        <div class="home-header">
+          <h1>OFFGRID</h1>
+          <button id="home-settings">Settings</button>
+        </div>
         <p class="dim">Turn-based squad tactics. Fog of war, cover, overwatch.</p>
         <h2>Select mission</h2>
         <div id="missions"></div>
         <p class="dim help">Combat log, hit chances and cover are shown in-game. Numbers live in <code>src/data</code>.</p>
+      </div>
+    </section>
+
+    <section id="settings" hidden>
+      <div class="home-inner">
+        <h1>SETTINGS</h1>
+        <h2>Keybindings</h2>
+        <p class="dim">Click a binding, then press the key you want. Escape always cancels and can't be rebound.</p>
+        <div id="kb-list"></div>
+        <p id="kb-msg" class="dim"></p>
+        <div class="btns">
+          <button id="kb-reset">Reset to defaults</button>
+          <button id="kb-back">Back</button>
+        </div>
       </div>
     </section>
 
@@ -54,6 +71,7 @@
           <button id="ow-toggle" title="Show the range of active friendly and enemy overwatch (V)">Overwatch view<kbd>V</kbd></button>
           <button id="auto-run-toggle" title="Let the squad play its own phase automatically, and yours (P)">Auto-run<kbd>P</kbd></button>
           <button id="to-builder" hidden>Back to builder</button>
+          <button id="game-settings">Settings</button>
           <button id="menu">Main menu</button>
         </div>
         <div id="objective"></div>
