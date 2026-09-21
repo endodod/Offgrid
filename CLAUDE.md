@@ -18,3 +18,14 @@ Once a session's leftover work is finished and committed, fold anything still re
 (each feature there already has its own "Status: done" / "Resolved" / "Tests" structure - use it) and either
 delete `SESSION_HANDOFF.md` or trim it back to just the next pending item, so it never grows into a second,
 stale roadmap.
+
+## Compact proactively, don't wait for the limit
+
+A long, cluttered context degrades code quality (re-reading stale reasoning, losing track of what's already
+verified, repeating work). Don't wait until a hard context limit to deal with this. When the conversation has
+grown large - many files read/edited, several features' worth of back-and-forth, long tool output piled up -
+finish the current feature to a clean, committed, fully-tested checkpoint (see "Session handoff" above: this
+is exactly the kind of natural boundary to compact at), then suggest running `/compact` (or run it if invoked
+autonomously and able to) before starting the next one, rather than pushing further on an already-heavy
+context. A freshly compacted context with a good `SESSION_HANDOFF.md` behind it produces better work than a
+sprawling one, even if nothing is technically broken yet.

@@ -22,10 +22,13 @@ Status: none of this is started. This file is for planning; the current rules ar
 | 6 | Base building | medium-large | 5 (base needs a campaign layer to sit in) |
 | 7 | Unit equipment screen (armor + 2 slots, loot system) | medium-large | 2 and 4 (chests and enemy drops need interactables and pickups), 6 for buying/crafting |
 | 8 | Unit leveling & perks (per-class paths, growing perk pool & slots) | medium-large | pairs with 7 (perks and equipment both modify a unit's effective stats) |
+| 9 | Visual rehaul (real art for units, items, tiles, base building, etc.) | large | 2-8 ideally done first, so meta-game screens (5-8) get first-pass art instead of a second pass |
 
 0a-0f go first: they are core game-feel, not content, and every feature after them (new hazards, objectives, pickups, mission generation) needs the clearer UI, the revive mechanic, a more capable AI, configurable controls and a way to teach all of it already in place instead of retrofitted later. 0d builds directly on 0c's AI rework, and 0f is easiest last among these since it can then cover 0b-0e as well as the base rules, so do them in roughly that order even though most of them can start immediately. Weather can slot in any time after that. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
 
 5-8 are the meta-game layer: base -> equip/level the squad -> pick a mission from the campaign map -> play it -> return to base. Unlike 1-4 (each buildable and testable against the single Training Grounds mission), these need at least a minimal second mission and a persistent save file to test end-to-end, so they naturally come after.
+
+9 goes last on purpose: it's presentation over everything else on this list, and drawing something properly once (after its final shape is known) beats re-skinning it repeatedly as 2-8 change what needs to be on screen.
 
 ## Ground rules for every feature
 
@@ -435,6 +438,32 @@ The four story missions that open the campaign, in order. They reuse Training Gr
 - Does a unit lost mid-campaign lose its levels and perk pool permanently, sharpening the permadeath stakes, or is progress banked some other way?
 
 **Tests:** XP accrues correctly from each event type (hit, kill, objective, heal) and from the post-mission summary; level-up fires at the correct per-class thresholds; a significant level adds exactly 2 perks to that unit's pool; a slot-unlock milestone increases equippable count and never exceeds the cap of 3; equipping is limited to unlocked perks and the current slot count; perk effects apply correctly to their relevant calculation; levels, perk pool and equipped perks persist in the campaign save; sim reflects perk-driven balance shifts.
+
+---
+
+## 9. Visual rehaul
+
+**Goal:** replace the placeholder presentation - procedural canvas shapes for everything - with a real, cohesive visual style across the whole game: units, items/equipment, map tiles, doors and pickups, and the meta-game screens (base building, equipment, campaign map) that 5-8 introduce.
+
+**Where we are:** `render/renderer.ts` draws everything with `ctx.fillRect`/simple canvas primitives - no image assets, no sprite sheets, no animation beyond floating damage numbers and a pulsing tutorial highlight (0f). This was a deliberate placeholder from the start (nothing in `ASSUMPTIONS.md` claims otherwise) that let every mechanical feature ship without being blocked on art. By the time this feature is reached, a lot will exist that has never had real art at all: doors/switches (2), pickups/ammo crates (4), a campaign map (5), base-building facility screens (6), equipment/armor pieces and loot (7), and level-up/perk UI (8) - today all would-be flat-colored rectangles, not sprites being "upgraded" so much as drawn properly for the first time.
+
+**Design sketch**
+- Settle a visual style and palette *first*, as a small reference/style guide (mood, palette, tile-size convention, silhouette rules) - matching the "Offgrid"/Ashport story's gritty survival-tactics tone - so every asset made afterward (unit sprites, base building, campaign map icons) is checked against one standard instead of each feature inventing its own look.
+- An asset pipeline: sprite sheets/images for units (per class, and per equipped-gear variant once 7 exists), terrain tiles, cover, interactables, pickups, and UI icons (gadgets, perks, action buttons), loaded once at startup and drawn via `ctx.drawImage` in place of procedural shapes.
+- Keep the current procedural renderer available rather than deleting it - it has zero asset-loading dependency, is fast to iterate on, and the debug map builder benefits from a mode that never depends on art existing yet.
+- Motion sells presentation more than static sprites do: at minimum, smooth unit movement between tiles (currently instant), a basic attack/hit flinch, and door open/close.
+- Decide whether the rehaul extends to the HTML/CSS HUD chrome (action bar, panels, screens) or stays canvas-only, with the UI kept in its current minimal monospace-panel style - 0a's own design sketch already deferred a "full visual redesign" of HUD layout for the same reason (scope creep away from mechanics), so the same tension applies here in reverse: this is the feature where that deferred work would actually happen, if it happens at all.
+- Base building (6), equipment (7) and the campaign map (5) need entirely new screens with no prior art to rehaul - for those, this feature is a first pass, not a second one, so sequencing this after 5-8 (rather than after each one individually) avoids drawing anything twice.
+
+**Touches:** `render/renderer.ts` (asset loading + `drawImage` calls replacing procedural shapes, unit/tile animation), a new asset pipeline/build step (image files or sprite atlases, a loading screen/state while they load), `ui/builder.ts` (the map builder previews through the same renderer), `ui/style.css` (only if HUD chrome is in scope), and first-pass art for whatever `ui/` screens 5-8 introduced.
+
+**Open questions**
+- Static illustrated sprites (hand-drawn or generated 2D art) versus a more stylized geometric/vector upgrade (nicer shapes, gradients, lighting) that keeps today's "no external asset" simplicity - very different cost, effort and tooling tradeoffs.
+- Does this wait for all of 2-8 to land (so nothing needs drawing twice), or proceed incrementally as each feature ships its own first-pass art? The design sketch above assumes the former for the meta-game screens specifically, but units/tiles/doors could reasonably get real art sooner.
+- Sourcing/licensing for any external art assets, if that route is chosen, versus commissioning or generating original art consistent with the game's own IP.
+- Performance: sprite-sheet loading and many `drawImage` calls at this map/unit scale should be trivial, but worth a sanity check once real art exists (many units, doors, pickups on screen at once, plus the campaign map's own scale).
+
+**Tests:** this is a presentation change; the renderer's non-visual outputs (`View` computation, hover/highlight targeting, hit-chance math, and everything else `core`/`ui` already cover) shouldn't need new test coverage just because the pixels look different. Visual QA is manual/screenshot-based, the same driven-headless-browser workflow already used throughout 0a-0f, rather than automated pixel-diffing, at least for a first pass.
 
 ---
 
