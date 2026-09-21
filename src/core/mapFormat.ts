@@ -1,5 +1,6 @@
 import type { MapDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
+import { AI_PROFILES, type AiProfileId } from '../data/aiProfiles';
 
 /** Tile characters a map may contain (see MapDef.rows). */
 export const TILE_CHARS = '.#bl123hO';
@@ -40,14 +41,15 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
     const list = spawns?.[team];
     if (!Array.isArray(list) || list.length === 0) throw new Error(`Need at least one ${team} unit.`);
     return list.map((s) => {
-      const [cls, x, y] = s as [unknown, unknown, unknown];
+      const [cls, x, y, profile] = s as [unknown, unknown, unknown, unknown];
       if (typeof cls !== 'string' || !(cls in CLASSES)) throw new Error(`Unknown unit class "${String(cls)}".`);
       if (!Number.isInteger(x) || !Number.isInteger(y)) throw new Error(`Bad spawn position for ${cls}.`);
+      if (profile !== undefined && (typeof profile !== 'string' || !(profile in AI_PROFILES))) throw new Error(`Unknown AI profile "${String(profile)}".`);
       const [px, py] = [x as number, y as number];
       if (!WALKABLE.includes((rows[py] as string | undefined)?.[px] ?? '#')) throw new Error(`${team} ${cls} at (${px},${py}) is not on an open tile.`);
       if (taken.has(`${px},${py}`)) throw new Error(`Two units share tile (${px},${py}).`);
       taken.add(`${px},${py}`);
-      return [cls as ClassId, px, py];
+      return profile !== undefined ? [cls as ClassId, px, py, profile as AiProfileId] : [cls as ClassId, px, py];
     });
   };
   return withEdits(base, rows as string[], { player: parseTeam('player'), enemy: parseTeam('enemy') });

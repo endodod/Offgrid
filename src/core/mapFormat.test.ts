@@ -45,6 +45,17 @@ describe('map format', () => {
     expect(parseMap(m, base).spawns.player).toHaveLength(base.spawns.player.length + 1);
   });
 
+  it('validates and round-trips an optional per-unit AI profile override', () => {
+    const bad = clone();
+    bad.spawns.enemy[0] = ['soldier', 8, 1, 'not-a-profile'];
+    expect(() => parseMap(bad, base)).toThrow('Unknown AI profile');
+    const good = clone();
+    good.spawns.enemy[0] = ['soldier', 8, 1, 'camper'];
+    expect(parseMap(good, base).spawns.enemy[0]).toEqual(['soldier', 8, 1, 'camper']);
+    const back = parseMap(JSON.parse(serializeMap(withEdits(base, base.rows, good.spawns))), base);
+    expect(back.spawns.enemy[0]).toEqual(['soldier', 8, 1, 'camper']);
+  });
+
   it('drops search waypoints that end up inside an obstacle', () => {
     const rows = [...base.rows];
     const [wx, wy] = base.searchPoints.enemy[0];

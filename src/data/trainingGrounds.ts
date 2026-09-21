@@ -3,8 +3,10 @@ import type { AiProfileId } from './aiProfiles';
 import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
 
-/** [class, x, y]. A team can field several units of one class. */
-export type Spawn = [ClassId, number, number];
+/** [class, x, y, aiProfile?]. A team can field several units of one class. aiProfile overrides the team/mission
+ *  default (MapDef.enemyProfile / GameOptions) for this one unit - most useful to mix habitats in one squad
+ *  (e.g. one camper covering a doorway while the rest patrol). */
+export type Spawn = [ClassId, number, number, AiProfileId?];
 
 export interface MapDef {
   name: string;

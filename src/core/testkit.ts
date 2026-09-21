@@ -1,14 +1,16 @@
 import type { MapDef, Spawn } from '../data/trainingGrounds';
+import type { AiProfileId } from '../data/aiProfiles';
 import type { ClassId } from '../data/units';
 import { perform, type Action } from './actions';
 import { createGame } from './state';
 import type { GameOptions, GameState, Team, Unit } from './types';
 import { refreshVision } from './vision';
 
-type Spawns = Partial<Record<Team, Partial<Record<ClassId, [number, number]>>>>;
+// the 3rd tuple element is an optional per-unit AI profile override, same as Spawn's own 4th element
+type Spawns = Partial<Record<Team, Partial<Record<ClassId, [number, number, AiProfileId?]>>>>;
 
 const toSpawns = (units: Spawns[Team] = {}): Spawn[] =>
-  Object.entries(units).map(([cls, at]) => [cls as ClassId, at[0], at[1]]);
+  Object.entries(units).map(([cls, at]) => [cls as ClassId, at[0], at[1], at[2]]);
 
 /** Blank floor map with (x, y, char) edits, e.g. blank(12, 5, [[4, 2, 'l']]). */
 export function blank(w: number, h: number, edits: [number, number, string][] = []): string[] {

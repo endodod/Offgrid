@@ -16,6 +16,18 @@ describe('AI profiles (0c)', () => {
     expect(s.aiProfiles).toEqual({ player: 'camper', enemy: 'ambush' });
   });
 
+  it('a per-unit spawn override (Spawn\'s 4th element) beats the team/mission default', () => {
+    // team default is 'ambush' (never moves, not even toward a seen objective); this one unit is overridden to
+    // 'camper', which does advance toward a seen objective - so the override is provably in effect, not just stored.
+    const s = makeGame(blank(30, 5), { player: { soldier: [1, 2] }, enemy: { tank: [28, 2, 'camper'] } }, { enemyProfile: 'ambush' });
+    s.objective = { x: 10, y: 2 };
+    s.memory.enemy.objectiveSeen = true;
+    const t = unit(s, 'enemy', 'tank');
+    expect(t.aiProfile).toBe('camper');
+    runEnemyTurn(s);
+    expect(t.x).toBeLessThan(28);
+  });
+
   describe('habitat: idle behaviour with no visible enemy', () => {
     it('patrol (default) uses search waypoints', () => {
       const s = makeGame(blank(30, 5), { player: { soldier: [1, 2] }, enemy: { tank: [28, 2] } });

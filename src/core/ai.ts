@@ -1,5 +1,5 @@
 import { CLASSES } from '../data/units';
-import { AI_PROFILES, type Habitat } from '../data/aiProfiles';
+import { AI_PROFILES, type AiProfileDef } from '../data/aiProfiles';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
 import { scaledMove } from './environment';
@@ -54,7 +54,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
     }
   }
 
-  const profile = AI_PROFILES[s.aiProfiles[u.team]];
+  const profile = AI_PROFILES[u.aiProfile ?? s.aiProfiles[u.team]];
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
   const move = scaledMove(s, CLASSES[u.cls].move);
 
@@ -98,7 +98,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
     }
   }
 
-  const goal = holding || !reacts ? null : pickGoal(s, u, profile.habitat);
+  const goal = holding || !reacts ? null : pickGoal(s, u, profile);
   if (u.actions >= 2 || u.ammo === 0) {
     const mv = goal && advance(s, u, goal);
     if (mv) return mv;
@@ -157,11 +157,14 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
  * - patrol: chase the nearest ghost, else the objective if it has been seen, else a search waypoint (default).
  * - camper: holds a position once it has one - defends the objective if it has been seen, otherwise stays put.
  * - ambush: stays completely still and hidden until it has a visible target; then it fights like a patrol.
+ * prioritizeObjective (patrol only) swaps the first two: heading for a seen objective beats chasing a ghost -
+ * finishing the mission over finishing a fight it doesn't have to (the 'friendly' auto-run profile).
  */
-function pickGoal(s: GameState, u: Unit, habitat: Habitat): Pos | null {
-  if (habitat === 'ambush') return null;
+function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
+  if (profile.habitat === 'ambush') return null;
   const mem = s.memory[u.team];
-  if (habitat === 'camper') return mem.objectiveSeen && s.objective ? s.objective : null;
+  if (profile.habitat === 'camper') return mem.objectiveSeen && s.objective ? s.objective : null;
+  if (profile.prioritizeObjective && mem.objectiveSeen && s.objective) return s.objective;
   const ghosts = Object.values(mem.lastSeen);
   if (ghosts.length) return ghosts.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
   if (mem.objectiveSeen && s.objective) return s.objective;

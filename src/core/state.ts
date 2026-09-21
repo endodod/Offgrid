@@ -26,14 +26,14 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
 
   const units: Unit[] = [];
   for (const team of TEAMS) {
-    for (const [cls, x, y] of map.spawns[team]) {
+    for (const [cls, x, y, aiProfile] of map.spawns[team]) {
       const def = CLASSES[cls];
       units.push({
         id: units.length, team, cls, x, y,
         hp: def.hp, ammo: def.weapon.magazine, medkits: RULES.medkitsPerUnit,
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: team === 'player' ? { id: def.gadget, uses: RULES.gadgetUsesPerMission, cooldown: 0 } : null,
-        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0,
+        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, aiProfile,
       });
     }
   }

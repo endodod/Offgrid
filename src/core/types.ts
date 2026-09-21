@@ -29,6 +29,7 @@ export interface Unit {
   exposed: boolean; // acted from a bush: visible there until its own team's next phase
   moveBonus: number; // extra tiles for this unit's next move (adrenaline); used up by that move, gone at end of turn
   gadget: { id: GadgetId; uses: number; cooldown: number } | null;
+  aiProfile?: AiProfileId; // overrides GameState.aiProfiles[team] for this one unit; set from its spawn (see Spawn)
   // stats for the simulator
   dmgDealt: number;
   dmgTaken: number;

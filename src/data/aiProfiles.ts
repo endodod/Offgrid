@@ -17,11 +17,14 @@ export interface AiProfileDef {
   /** 0..1 fraction of max HP, or undefined to never retreat (today's behaviour). Below this, and if a visible
    *  enemy is in range, it falls back toward the tile furthest from the nearest one instead of fighting on. */
   retreatBelowHp?: number;
+  /** When idle (patrol/camper only - ambush never moves regardless), chase a seen objective ahead of a spotted
+   *  ghost instead of the other way around - finishing the mission over finishing a fight it doesn't have to. */
+  prioritizeObjective?: boolean;
   blurb: string;
 }
 
-export type AiProfileId = 'standard' | 'easy' | 'hard' | 'camper' | 'ambush';
-export const PROFILE_ORDER: AiProfileId[] = ['standard', 'easy', 'hard', 'camper', 'ambush'];
+export type AiProfileId = 'standard' | 'easy' | 'hard' | 'camper' | 'ambush' | 'friendly';
+export const PROFILE_ORDER: AiProfileId[] = ['standard', 'easy', 'hard', 'camper', 'ambush', 'friendly'];
 
 export const AI_PROFILES: Record<AiProfileId, AiProfileDef> = {
   standard: {
@@ -43,5 +46,9 @@ export const AI_PROFILES: Record<AiProfileId, AiProfileDef> = {
   ambush: {
     name: 'Ambush', habitat: 'ambush', reactionChance: 1,
     blurb: 'Stays completely still and hidden until it gets a line on an enemy, then fights normally.',
+  },
+  friendly: {
+    name: 'Friendly (auto-run)', habitat: 'patrol', reactionChance: 1, retreatBelowHp: 0.5, prioritizeObjective: true,
+    blurb: 'Plays a squad on its own: pushes for the objective over chasing a fight, and falls back sooner than a losing one is worth.',
   },
 };

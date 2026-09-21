@@ -3,6 +3,7 @@ import { distanceMap, idx } from '../core/grid';
 import { createGame } from '../core/state';
 import { refreshVision } from '../core/vision';
 import type { Pos } from '../core/types';
+import { AI_PROFILES, PROFILE_ORDER, type AiProfileId } from '../data/aiProfiles';
 import type { Mission } from '../data/missions';
 import type { MapDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
@@ -37,6 +38,7 @@ export class Builder {
   private spawns: Record<Team, Spawn[]> = { player: [], enemy: [] };
   private tool: Tool = 'wall';
   private cls: ClassId = 'soldier';
+  private profile: AiProfileId = 'standard'; // AI habitat/difficulty for the next enemy unit painted
   private rot = 0;
   private hover: Pos | null = null;
   private stroke: Tool | null = null; // tool of the drag in progress
@@ -53,6 +55,14 @@ export class Builder {
     select.innerHTML = CLASS_ORDER.map((c) => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
     select.value = this.cls;
     select.addEventListener('change', () => { this.cls = select.value as ClassId; });
+    const profileSelect = $<HTMLSelectElement>('b-profile');
+    profileSelect.innerHTML = PROFILE_ORDER.map((p) => `<option value="${p}">${AI_PROFILES[p].name}</option>`).join('');
+    profileSelect.value = this.profile;
+    profileSelect.title = AI_PROFILES[this.profile].blurb;
+    profileSelect.addEventListener('change', () => {
+      this.profile = profileSelect.value as AiProfileId;
+      profileSelect.title = AI_PROFILES[this.profile].blurb;
+    });
     $('b-rot').addEventListener('click', () => this.rotate(1));
 
     const tileAt = (ev: MouseEvent): Pos => {
@@ -141,7 +151,9 @@ export class Builder {
       if (!WALKABLE.includes(before)) { this.note('Units need an open floor or bush tile.'); return; }
       const dup = sp && sp.team === tool && this.spawns[tool][sp.i][0] === this.cls;
       dropSpawn();
-      if (!dup) this.spawns[tool].push([this.cls, x, y]); // painting the same unit again removes it
+      // painting the same unit again removes it; 'standard' is left implicit (the mission/team default) rather
+      // than baked into every spawn, so a mission's own default can still change later without editing every unit
+      if (!dup) this.spawns[tool].push(tool === 'enemy' && this.profile !== 'standard' ? [this.cls, x, y, this.profile] : [this.cls, x, y]);
     } else {
       const ch = tool === 'low' ? (this.rot === 0 ? 'l' : String(this.rot)) : TERRAIN_CHAR[tool]!;
       const keepsUnit = WALKABLE.includes(ch); // floor and bush can hold a unit; walls, cover and the terminal can't
@@ -226,6 +238,7 @@ export class Builder {
   private refresh() {
     $('b-tools').innerHTML = TOOLS.map((t) => `<button data-tool="${t.id}" class="${t.id === this.tool ? 'active' : ''}">${t.label}</button>`).join('');
     $('b-rotlabel').textContent = `${this.rot * 90}°`;
+    $('b-profile-row').hidden = this.tool !== 'enemy';
     const errors = this.errors();
     const warnings = this.warnings();
     const items = [...errors.map((e) => `<li class="err">${e}</li>`), ...warnings.map((w) => `<li class="warn">${w}</li>`)];
