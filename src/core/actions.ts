@@ -4,7 +4,7 @@ import { RULES } from '../data/rules';
 import { applyDamage, coverAt, fireWeapon, targetBlock } from './combat';
 import { scaledMove } from './environment';
 import { cheb, dist, findPath, idx, inBounds, unitAt } from './grid';
-import { beginCapture, checkCapture, declareWinner, emit, endTurn } from './state';
+import { beginCapture, checkCapture, checkWin, emit, endTurn } from './state';
 import { refreshVision } from './vision';
 import type { GameEvent, GameState, Pos, Unit } from './types';
 
@@ -15,6 +15,7 @@ export type Action =
   | { type: 'gadget'; unit: number; target?: Pos; rotation?: number } // rotation: 0..3 quarter turns, cover gadget only
   | { type: 'overwatch'; unit: number }
   | { type: 'aid'; unit: number; target: number }
+  | { type: 'revive'; unit: number; target: number }
   | { type: 'interact'; unit: number }
   | { type: 'endTurn' };
 
@@ -44,6 +45,7 @@ export function gadgetTargetBlock(s: GameState, u: Unit, target?: Pos): string |
   if (def.target === 'ally') {
     const t = unitAt(s, target.x, target.y);
     if (!t || t.team !== u.team) return 'Pick a friendly unit';
+    if (t.downed) return 'Downed - use Revive instead';
     if (t.hp >= CLASSES[t.cls].hp) return 'Already at full HP';
   }
   if (u.gadget!.id === 'cover') {
@@ -61,8 +63,19 @@ export function aidBlock(u: Unit, target?: Unit): string | null {
   if (u.medkits <= 0) return 'No medkits';
   if (!target) return null;
   if (!target.alive || target.team !== u.team) return 'Not an ally';
+  if (target.downed) return 'Downed - use Revive instead';
   if (cheb(u, target) > 1) return 'Target not adjacent';
   if (target.hp >= CLASSES[target.cls].hp) return 'Already at full HP';
+  return null;
+}
+
+/** Why `u` cannot revive `target` right now (ignoring the target if omitted), or null. */
+export function reviveBlock(u: Unit, target?: Unit): string | null {
+  if (hasActions(u)) return hasActions(u);
+  if (u.medkits <= 0) return 'No medkits';
+  if (!target) return null;
+  if (!target.alive || !target.downed || target.team !== u.team) return 'Not a downed ally';
+  if (cheb(u, target) > 1) return 'Target not adjacent';
   return null;
 }
 
@@ -83,6 +96,7 @@ export function validate(s: GameState, a: Action): string | null {
   if (a.type === 'endTurn') return null;
   const u = unitById(s, a.unit);
   if (!u || !u.alive) return 'No such unit';
+  if (u.downed) return 'Downed - cannot act';
   if (u.team !== s.phase) return "Not this team's phase";
   switch (a.type) {
     case 'move':
@@ -104,6 +118,8 @@ export function validate(s: GameState, a: Action): string | null {
       return u.overwatch ? 'Already on overwatch' : null;
     case 'aid':
       return aidBlock(u, unitById(s, a.target));
+    case 'revive':
+      return reviveBlock(u, unitById(s, a.target));
     case 'interact':
       return interactBlock(s, u);
     case 'gadget':
@@ -148,6 +164,17 @@ export function perform(s: GameState, a: Action): Result {
       emit(s, { t: 'heal', unit: u.id, target: t.id, amount, at: { x: t.x, y: t.y } }, [u, t]);
       break;
     }
+    case 'revive': {
+      const t = unitById(s, a.target)!;
+      u.actions--;
+      u.medkits--;
+      u.revives++;
+      t.downed = false;
+      t.bleedOut = 0;
+      t.hp = Math.min(CLASSES[t.cls].hp, RULES.reviveHp);
+      emit(s, { t: 'revive', unit: u.id, target: t.id, amount: t.hp, at: { x: t.x, y: t.y } }, [u, t]);
+      break;
+    }
     case 'interact':
       u.actions--;
       emit(s, { t: 'objective', unit: u.id }, [u]);
@@ -179,13 +206,13 @@ function doMove(s: GameState, u: Unit, to: Pos) {
   u.actions--;
   const ev = emit(s, { t: 'move', unit: u.id, from: { x: u.x, y: u.y }, to }, false);
   const from = { x: u.x, y: u.y };
-  // Walk step by step so overwatchers can react mid-path; a dead mover stops.
+  // Walk step by step so overwatchers can react mid-path; a dead or downed mover stops.
   for (const p of path) {
     u.x = p.x;
     u.y = p.y;
     refreshVision(s);
     triggerOverwatch(s, u);
-    if (!u.alive) break;
+    if (!u.alive || u.downed) break;
   }
   ev.seen = (u.team === 'player' || s.seenUnits.player.has(u.id) || s.visible.player[idx(s, from.x, from.y)] === 1);
 }
@@ -193,8 +220,8 @@ function doMove(s: GameState, u: Unit, to: Pos) {
 /** Overwatch: each waiting enemy of `actor` fires once if the actor is in range, in LOS and visible to it. */
 function triggerOverwatch(s: GameState, actor: Unit) {
   for (const o of s.units) {
-    if (!actor.alive) return;
-    if (!o.alive || !o.overwatch || o.team === actor.team || o.ammo <= 0) continue;
+    if (!actor.alive || actor.downed) return;
+    if (!o.alive || o.downed || !o.overwatch || o.team === actor.team || o.ammo <= 0) continue;
     if (targetBlock(s, o, actor)) continue;
     o.overwatch = false;
     o.ammo--;
@@ -247,12 +274,4 @@ function blast(s: GameState, thrower: Unit, center: Pos, radius: number, damage:
       applyDamage(s, victim, damage, thrower);
     }
   }
-}
-
-function checkWin(s: GameState) {
-  if (s.winner) return;
-  const alive = (team: string) => s.units.some((u) => u.alive && u.team === team);
-  if (!alive('player') && !alive('enemy')) declareWinner(s, 'draw');
-  else if (!alive('player')) declareWinner(s, 'enemy');
-  else if (!alive('enemy')) declareWinner(s, 'player');
 }

@@ -89,14 +89,15 @@ describe('burst shots', () => {
     expect(a.actions).toBe(1);
     expect(t.hp).toBe(8 - 4);
   });
-  it('stops shooting once the target is dead', () => {
+  it('stops shooting once the target is downed', () => {
     const s = makeGame(blank(10, 5), { player: { assault: [2, 2] }, enemy: { sniper: [4, 2] } });
     const t = unit(s, 'enemy', 'sniper');
     t.hp = 2;
     rolls(s, 0);
     const events = act(s, { type: 'attack', unit: unit(s, 'player', 'assault').id, target: t.id });
     expect(events.filter((e) => e.t === 'shot')).toHaveLength(1);
-    expect(t.alive).toBe(false);
+    expect(t.downed).toBe(true);
+    expect(t.alive).toBe(true);
   });
 });
 

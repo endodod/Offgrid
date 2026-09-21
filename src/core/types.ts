@@ -21,7 +21,9 @@ export interface Unit {
   ammo: number;
   medkits: number;
   actions: number;
-  alive: boolean;
+  alive: boolean; // false only once truly (permanently) dead - a downed unit is still alive
+  downed: boolean; // hp hit 0: can't act, still occupies its tile, dies for good when bleedOut runs out or takes another hit
+  bleedOut: number; // rounds left before a downed unit dies for good; meaningless while not downed
   overwatch: boolean;
   exposed: boolean; // acted from a bush: visible there until its own team's next phase
   moveBonus: number; // extra tiles for this unit's next move (adrenaline); used up by that move, gone at end of turn
@@ -30,6 +32,7 @@ export interface Unit {
   dmgDealt: number;
   dmgTaken: number;
   kills: number;
+  revives: number;
 }
 
 /** Last-seen marker. `hidden` becomes true once its tile has been out of sight, so a fresh look can clear it. */
@@ -52,9 +55,11 @@ export type EventBody =
   | { t: 'phase'; team: Team; turn: number }
   | { t: 'move'; unit: number; from: Pos; to: Pos }
   | { t: 'shot'; attacker: number; target: number; shot: number; shots: number; chance: number; roll: number;
-      hit: boolean; damage: number; overwatch: boolean; at: Pos; from: Pos }
+      hit: boolean; damage: number; overwatch: boolean; finishing: boolean; at: Pos; from: Pos }
   | { t: 'damage'; target: number; amount: number; source: 'grenade'; at: Pos }
+  | { t: 'downed'; unit: number; at: Pos }
   | { t: 'died'; unit: number; at: Pos }
+  | { t: 'revive'; unit: number; target: number; amount: number; at: Pos }
   | { t: 'reload'; unit: number }
   | { t: 'overwatch'; unit: number }
   | { t: 'exposed'; unit: number }
@@ -66,7 +71,10 @@ export type EventBody =
   | { t: 'end'; winner: Team | 'draw' };
 export type GameEvent = EventBody & { seen: boolean };
 
-export interface GameOptions { objectiveCapture: ObjectiveCapture; timeOfDay?: TimeOfDayId; weather?: WeatherId }
+export interface GameOptions {
+  objectiveCapture: ObjectiveCapture; timeOfDay?: TimeOfDayId; weather?: WeatherId;
+  aiRevive?: boolean; // default true: whether the AI will path to and revive its own downed allies
+}
 
 export interface GameState {
   map: MapDef;

@@ -17,12 +17,15 @@ export function describe(s: GameState, e: GameEvent): LogLine | null {
   switch (e.t) {
     case 'move': return { kind: kind(e.unit), text: `${who(e.unit)} moves (${e.from.x},${e.from.y}) -> (${e.to.x},${e.to.y})` };
     case 'shot': {
+      if (e.finishing) return { kind: kind(e.attacker), text: `${who(e.attacker)} finishes off ${who(e.target)}` };
       const burst = e.shots > 1 ? ` [${e.shot}/${e.shots}]` : '';
       const result = e.hit ? `HIT for ${e.damage}` : 'MISS';
       return { kind: kind(e.attacker), text: `${e.overwatch ? '[OVERWATCH] ' : ''}${who(e.attacker)} shoots ${who(e.target)}${burst}: ${result} (${e.chance}%)` };
     }
     case 'damage': return { kind: kind(e.target), text: `${who(e.target)} takes ${e.amount} from the blast` };
-    case 'died': return { kind: 'system', text: `${who(e.unit)} is down!` };
+    case 'downed': return { kind: 'system', text: `${who(e.unit)} goes down!` };
+    case 'died': return { kind: 'system', text: `${who(e.unit)} is dead.` };
+    case 'revive': return { kind: kind(e.unit), text: `${who(e.unit)} revives ${who(e.target)} (+${e.amount} HP)` };
     case 'reload': return { kind: kind(e.unit), text: `${who(e.unit)} reloads` };
     case 'exposed': return { kind: kind(e.unit), text: `${who(e.unit)} is exposed in the bush until next turn` };
     case 'overwatch': return { kind: kind(e.unit), text: `${who(e.unit)} goes on overwatch` };

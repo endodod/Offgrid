@@ -3,7 +3,8 @@ import { GADGETS } from '../data/gadgets';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 import type { MapDef } from '../data/trainingGrounds';
-import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, validate, type Action } from '../core/actions';
+import { RULES } from '../data/rules';
+import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, reviveBlock, validate, type Action } from '../core/actions';
 import { aiTurn } from '../core/ai';
 import { coverAgainst, coverAt, damageAgainst, hitChance, targetBlock } from '../core/combat';
 import { envMods } from '../core/environment';
@@ -14,8 +15,8 @@ import type { GameEvent, GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
 import { describe, nameOf, type LogLine } from './log';
 
-export type Mode = 'move' | 'attack' | 'gadget' | 'aid';
-export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'interact' | 'endTurn';
+export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive';
+export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'revive' | 'interact' | 'endTurn';
 export interface ButtonState { enabled: boolean; reason: string | null; label: string; active: boolean }
 
 /** UI state + input rules. Turns clicks into core actions; never implements game rules itself. */
@@ -94,7 +95,7 @@ export class Session {
 
   select(id: number) {
     const u = this.state.units[id];
-    if (!u || !u.alive || u.team !== 'player') return;
+    if (!u || !u.alive || u.downed || u.team !== 'player') return;
     this.selectedId = id;
     this.mode = 'move';
     this.onChange();
@@ -157,7 +158,9 @@ export class Session {
       if (this.try({ type: 'gadget', unit: sel.id, target: p, rotation: this.coverRot })) this.mode = 'move';
     } else if (sel && this.mode === 'aid') {
       if (at?.team === 'player' && this.try({ type: 'aid', unit: sel.id, target: at.id })) this.mode = 'move';
-    } else if (at?.team === 'player') {
+    } else if (sel && this.mode === 'revive') {
+      if (at?.team === 'player' && this.try({ type: 'revive', unit: sel.id, target: at.id })) this.mode = 'move';
+    } else if (at?.team === 'player' && !at.downed) {
       this.toggleSelect(at.id); // clicking the selected unit again deselects it
     } else if (sel && at) {
       this.try({ type: 'attack', unit: sel.id, target: at.id });
@@ -182,6 +185,7 @@ export class Session {
       case 'gadget': return gate(gadgetBlock(u), u.gadget ? GADGETS[u.gadget.id].name : 'Gadget', this.mode === 'gadget');
       case 'overwatch': return gate(validate(this.state, { type: 'overwatch', unit: u.id }), 'Overwatch');
       case 'aid': return gate(aidBlock(u), 'First aid', this.mode === 'aid');
+      case 'revive': return gate(reviveBlock(u), 'Revive', this.mode === 'revive');
       case 'interact': return gate(interactBlock(this.state, u), 'Interact');
     }
   }
@@ -209,6 +213,13 @@ export class Session {
         if (targets.length === 1) this.try({ type: 'aid', unit: u.id, target: targets[0].id }); // only one option: just do it
         else if (targets.length === 0) this.status = 'No wounded ally in reach (self or adjacent).';
         else this.mode = this.mode === 'aid' ? 'move' : 'aid';
+        break;
+      }
+      case 'revive': {
+        const targets = this.state.units.filter((t) => reviveBlock(u, t) === null);
+        if (targets.length === 1) this.try({ type: 'revive', unit: u.id, target: targets[0].id });
+        else if (targets.length === 0) this.status = 'No downed ally in reach (adjacent).';
+        else this.mode = this.mode === 'revive' ? 'move' : 'revive';
         break;
       }
     }
@@ -277,7 +288,9 @@ export class Session {
     if (e.t === 'shot') return add(e.at, e.hit ? `-${e.damage}` : 'MISS', e.hit ? '#ff7a63' : '#b8b8a8');
     if (e.t === 'damage') return add(e.at, `-${e.amount}`, '#ff7a63');
     if (e.t === 'heal') return add(e.at, `+${e.amount}`, '#8fd19a');
-    if (e.t === 'died') return add(e.at, 'DOWN', '#e6e0c8');
+    if (e.t === 'revive') return add(e.at, `+${e.amount}`, '#8fd19a');
+    if (e.t === 'downed') return add(e.at, 'DOWN', '#e6a23a');
+    if (e.t === 'died') return add(e.at, 'DEAD', '#e6e0c8');
     return false;
   }
 
@@ -295,6 +308,7 @@ export class Session {
     }
     if (this.mode === 'attack') for (const t of s.units) if (t.team === 'enemy' && validate(s, { type: 'attack', unit: u.id, target: t.id }) === null) view.ringed.add(t.id);
     if (this.mode === 'aid') for (const t of s.units) if (aidBlock(u, t) === null) view.ringed.add(t.id);
+    if (this.mode === 'revive') for (const t of s.units) if (reviveBlock(u, t) === null) view.ringed.add(t.id);
     if (this.mode === 'gadget' && u.gadget && GADGETS[u.gadget.id].range !== undefined) {
       const r = GADGETS[u.gadget.id].range!;
       for (let y = u.y - r; y <= u.y + r; y++)
@@ -351,6 +365,15 @@ export class Session {
     return null;
   }
 
+  /** Revive-mode hover: the heal-to amount, or why the hovered ally can't be revived. */
+  private reviveHoverInfo(sel: Unit, p: Pos): string[] | null {
+    const t = this.visibleUnitAt(p);
+    if (!t || t.team !== 'player') return null;
+    const blocked = reviveBlock(sel, t);
+    if (blocked) return [`Revive`, `Cannot revive: ${blocked}`];
+    return [`Revive ${nameOf(t)}: restores to ${Math.min(CLASSES[t.cls].hp, RULES.reviveHp)} HP`];
+  }
+
   /** Tooltip lines for the hovered tile (enemy: hit chance, damage, cover state relative to the selected unit). */
   hoverInfo(): string[] | null {
     const p = this.hover;
@@ -366,13 +389,25 @@ export class Session {
       const info = this.gadgetHoverInfo(sel, p);
       if (info) return info;
     }
+    if (sel && this.mode === 'revive') {
+      const info = this.reviveHoverInfo(sel, p);
+      if (info) return info;
+    }
+    const downedLine = (t: Unit) => `Downed: dies for good in ${t.bleedOut} round${t.bleedOut === 1 ? '' : 's'} if not revived`;
     if (at?.team === 'enemy') {
       const def = CLASSES[at.cls];
       const lines = [`${nameOf(at)}  HP ${at.hp}/${def.hp}  Armor ${def.armor}`];
+      if (at.downed) lines.push(downedLine(at));
       if (!sel) return [...lines, 'Select a unit to see hit chance.'];
+      if (at.exposed) lines.push('Exposed: visible in the bush until its next turn');
+      if (at.downed) {
+        lines.push('Finishing shot: no roll needed, any hit is a guaranteed kill');
+        const blocked = targetBlock(s, sel, at);
+        if (blocked) lines.push(`Cannot fire: ${blocked}`);
+        return lines;
+      }
       const cover = coverAgainst(s, at, sel);
       const w = CLASSES[sel.cls].weapon;
-      if (at.exposed) lines.push('Exposed: visible in the bush until its next turn');
       lines.push(`Cover: ${cover.state}${cover.penalty ? ` (-${cover.penalty}% to hit)` : ''}`);
       const envMod = envMods(s).accuracyMod;
       if (envMod) lines.push(`Weather/time: ${envMod > 0 ? '+' : ''}${envMod}% to hit`);
@@ -381,7 +416,12 @@ export class Session {
       if (blocked) lines.push(`Cannot fire: ${blocked}`);
       return lines;
     }
-    if (at) return [`${nameOf(at)}  HP ${at.hp}/${CLASSES[at.cls].hp}  Ammo ${at.ammo}/${CLASSES[at.cls].weapon.magazine}`, ...(at.exposed ? ['Exposed: visible in the bush until your next turn'] : [])];
+    if (at) {
+      const lines = [`${nameOf(at)}  HP ${at.hp}/${CLASSES[at.cls].hp}  Ammo ${at.ammo}/${CLASSES[at.cls].weapon.magazine}`];
+      if (at.downed) lines.push(downedLine(at));
+      if (at.exposed) lines.push('Exposed: visible in the bush until your next turn');
+      return lines;
+    }
     const ghost = Object.entries(s.memory.player.lastSeen).find(([id, g]) => g.x === p.x && g.y === p.y && s.units[Number(id)].alive);
     if (ghost) return [`Last seen: ${nameOf(s.units[Number(ghost[0])])}`];
     const i = idx(s, p.x, p.y);

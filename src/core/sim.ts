@@ -5,7 +5,7 @@ import { runAiTurn } from './ai';
 import { createGame } from './state';
 import type { GameOptions, Team } from './types';
 
-export interface UnitResult { team: Team; cls: ClassId; dmgDealt: number; dmgTaken: number; kills: number; survived: boolean }
+export interface UnitResult { team: Team; cls: ClassId; dmgDealt: number; dmgTaken: number; kills: number; revives: number; survived: boolean; downedAtEnd: boolean }
 export interface MatchResult { winner: Team | 'draw'; via: 'elimination' | 'objective' | 'timeout'; turns: number; units: UnitResult[] }
 
 /** Plays one full match with the same AI on both sides. Deterministic for a given (map, seed, options). */
@@ -21,6 +21,9 @@ export function playMatch(map: MapDef, seed: number, options: Partial<GameOption
     winner,
     via: !s.winner ? 'timeout' : winner !== 'draw' && loserAlive ? 'objective' : 'elimination',
     turns: s.turn,
-    units: s.units.map((u) => ({ team: u.team, cls: u.cls, dmgDealt: u.dmgDealt, dmgTaken: u.dmgTaken, kills: u.kills, survived: u.alive })),
+    units: s.units.map((u) => ({
+      team: u.team, cls: u.cls, dmgDealt: u.dmgDealt, dmgTaken: u.dmgTaken, kills: u.kills, revives: u.revives,
+      survived: u.alive, downedAtEnd: u.downed,
+    })),
   };
 }

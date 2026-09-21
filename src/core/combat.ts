@@ -62,29 +62,57 @@ export function targetBlock(s: GameState, attacker: Unit, target: Unit): string 
   return null;
 }
 
+/**
+ * A downed unit (hp already 0) dies for good from any further hit, regardless of amount - it has no HP left to
+ * lose. Otherwise hp reaching 0 downs the unit instead of killing it outright; see RULES.bleedOutRounds.
+ */
 export function applyDamage(s: GameState, target: Unit, amount: number, source: Unit | null) {
   const dealt = Math.min(amount, target.hp);
+  target.dmgTaken += Math.max(dealt, 0);
+  if (source && source.team !== target.team) source.dmgDealt += Math.max(dealt, 0);
+  if (target.downed) {
+    finalizeDeath(s, target, source);
+    return;
+  }
   target.hp -= dealt;
-  target.dmgTaken += dealt;
-  if (source && source.team !== target.team) source.dmgDealt += dealt;
   if (target.hp > 0) return;
+  target.downed = true;
+  target.bleedOut = RULES.bleedOutRounds;
+  target.overwatch = false;
+  emit(s, { t: 'downed', unit: target.id, at: { x: target.x, y: target.y } }, [target]);
+}
+
+function finalizeDeath(s: GameState, target: Unit, source: Unit | null) {
   target.alive = false;
+  target.downed = false;
   target.overwatch = false;
   if (source && source.team !== target.team) source.kills++;
   emit(s, { t: 'died', unit: target.id, at: { x: target.x, y: target.y } }, [target]);
 }
 
-/** Resolves one attack (all shots of the weapon). The caller pays the ammo/action cost. */
+/**
+ * Resolves one attack (all shots of the weapon). The caller pays the ammo/action cost. A downed target can't
+ * fight back or move away, so finishing it off is a guaranteed kill rather than a normal hit-chance roll.
+ */
 export function fireWeapon(s: GameState, attacker: Unit, target: Unit, overwatch: boolean) {
   const w = CLASSES[attacker.cls].weapon;
+  if (target.downed) {
+    const damage = damageAgainst(w.damage, CLASSES[target.cls].armor);
+    emit(s, {
+      t: 'shot', attacker: attacker.id, target: target.id, shot: 1, shots: 1, chance: 100, roll: 0, hit: true,
+      damage, overwatch, finishing: true, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
+    }, [attacker, target]);
+    applyDamage(s, target, damage, attacker);
+    return;
+  }
   const chance = hitChance(s, attacker, target);
-  for (let i = 0; i < w.shots && target.alive; i++) {
+  for (let i = 0; i < w.shots && target.alive && !target.downed; i++) {
     const roll = rollPercent(s);
     const hit = roll < chance;
     const damage = hit ? damageAgainst(w.damage, CLASSES[target.cls].armor) : 0;
     emit(s, {
       t: 'shot', attacker: attacker.id, target: target.id, shot: i + 1, shots: w.shots, chance, roll, hit, damage,
-      overwatch, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
+      overwatch, finishing: false, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
     }, [attacker, target]);
     if (hit) applyDamage(s, target, damage, attacker);
   }

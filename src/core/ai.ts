@@ -2,7 +2,7 @@ import { CLASSES } from '../data/units';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
 import { scaledMove } from './environment';
-import { dist, distanceMap, hasLos, idx, reachable } from './grid';
+import { cheb, dist, distanceMap, hasLos, idx, reachable } from './grid';
 import type { GameState, Pos, Team, Unit } from './types';
 
 /**
@@ -14,7 +14,7 @@ import type { GameState, Pos, Team, Unit } from './types';
  * objective (once seen) or a search waypoint, and finish on overwatch.
  */
 export function* aiTurn(s: GameState, team: Team): Generator<Action> {
-  for (const u of s.units.filter((x) => x.team === team && x.alive)) {
+  for (const u of s.units.filter((x) => x.team === team && x.alive && !x.downed)) {
     for (let guard = 0; guard < 6 && u.alive && !s.winner; guard++) {
       const a = planAction(s, u);
       if (!a || !perform(s, a).ok) break;
@@ -39,6 +39,16 @@ export function planAction(s: GameState, u: Unit): Action | null {
   const reload: Action = { type: 'reload', unit: u.id };
   if (u.ammo === 0 && ok(s, reload)) return reload;
 
+  // An already-adjacent downed ally costs nothing extra to revive (no repositioning), so it comes before
+  // deciding whether to fight - triage over a marginal shot, even mid-firefight.
+  if (s.options.aiRevive !== false) {
+    const adjacentDowned = s.units.find((a) => a.team === u.team && a.alive && a.downed && cheb(u, a) <= 1);
+    if (adjacentDowned) {
+      const revive: Action = { type: 'revive', unit: u.id, target: adjacentDowned.id };
+      if (ok(s, revive)) return revive;
+    }
+  }
+
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
   const move = scaledMove(s, CLASSES[u.cls].move);
   if (enemies.length) {
@@ -58,6 +68,18 @@ export function planAction(s: GameState, u: Unit): Action | null {
     return advance(s, u, nearest);
   }
 
+  // No visible enemy: chase a downed ally that isn't adjacent yet (the adjacent case is handled above,
+  // before combat is even considered), before falling back to search behaviour.
+  if (s.options.aiRevive !== false) {
+    const downed = s.units.filter((a) => a.team === u.team && a.alive && a.downed);
+    if (downed.length) {
+      const target = downed.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
+      const revive: Action = { type: 'revive', unit: u.id, target: target.id };
+      if (ok(s, revive)) return revive;
+      if (!holding) return advance(s, u, target);
+    }
+  }
+
   const goal = holding ? null : pickGoal(s, u);
   if (u.actions >= 2 || u.ammo === 0) {
     const mv = goal && advance(s, u, goal);
@@ -68,15 +90,19 @@ export function planAction(s: GameState, u: Unit): Action | null {
   return goal ? advance(s, u, goal) : null;
 }
 
-/** Score a tile: cover facing the target it would shoot dominates, then expected damage, then a short walk. */
+/**
+ * Score a tile: cover facing the target it would shoot dominates, then expected damage, then a short walk.
+ * A downed enemy is a guaranteed kill (see combat.ts's finishing shot), so it always outscores a normal target.
+ */
 function evaluate(s: GameState, u: Unit, enemies: Unit[], pos: Pos, cost: number) {
   const w = CLASSES[u.cls].weapon;
+  const value = (e: Unit) => (e.downed ? Number.MAX_SAFE_INTEGER : expectedDamage(s, u, e, pos));
   let best: { pos: Pos; target: Unit; score: number } | null = null;
   for (const e of enemies) {
     if (dist(pos, e) > w.range || !hasLos(s, pos, e)) continue;
-    const exp = expectedDamage(s, u, e, pos);
-    const score = coverAgainst(s, pos, e).penalty * 100 + exp * 10 - cost;
-    if (!best || exp > expectedDamage(s, u, best.target, pos)) best = { pos, target: e, score };
+    const exp = value(e);
+    const score = coverAgainst(s, pos, e).penalty * 100 + Math.min(exp, 1000) * 10 - cost;
+    if (!best || exp > value(best.target)) best = { pos, target: e, score };
   }
   return best;
 }

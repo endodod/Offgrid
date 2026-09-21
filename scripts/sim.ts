@@ -1,6 +1,7 @@
 // Bot-vs-bot balance simulation:
 //   npm run sim -- [--n 200] [--seed 1] [--max-turns 40] [--objective none|player|both]
 //                  [--time-of-day midday|morning|afternoon|midnight] [--weather clear|cloudy|rain|fog|stormy]
+//                  [--no-ai-revive]
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
 import { TRAINING_GROUNDS } from '../src/data/trainingGrounds';
@@ -26,24 +27,28 @@ const oi = args.indexOf('--objective');
 const objectiveCapture = (oi >= 0 ? args[oi + 1] : 'none') as ObjectiveCapture;
 const timeOfDay = str('--time-of-day', 'midday') as TimeOfDayId;
 const weather = str('--weather', 'clear') as WeatherId;
+const aiRevive = !args.includes('--no-ai-revive');
 
 const results: MatchResult[] = [];
-for (let i = 0; i < n; i++) results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture, timeOfDay, weather }, maxTurns));
+for (let i = 0; i < n; i++) results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive }, maxTurns));
 
 const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
 const count = (f: (r: MatchResult) => boolean) => results.filter(f).length;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 console.log(`${TRAINING_GROUNDS.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
-  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}`);
+  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +
   `timeout ${pct(count((r) => r.via === 'timeout'))}`);
 console.log(`Average length ${avg(results.map((r) => r.turns)).toFixed(1)} turns`);
+const allUnits = results.flatMap((r) => r.units);
+console.log(`Revives: ${avg(results.map((r) => r.units.reduce((a, u) => a + u.revives, 0))).toFixed(2)} per match   ` +
+  `downed-but-not-revived at match end: ${pct(allUnits.filter((u) => u.downedAtEnd).length)} of all units`);
 
 console.log('\nPer class (averages per match)');
-console.log('team    class    dmg dealt  dmg taken  kills  survival');
+console.log('team    class    dmg dealt  dmg taken  kills  revives  survival');
 for (const team of ['player', 'enemy'] as Team[]) {
   for (const cls of CLASS_ORDER as ClassId[]) {
     const rows = results.flatMap((r) => r.units.filter((u) => u.team === team && u.cls === cls));
@@ -51,7 +56,8 @@ for (const team of ['player', 'enemy'] as Team[]) {
     console.log(
       `${team.padEnd(8)}${CLASSES[cls].name.padEnd(9)}` +
       `${avg(rows.map((u) => u.dmgDealt)).toFixed(2).padStart(9)}  ${avg(rows.map((u) => u.dmgTaken)).toFixed(2).padStart(9)}  ` +
-      `${avg(rows.map((u) => u.kills)).toFixed(2).padStart(5)}  ${pct(rows.filter((u) => u.survived).length * (n / rows.length)).padStart(8)}`,
+      `${avg(rows.map((u) => u.kills)).toFixed(2).padStart(5)}  ${avg(rows.map((u) => u.revives)).toFixed(2).padStart(7)}  ` +
+      `${pct(rows.filter((u) => u.survived).length * (n / rows.length)).padStart(8)}`,
     );
   }
 }

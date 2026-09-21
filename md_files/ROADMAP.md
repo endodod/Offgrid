@@ -69,26 +69,30 @@ These are what keep the project healthy as it grows. Each feature should meet al
 
 ## 0b. Revive mechanic
 
+**Status: done.**
+
 **Goal:** a downed unit is a tactical situation to react to, not an instant, permanent loss.
 
-**Where we are:** units currently go straight from alive to dead once HP reaches 0 (see the HP checks in `core/actions.ts` and their coverage in `core/actions.test.ts` / `core/combat.test.ts`). There is no "downed" state and no action that reverses it.
+**Where we are:** `Unit.downed`/`bleedOut` (`core/types.ts`) sit between alive and dead. `applyDamage` (`core/combat.ts`) downs a unit at 0 HP instead of killing it (`RULES.bleedOutRounds = 3`, `RULES.reviveHp = 4`); any further hit on an already-downed unit kills it for good regardless of amount, and an `attack` action against a downed target (`fireWeapon`) is a guaranteed "finishing shot" that bypasses the hit-chance roll entirely, since it can't fight back or move. `state.ts`'s `endTurn` ticks `bleedOut` at the start of the downed unit's own team's phase and calls the relocated `checkWin` (moved from `actions.ts` so `state.ts` can call it without a circular import). A new `revive` action (`reviveBlock`/`perform`'s `'revive'` case) lets an adjacent ally spend an action and one of *their own* personal medkits (the same resource first aid uses) to clear `downed` and restore `RULES.reviveHp`. First aid and the medic's ranged medkit gadget both explicitly refuse a downed target ("Downed - use Revive instead") so healing can't silently leave a unit downed-but-full-HP.
 
-**Design sketch**
-- Add a **downed** state between alive and dead: HP hits 0 -> unit becomes downed instead of removed, can no longer act, and is at risk of dying for good after N rounds (bleed-out timer) or from further hits while down.
-- New **revive** action: an adjacent ally spends an action (and AP) to bring a downed unit back with partial HP. Optionally gate it behind a resource (a medkit charge, tying into the consumables feature (#4) once it exists) so it isn't free.
-- Downed units still occupy their tile (blocks movement, may or may not block LOS — decide by feel) and should be visibly distinct on the map and in the HUD from both alive and dead units.
-- Fog: a downed unit's state is only known if seen, same treatment as everything else fog-related; an enemy team should not know an off-screen unit went down until they see it.
-- AI: the enemy should be able to both down player units and, if desired for symmetry, revive its own downed units — decide whether the first version gives the AI revive at all, or only exposes it to the player initially.
+Fog: downed units are still ordinary alive units positionally, so they're covered by the exact same `visible`/`seenUnits`/`memory` machinery as everything else - no new fog logic was needed, just excluding downed units from *projecting* vision themselves (`core/vision.ts`) since they're incapacitated, not watching. AI (`core/ai.ts`): finishing a visible downed enemy always outscores any other target (`evaluate`'s `value()` treats it as a guaranteed kill); an already-*adjacent* downed ally is revived before the AI even considers whether to fight (costs nothing positionally, so it isn't a real trade-off against combat); a non-adjacent downed ally is chased only once no enemy is visible, so revive-seeking never abandons an active fight. All of this is gated by a new `GameOptions.aiRevive` (default true, `--no-ai-revive` in `scripts/sim.ts`) so the sim can A/B it; `MatchResult`/`UnitResult` now carry `revives` and `downedAtEnd` and the sim prints both.
 
-**Touches:** `core/types.ts` (unit status), `core/actions.ts` (downed transition, revive action, bleed-out timer), `core/ai.ts` (goal hint: revive a downed ally, or finish one off), `core/vision.ts`/memory (downed state under fog), renderer (downed sprite/marker), `ui/hud.ts` and the action-hover work in 0a (revive needs a tooltip too), `scripts/sim.ts` (a knob to measure how often revives happen and how much they change outcomes).
+UI: a `Revive` button (key `U`) alongside First Aid, with the same "auto-cast if exactly one valid target, otherwise enter targeting mode" pattern as First Aid; move/gadget-hover-style previews for revive-mode hover and a downed status line on the enemy/ally hover tooltips (0a's tooltip infrastructure absorbed this without needing new plumbing). Roster and the canvas both mark a downed unit distinctly (dashed red outline, prone sprite, bleed-out countdown) instead of the normal HP/action-pip display.
 
-**Open questions**
-- Bleed-out timer length, and whether it's fixed or per-class.
-- Can a downed unit be finished off by an enemy attack, and does that cost the enemy an action or happen automatically on any hit?
-- Does going down count as a "kill" for objectives like Eliminate (#3) until it's permanent, or only once the unit actually dies?
-- Should revive fully clear downed status only, or also cure any status effects picked up while down?
+**Resolved**
+- Bleed-out timer: fixed at 3 rounds for every class (`RULES.bleedOutRounds`), not per-class - simplest to read and to balance later via the sim.
+- A downed unit can be finished off by a normal `attack` action (same action/ammo cost as any attack) - it's a guaranteed kill rather than a probability roll, since the target can't react. A burst that downs its target mid-way through stops firing the rest of that burst rather than auto-finishing it; a follow-up shot is a separate, deliberate action.
+- Going down does **not** count as eliminated for Eliminate-style objectives (`checkWin` still requires `alive === false`) - a team with only downed units left is still "in the fight" until someone finishes them or they bleed out, which is the intended source of tension.
+- Revive only clears `downed`/`bleedOut` and sets HP; there's no status-effect system yet for it to interact with.
 
-**Tests:** HP reaching 0 downs rather than removes the unit; downed unit cannot act; bleed-out timer kills it after N rounds if not revived; revive restores partial HP and returns it to normal status; downed state respects fog (not visible/remembered until seen); the AI can path to and revive/finish a downed unit; win/lose checks handle downed-but-not-dead units correctly for Eliminate-style objectives.
+**Tests:** `core/revive.test.ts` (new) covers the full checklist below directly; `core/actions.test.ts` and `core/combat.test.ts` had a handful of pre-existing tests updated where a lethal hit used to mean instant death and now means downed (the underlying behaviour they were checking - e.g. "a burst stops once its target is out of the fight" - still holds, just phrased against `downed` instead of `alive`).
+- HP reaching 0 downs rather than removes the unit. ✓
+- Downed unit cannot act (validated at the top of `validate()`, and `aiTurn` never yields it a turn). ✓
+- Bleed-out timer kills it after N rounds if not revived, ticking only at its own team's phase start. ✓
+- Revive restores partial HP (capped to class max) and clears downed status, consuming the reviver's medkit. ✓
+- A downed unit stops projecting vision but is still seen/hidden by the same fog rules as any unit. ✓
+- The AI revives an adjacent downed ally, chases a distant one when no enemy is visible, and prioritizes finishing a visible downed enemy over a healthy target - each independently unit-tested, plus an `--no-ai-revive` test confirming the knob actually disables it. ✓
+- Win/lose checks handle downed-but-not-dead units correctly: no win while the "eliminated" side still has downed survivors, win fires the moment the last one is finished off or bleeds out. ✓
 
 ---
 

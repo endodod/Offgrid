@@ -15,7 +15,7 @@ export function refreshVision(s: GameState) {
   for (const team of TEAMS) {
     const vis = new Uint8Array(s.width * s.height);
     for (const u of s.units) {
-      if (!u.alive || u.team !== team) continue;
+      if (!u.alive || u.downed || u.team !== team) continue; // downed: no longer actively watching
       const r = scaledVision(s, CLASSES[u.cls].vision);
       for (let y = u.y - r; y <= u.y + r; y++) {
         for (let x = u.x - r; x <= u.x + r; x++) {
@@ -52,7 +52,7 @@ export function refreshVision(s: GameState) {
  */
 function isHiddenInBush(s: GameState, observerTeam: Team, target: Unit): boolean {
   if (s.terrain[idx(s, target.x, target.y)] !== 'bush' || target.exposed) return false;
-  const near = s.units.some((o) => o.alive && o.team === observerTeam && dist(o, target) <= RULES.bushRevealRange);
+  const near = s.units.some((o) => o.alive && !o.downed && o.team === observerTeam && dist(o, target) <= RULES.bushRevealRange);
   const scanned = s.scans.some((sc) => sc.team === observerTeam && dist(sc, target) <= sc.radius);
   return !(near || scanned);
 }
@@ -71,7 +71,7 @@ function updateMemory(s: GameState, team: Team) {
     const g = mem.lastSeen[e.id];
     if (!g) continue;
     if (!s.visible[team][idx(s, g.x, g.y)]) g.hidden = true;
-    else if (g.hidden || s.units.some((o) => o.alive && o.team === team && dist(o, g) <= 1)) delete mem.lastSeen[e.id];
+    else if (g.hidden || s.units.some((o) => o.alive && !o.downed && o.team === team && dist(o, g) <= 1)) delete mem.lastSeen[e.id];
   }
   if (s.objective && s.visible[team][idx(s, s.objective.x, s.objective.y)]) mem.objectiveSeen = true;
 }

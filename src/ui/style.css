@@ -29,6 +29,8 @@ kbd { margin-left: 6px; font-size: 10px; color: var(--dim); }
 #roster button { display: flex; justify-content: space-between; text-align: left; }
 #roster button.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 #roster button.dead { opacity: 0.35; }
+#roster button.down { border-color: #d64533; color: #e6a23a; }
+#roster button.down span { color: #e6a23a; }
 
 #card, #mission, #log-wrap, #debug { background: var(--panel); border: 1px solid var(--line); padding: 8px 10px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0; }

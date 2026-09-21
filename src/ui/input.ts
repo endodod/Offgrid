@@ -4,7 +4,8 @@ import { isGameVisible } from './home';
 import type { ButtonId, Session } from './session';
 
 const KEYS: Record<string, ButtonId> = {
-  m: 'move', a: 'attack', r: 'reload', g: 'gadget', o: 'overwatch', f: 'aid', i: 'interact', e: 'endTurn', Enter: 'endTurn',
+  m: 'move', a: 'attack', r: 'reload', g: 'gadget', o: 'overwatch', f: 'aid', u: 'revive', i: 'interact',
+  e: 'endTurn', Enter: 'endTurn',
 };
 
 export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud) {

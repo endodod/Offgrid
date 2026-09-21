@@ -31,9 +31,9 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
       units.push({
         id: units.length, team, cls, x, y,
         hp: def.hp, ammo: def.weapon.magazine, medkits: RULES.medkitsPerUnit,
-        actions: 0, alive: true, overwatch: false, exposed: false, moveBonus: 0,
+        actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: team === 'player' ? { id: def.gadget, uses: RULES.gadgetUsesPerMission, cooldown: 0 } : null,
-        dmgDealt: 0, dmgTaken: 0, kills: 0,
+        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0,
       });
     }
   }
@@ -78,6 +78,27 @@ export function startPhase(s: GameState, team: Team) {
   tickCapture(s, team);
 }
 
+/** A downed unit dies for good once its own team's phase has started `bleedOutRounds` times without a revive. */
+function tickBleedOut(s: GameState, team: Team) {
+  for (const u of s.units) {
+    if (u.team !== team || !u.downed) continue;
+    u.bleedOut--;
+    if (u.bleedOut <= 0) {
+      u.alive = false;
+      u.downed = false;
+      emit(s, { t: 'died', unit: u.id, at: { x: u.x, y: u.y } }, [u]);
+    }
+  }
+}
+
+export function checkWin(s: GameState) {
+  if (s.winner) return;
+  const alive = (team: Team) => s.units.some((u) => u.alive && u.team === team);
+  if (!alive('player') && !alive('enemy')) declareWinner(s, 'draw');
+  else if (!alive('player')) declareWinner(s, 'enemy');
+  else if (!alive('enemy')) declareWinner(s, 'player');
+}
+
 // ---------- objective: interact, then hold ----------
 
 export function beginCapture(s: GameState, u: Unit) {
@@ -85,12 +106,12 @@ export function beginCapture(s: GameState, u: Unit) {
   emit(s, { t: 'capture', unit: u.id, status: 'start', roundsLeft: s.capture.roundsLeft }, true);
 }
 
-/** The hold is broken if the unit dies or leaves its tile. */
+/** The hold is broken if the unit dies, goes down, or leaves its tile. */
 export function checkCapture(s: GameState) {
   const c = s.capture;
   if (!c) return;
   const u = s.units[c.unit];
-  if (u.alive && u.x === c.at.x && u.y === c.at.y) return;
+  if (u.alive && !u.downed && u.x === c.at.x && u.y === c.at.y) return;
   s.capture = null;
   emit(s, { t: 'capture', unit: c.unit, status: 'broken', roundsLeft: c.roundsLeft }, true);
 }
@@ -114,6 +135,10 @@ export function endTurn(s: GameState) {
   const next: Team = s.phase === 'player' ? 'enemy' : 'player';
   if (next === 'player') s.turn++;
   startPhase(s, next);
+  // Not part of startPhase: it also runs once from createGame's initial phase, before any unit could be downed
+  // or a side eliminated, and single-team test scenarios (no opposing spawns) rely on that being a no-op.
+  tickBleedOut(s, next);
+  checkWin(s);
 }
 
 /** Log an event. `seen` is derived from what the player team can currently see of the things involved. */

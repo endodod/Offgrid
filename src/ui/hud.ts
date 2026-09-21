@@ -10,7 +10,8 @@ import { nameOf } from './log';
 
 const BUTTONS: { id: ButtonId; key: string }[] = [
   { id: 'move', key: 'M' }, { id: 'attack', key: 'A' }, { id: 'reload', key: 'R' }, { id: 'gadget', key: 'G' },
-  { id: 'overwatch', key: 'O' }, { id: 'aid', key: 'F' }, { id: 'interact', key: 'I' }, { id: 'endTurn', key: 'E' },
+  { id: 'overwatch', key: 'O' }, { id: 'aid', key: 'F' }, { id: 'revive', key: 'U' }, { id: 'interact', key: 'I' },
+  { id: 'endTurn', key: 'E' },
 ];
 
 /** One-line description and AP/resource cost shown in the button tooltip; every action costs 1 action unless noted. */
@@ -21,6 +22,7 @@ const BUTTON_INFO: Record<ButtonId, { desc: string; cost: string }> = {
   gadget: { desc: 'Use your class gadget.', cost: '1 action, 1 use' },
   overwatch: { desc: 'Reserve your weapon to react to the first enemy that moves or acts in your range and sight.', cost: '1 action, needs ammo' },
   aid: { desc: 'First aid: heal an adjacent ally (or yourself) for a fixed amount from your personal medkits.', cost: '1 action, 1 medkit' },
+  revive: { desc: 'Bring a downed adjacent ally back with partial HP before their bleed-out timer runs out.', cost: '1 action, 1 medkit' },
   interact: { desc: 'Interact with the objective terminal, then hold position to capture it.', cost: '1 action' },
   endTurn: { desc: 'End your phase; the enemy acts next.', cost: 'no action cost' },
 };
@@ -140,8 +142,9 @@ export class Hud {
     }).join('');
 
     $('roster').innerHTML = s.units.filter((u) => u.team === 'player').map((u, n) => {
-      const cls = [u === sel ? 'sel' : '', u.alive ? '' : 'dead'].join(' ');
-      return `<button data-unit="${u.id}" class="${cls}"><b>${n + 1}</b> ${CLASSES[u.cls].name}<span>${u.alive ? `${u.hp}/${CLASSES[u.cls].hp}` : 'KIA'}</span></button>`;
+      const cls = [u === sel ? 'sel' : '', !u.alive ? 'dead' : u.downed ? 'down' : ''].join(' ');
+      const status = !u.alive ? 'KIA' : u.downed ? `DOWN ${u.bleedOut}` : `${u.hp}/${CLASSES[u.cls].hp}`;
+      return `<button data-unit="${u.id}" class="${cls}"><b>${n + 1}</b> ${CLASSES[u.cls].name}<span>${status}</span></button>`;
     }).join('');
 
     $('mission').innerHTML = this.missionInfo(s);

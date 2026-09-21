@@ -13,7 +13,7 @@ export interface View {
   s: GameState;
   selected: Unit | null;
   hover: Pos | null;
-  mode: 'move' | 'attack' | 'gadget' | 'aid';
+  mode: 'move' | 'attack' | 'gadget' | 'aid' | 'revive';
   reach: Set<number> | null; // tiles the selected unit can walk to (move mode)
   path: Pos[] | null; // walk path from the selected unit to the hovered tile, if reachable (move mode)
   ringed: Set<number>; // unit ids to ring (valid attack / aid targets)
@@ -267,10 +267,12 @@ function drawGhosts(ctx: CanvasRenderingContext2D, v: View) {
 function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
   const px = u.x * TILE, py = u.y * TILE;
   const player = u.team === 'player';
-  ctx.fillStyle = player ? C.playerDark : C.enemyDark;
+  // Downed: desaturated fill regardless of team, and a prone (squat) body instead of the standing square.
+  ctx.fillStyle = u.downed ? '#4a4638' : player ? C.playerDark : C.enemyDark;
   ctx.fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
-  ctx.fillStyle = player ? C.player : C.enemy;
-  ctx.fillRect(px + 7, py + 7, TILE - 14, TILE - 14);
+  ctx.fillStyle = u.downed ? '#6b6656' : player ? C.player : C.enemy;
+  if (u.downed) ctx.fillRect(px + 7, py + TILE / 2 - 4, TILE - 14, 8);
+  else ctx.fillRect(px + 7, py + 7, TILE - 14, TILE - 14);
   ctx.fillStyle = C.text;
   ctx.font = 'bold 15px monospace';
   ctx.textAlign = 'center';
@@ -283,7 +285,16 @@ function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
   ctx.fillStyle = u.hp / max > 0.5 ? '#6fa06b' : u.hp / max > 0.25 ? '#c09a45' : '#b5473a';
   ctx.fillRect(px + 6, py + 3, Math.round(((TILE - 12) * u.hp) / max), 2);
 
-  if (player && v.s.phase === 'player') { // action pips
+  if (u.downed) { // dashed red outline + bleed-out countdown, instead of action pips (it can't act)
+    ctx.strokeStyle = '#d64533';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 2]);
+    ctx.strokeRect(px + 3, py + 3, TILE - 6, TILE - 6);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e6a23a';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`DOWN ${u.bleedOut}`, px + TILE / 2, py + TILE - 4);
+  } else if (player && v.s.phase === 'player') { // action pips
     const slots = Math.max(2, u.actions); // adrenaline can push a unit above the usual 2
     for (let k = 0; k < slots; k++) {
       ctx.fillStyle = k < u.actions ? '#d8d8c8' : '#2a2f26';

@@ -125,10 +125,23 @@ describe('grenade', () => {
     expect(ally.hp).toBe(24 - 3); // friendly fire, armor ignored
     expect(thrower.hp).toBe(12); // outside the blast
   });
-  it('can kill and ends the game when the last enemy dies', () => {
+  it('brings the last enemy to 0 HP: downs it, does not end the game yet', () => {
     const s = makeGame(blank(24, 9), { player: { soldier: [1, 2] }, enemy: { sniper: [5, 2] } });
-    unit(s, 'enemy', 'sniper').hp = 3;
+    const foe = unit(s, 'enemy', 'sniper');
+    foe.hp = 3;
     act(s, { type: 'gadget', unit: unit(s, 'player', 'soldier').id, target: { x: 5, y: 2 } });
+    expect(foe.downed).toBe(true);
+    expect(foe.alive).toBe(true);
+    expect(s.winner).toBeNull();
+  });
+  it('a finishing shot on the downed last enemy ends the game', () => {
+    const s = makeGame(blank(24, 9), { player: { soldier: [1, 2] }, enemy: { sniper: [5, 2] } });
+    const soldier = unit(s, 'player', 'soldier');
+    const foe = unit(s, 'enemy', 'sniper');
+    foe.hp = 3;
+    act(s, { type: 'gadget', unit: soldier.id, target: { x: 5, y: 2 } }); // grenade downs the last enemy
+    act(s, { type: 'attack', unit: soldier.id, target: foe.id }); // guaranteed kill on a downed target
+    expect(foe.alive).toBe(false);
     expect(s.winner).toBe('player');
   });
 });
@@ -308,7 +321,7 @@ describe('objective and win/lose', () => {
     const foe = unit(b.s, 'enemy', 'tank');
     place(b.s, foe, 7, 2);
     act(b.s, { type: 'attack', unit: foe.id, target: b.u.id });
-    expect(b.u.alive).toBe(false);
+    expect(b.u.downed).toBe(true);
     expect(b.s.capture).toBeNull();
   });
   it('only one unit can secure at a time, and the same unit cannot restart', () => {
@@ -341,12 +354,18 @@ describe('objective and win/lose', () => {
     expect(p.s.capture?.team).toBe('player');
     expect(tryCapture('none', 'player').r).toThrow('disabled');
   });
-  it('the player loses when all player units are dead', () => {
+  it('the player loses when all player units are dead (downed doesn\'t count - a finishing shot does)', () => {
     const s = makeGame(blank(10, 5), { player: { sniper: [1, 2] }, enemy: { soldier: [4, 2] } });
-    unit(s, 'player', 'sniper').hp = 1;
+    const sniper = unit(s, 'player', 'sniper');
+    sniper.hp = 1;
     act(s, { type: 'endTurn' });
     rolls(s, 0);
-    act(s, { type: 'attack', unit: unit(s, 'enemy', 'soldier').id, target: unit(s, 'player', 'sniper').id });
+    const foe = unit(s, 'enemy', 'soldier');
+    act(s, { type: 'attack', unit: foe.id, target: sniper.id }); // downs the last player unit
+    expect(sniper.downed).toBe(true);
+    expect(s.winner).toBeNull();
+    act(s, { type: 'attack', unit: foe.id, target: sniper.id }); // finishing shot: permanent
+    expect(sniper.alive).toBe(false);
     expect(s.winner).toBe('enemy');
     expect(() => act(s, { type: 'endTurn' })).toThrow('over');
   });
