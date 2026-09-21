@@ -4,22 +4,27 @@ import { createGame } from '../core/state';
 import { refreshVision } from '../core/vision';
 import type { Pos } from '../core/types';
 import { AI_PROFILES, PROFILE_ORDER, type AiProfileId } from '../data/aiProfiles';
+import { ITEMS, type ItemType } from '../data/items';
 import type { Mission } from '../data/missions';
-import type { InteractableDef, MapDef, Spawn } from '../data/trainingGrounds';
+import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
 import { draw, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
 
-type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'link' | 'player' | 'enemy' | 'erase';
+type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'link'
+  | 'pickup-ammo' | 'pickup-medkit' | 'pickup-gadget' | 'player' | 'enemy' | 'erase';
 type Team = 'player' | 'enemy';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'floor', label: 'Floor' }, { id: 'wall', label: 'Wall' }, { id: 'bush', label: 'Bush' },
   { id: 'low', label: 'Low cover' }, { id: 'high', label: 'High cover' }, { id: 'objective', label: 'Objective' },
   { id: 'door', label: 'Door' }, { id: 'switch', label: 'Switch' }, { id: 'link', label: 'Link switch↔door' },
+  { id: 'pickup-ammo', label: 'Ammo pickup' }, { id: 'pickup-medkit', label: 'Medkit pickup' }, { id: 'pickup-gadget', label: 'Gadget pickup' },
   { id: 'player', label: 'Friendly unit' }, { id: 'enemy', label: 'Enemy unit' }, { id: 'erase', label: 'Erase' },
 ];
 const TERRAIN_CHAR: Partial<Record<Tool, string>> = { floor: '.', wall: '#', bush: 'b', high: 'h', objective: 'O' };
+/** The item each pickup tool paints (4). */
+const PICKUP_TOOL_TYPE: Partial<Record<Tool, ItemType>> = { 'pickup-ammo': 'ammo', 'pickup-medkit': 'medkit', 'pickup-gadget': 'gadget' };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -38,6 +43,7 @@ export class Builder {
   private grid: string[][] = [];
   private spawns: Record<Team, Spawn[]> = { player: [], enemy: [] };
   private interactables: InteractableDef[] = [];
+  private pickups: PickupDef[] = [];
   private tool: Tool = 'wall';
   private cls: ClassId = 'soldier';
   private profile: AiProfileId = 'standard'; // AI habitat/difficulty for the next enemy unit painted
@@ -129,11 +135,12 @@ export class Builder {
     this.grid = map.rows.map((r) => [...r]);
     this.spawns = { player: map.spawns.player.map((s) => [...s] as Spawn), enemy: map.spawns.enemy.map((s) => [...s] as Spawn) };
     this.interactables = (map.interactables ?? []).map((it) => ({ ...it, links: it.links ? [...it.links] : undefined }));
+    this.pickups = (map.pickups ?? []).map((p) => ({ ...p }));
     this.linkFrom = null;
   }
 
   private toMap(): MapDef {
-    return withEdits(this.mission.map, this.grid.map((r) => r.join('')), this.spawns, this.interactables);
+    return withEdits(this.mission.map, this.grid.map((r) => r.join('')), this.spawns, this.interactables, this.pickups);
   }
 
   // ---------- editing ----------
@@ -163,6 +170,19 @@ export class Builder {
     if (this.linkFrom === id) this.linkFrom = null;
   }
 
+  private pickupAt(x: number, y: number): PickupDef | null {
+    return this.pickups.find((p) => p.x === x && p.y === y) ?? null;
+  }
+
+  private nextPickupId(): number {
+    return this.pickups.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+  }
+
+  private removePickup(id: number) {
+    const i = this.pickups.findIndex((p) => p.id === id);
+    if (i >= 0) this.pickups.splice(i, 1);
+  }
+
   /** Link tool: click a switch, then click a door to toggle it on/off that switch's link list. */
   private link(x: number, y: number) {
     const it = this.interactableAt(x, y);
@@ -190,13 +210,15 @@ export class Builder {
     const before = this.grid[y][x];
     const sp = this.spawnAt(x, y);
     const it = this.interactableAt(x, y);
+    const pk = this.pickupAt(x, y);
     const dropSpawn = () => { if (sp) this.spawns[sp.team].splice(sp.i, 1); };
     let changed = true;
     if (tool === 'erase') {
-      if (sp) dropSpawn(); else if (it) this.removeInteractable(it.id); else this.grid[y][x] = '.';
+      if (sp) dropSpawn(); else if (it) this.removeInteractable(it.id); else if (pk) this.removePickup(pk.id); else this.grid[y][x] = '.';
     } else if (tool === 'player' || tool === 'enemy') {
       if (!WALKABLE.includes(before)) { this.note('Units need an open floor or bush tile.'); return; }
       if (it) { this.note('Tile is occupied by a door/switch.'); return; }
+      if (pk) { this.note('Tile is occupied by a pickup.'); return; }
       const dup = sp && sp.team === tool && this.spawns[tool][sp.i][0] === this.cls;
       dropSpawn();
       // painting the same unit again removes it; 'standard' is left implicit (the mission/team default) rather
@@ -205,14 +227,23 @@ export class Builder {
     } else if (tool === 'door' || tool === 'switch') {
       if (!WALKABLE.includes(before)) { this.note('Doors/switches need an open floor or bush tile.'); return; }
       if (sp) { this.note('Tile is occupied by a unit.'); return; }
+      if (pk) { this.note('Tile is occupied by a pickup.'); return; }
       // painting the same kind onto its own tile removes it, matching the unit tools' toggle behaviour
       if (it && it.type === tool) this.removeInteractable(it.id);
       else { if (it) this.removeInteractable(it.id); this.interactables.push({ id: this.nextInteractableId(), type: tool, x, y }); }
+    } else if (PICKUP_TOOL_TYPE[tool]) {
+      const type = PICKUP_TOOL_TYPE[tool]!;
+      if (!WALKABLE.includes(before)) { this.note(`${ITEMS[type].name} needs an open floor or bush tile.`); return; }
+      if (sp) { this.note('Tile is occupied by a unit.'); return; }
+      if (it) { this.note('Tile is occupied by a door/switch.'); return; }
+      // painting the same kind onto its own tile removes it, matching the door/switch tools' toggle behaviour
+      if (pk && pk.type === type) this.removePickup(pk.id);
+      else { if (pk) this.removePickup(pk.id); this.pickups.push({ id: this.nextPickupId(), type, x, y }); }
     } else {
       const ch = tool === 'low' ? (this.rot === 0 ? 'l' : String(this.rot)) : TERRAIN_CHAR[tool]!;
       const keepsUnit = WALKABLE.includes(ch); // floor and bush can hold a unit; walls, cover and the terminal can't
-      changed = before !== ch || (!keepsUnit && !!sp) || (!keepsUnit && !!it);
-      if (!keepsUnit) { dropSpawn(); if (it) this.removeInteractable(it.id); }
+      changed = before !== ch || (!keepsUnit && !!sp) || (!keepsUnit && !!it) || (!keepsUnit && !!pk);
+      if (!keepsUnit) { dropSpawn(); if (it) this.removeInteractable(it.id); if (pk) this.removePickup(pk.id); }
       if (ch === 'O') for (const row of this.grid) row.forEach((c, i) => { if (c === 'O') row[i] = '.'; }); // only one objective
       this.grid[y][x] = ch;
     }

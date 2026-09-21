@@ -3,6 +3,7 @@ import type { AiProfileId } from './aiProfiles';
 import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
 import type { ObjectiveDef } from './objectives';
+import type { ItemType } from './items';
 
 /** [class, x, y, aiProfile?]. A team can field several units of one class. aiProfile overrides the team/mission
  *  default (MapDef.enemyProfile / GameOptions) for this one unit - most useful to mix habitats in one squad
@@ -18,6 +19,16 @@ export interface InteractableDef {
   y: number;
   active?: boolean; // defaults to false (door closed / switch not yet thrown)
   links?: number[]; // switch only: ids of doors it toggles when interacted with
+}
+
+/** A pickup on the map (4). A unit collects it for free by walking onto its tile - see core/actions.ts's
+ *  `collectPickup`. See core/types.ts's Pickup for the runtime (removed-once-collected) shape this seeds. */
+export interface PickupDef {
+  id: number;
+  type: ItemType;
+  x: number;
+  y: number;
+  amount?: number; // defaults to ITEMS[type].defaultAmount
 }
 
 export interface MapDef {
@@ -38,6 +49,11 @@ export interface MapDef {
   enemyProfile?: AiProfileId;
   /** Doors and switches (2); undefined/omitted is the same as an empty list. */
   interactables?: InteractableDef[];
+  /** Ammo/medkit/gadget pickups (4); undefined/omitted is the same as an empty list. */
+  pickups?: PickupDef[];
+  /** Scales every unit's starting reserve ammo (4), e.g. 0.5 for a scarcer mission; undefined falls back to
+   *  createGame's default (1 - each class's own `reserve` from data/units.ts, unscaled). */
+  reserveMult?: number;
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;

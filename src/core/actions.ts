@@ -120,7 +120,8 @@ export function validate(s: GameState, a: Action): string | null {
     }
     case 'reload':
       if (hasActions(u)) return hasActions(u);
-      return u.ammo >= CLASSES[u.cls].weapon.magazine ? 'Magazine full' : null;
+      if (u.ammo >= CLASSES[u.cls].weapon.magazine) return 'Magazine full';
+      return u.reserve > 0 ? null : 'No reserve ammo';
     case 'overwatch':
       if (hasActions(u)) return hasActions(u);
       if (u.ammo <= 0) return 'Out of ammo';
@@ -154,11 +155,15 @@ export function perform(s: GameState, a: Action): Result {
       fireWeapon(s, u, t, false);
       break;
     }
-    case 'reload':
+    case 'reload': {
       u.actions--;
-      u.ammo = CLASSES[u.cls].weapon.magazine;
+      const draw = Math.min(CLASSES[u.cls].weapon.magazine - u.ammo, u.reserve); // 4: a low reserve gives a partial refill
+      u.ammo += draw;
+      u.reserve -= draw;
+      u.reserveUsed += draw;
       emit(s, { t: 'reload', unit: u.id }, [u]);
       break;
+    }
     case 'overwatch':
       u.actions--;
       u.overwatch = true;
@@ -200,6 +205,7 @@ export function perform(s: GameState, a: Action): Result {
     if (revealed) emit(s, { t: 'exposed', unit: u.id }, [u]);
     triggerOverwatch(s, u);
   }
+  if (u.ammo <= 0 && u.reserve <= 0) u.ranDry = true; // ammo (4): sticky, for the sim's balance table
   checkCapture(s);
   checkWin(s);
   return { ok: true, events: s.events.slice(start) };
@@ -222,6 +228,7 @@ function doMove(s: GameState, u: Unit, to: Pos) {
   for (const p of path) {
     u.x = p.x;
     u.y = p.y;
+    collectPickup(s, u); // free (4): walking onto a pickup's tile collects it, no action cost
     refreshVision(s);
     triggerOverwatch(s, u);
     if (!u.alive || u.downed) break;
@@ -264,6 +271,18 @@ function doGadget(s: GameState, u: Unit, target?: Pos, rotation = 0) {
     emit(s, { t: 'heal', unit: u.id, target: t.id, amount, at: { x: t.x, y: t.y } }, [u, t]);
   }
   else if (g.id === 'grenade') blast(s, u, target!, def.radius!, def.damage!);
+}
+
+/** Free pickup (4): collects whatever is on `u`'s current tile, if anything. Any unit of either team can use it. */
+function collectPickup(s: GameState, u: Unit) {
+  const i = s.pickups.findIndex((p) => p.x === u.x && p.y === u.y);
+  if (i < 0) return;
+  const p = s.pickups[i];
+  s.pickups.splice(i, 1);
+  if (p.type === 'ammo') u.reserve += p.amount;
+  else if (p.type === 'medkit') u.medkits += p.amount;
+  else if (p.type === 'gadget' && u.gadget) u.gadget.uses += p.amount;
+  emit(s, { t: 'pickup', unit: u.id, item: p.type, amount: p.amount, at: { x: u.x, y: u.y } }, [u]);
 }
 
 /** Toggle a door or switch (2). A switch also flips every door in its `links`; its own `active` is cosmetic. */

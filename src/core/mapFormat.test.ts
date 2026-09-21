@@ -132,3 +132,59 @@ describe('interactables (doors/switches, feature 2)', () => {
     expect(() => parseMap(cloneWith([{ id: 1, type: 'switch', x: 0, y: 0, links: [99] }]), base)).toThrow('non-door id');
   });
 });
+
+describe('pickups (feature 4)', () => {
+  // (0,0) and (0,15) are both open floor, unoccupied by any spawn, interactable or objective.
+  const ammo = { id: 1, type: 'ammo' as const, x: 0, y: 0, amount: 6 };
+  const medkit = { id: 2, type: 'medkit' as const, x: 0, y: 15 };
+  const cloneWith = (pickups: unknown[]) => JSON.parse(serializeMap(withEdits(base, base.rows, base.spawns, [], pickups as never)));
+
+  it('round-trips through serialize -> parse, including an explicit amount', () => {
+    const back = parseMap(cloneWith([ammo, medkit]), base);
+    expect(back.pickups).toEqual([ammo, medkit]);
+  });
+
+  it('builder round-trip: withEdits -> serializeMap -> parseMap preserves an edited pickup list', () => {
+    const edited = withEdits(base, base.rows, base.spawns, [], [ammo]);
+    const back = parseMap(JSON.parse(serializeMap(edited)), base);
+    expect(back.pickups).toEqual([ammo]);
+  });
+
+  it('rejects an unknown pickup type', () => {
+    const raw = cloneWith([ammo]);
+    raw.pickups[0].type = 'nope';
+    expect(() => parseMap(raw, base)).toThrow('Unknown pickup type');
+  });
+
+  it('rejects a pickup not on an open tile', () => {
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'ammo', x: 5, y: 0 }]), base)).toThrow('not on an open tile'); // (5,0) is a wall
+  });
+
+  it('rejects two pickups sharing an id', () => {
+    expect(() => parseMap(cloneWith([ammo, { id: 1, type: 'medkit', x: 0, y: 15 }]), base)).toThrow('share id');
+  });
+
+  it('rejects a pickup sharing a tile with a unit spawn', () => {
+    const [, x, y] = base.spawns.player[0];
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'ammo', x, y }]), base)).toThrow('shares a tile with something already there');
+  });
+
+  it('rejects two pickups sharing a tile with each other', () => {
+    expect(() => parseMap(cloneWith([ammo, { id: 2, type: 'medkit', x: 0, y: 0 }]), base)).toThrow('shares a tile with something already there');
+  });
+
+  it('rejects a pickup sharing a tile with a door/switch', () => {
+    const edited = { ...JSON.parse(serializeMap(base)), interactables: [{ id: 1, type: 'door', x: 0, y: 0 }], pickups: [{ id: 2, type: 'ammo', x: 0, y: 0 }] };
+    expect(() => parseMap(edited, base)).toThrow('shares a tile with something already there');
+  });
+
+  it('rejects a bad "amount"', () => {
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'ammo', x: 0, y: 0, amount: 0 }]), base)).toThrow('Bad "amount"');
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'ammo', x: 0, y: 0, amount: -3 }]), base)).toThrow('Bad "amount"');
+  });
+
+  it('defaults to the item\'s default amount when omitted (applied at createGame, not at parse time)', () => {
+    const back = parseMap(cloneWith([medkit]), base);
+    expect(back.pickups![0].amount).toBeUndefined(); // parseMap preserves "omitted"; createGame fills the default
+  });
+});

@@ -1,6 +1,7 @@
-import type { InteractableDef, MapDef, Spawn } from '../data/trainingGrounds';
+import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
 import { AI_PROFILES, type AiProfileId } from '../data/aiProfiles';
+import { ITEM_ORDER } from '../data/items';
 
 /** Tile characters a map may contain (see MapDef.rows). */
 export const TILE_CHARS = '.#bl123hO';
@@ -9,14 +10,18 @@ export const WALKABLE = '.b';
 
 type Spawns = MapDef['spawns'];
 
-/** Builds a map from edited rows/spawns(/interactables). Search waypoints that ended up inside an obstacle are dropped. */
-export function withEdits(base: MapDef, rows: string[], spawns: Spawns, interactables: InteractableDef[] = base.interactables ?? []): MapDef {
+/** Builds a map from edited rows/spawns(/interactables/pickups). Search waypoints inside an obstacle are dropped. */
+export function withEdits(
+  base: MapDef, rows: string[], spawns: Spawns,
+  interactables: InteractableDef[] = base.interactables ?? [], pickups: PickupDef[] = base.pickups ?? [],
+): MapDef {
   const open = ([x, y]: [number, number]) => WALKABLE.includes(rows[y]?.[x] ?? '#');
   return {
     ...base,
     rows,
     spawns,
     interactables,
+    pickups,
     searchPoints: { player: base.searchPoints.player.filter(open), enemy: base.searchPoints.enemy.filter(open) },
   };
 }
@@ -86,10 +91,32 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
       const key = `${it.x},${it.y}`;
       if (spots.has(key)) throw new Error(`Interactables ${spots.get(key)} and ${it.id} share tile (${it.x},${it.y}).`);
       spots.set(key, it.id);
+      taken.add(key); // so a pickup (4) below can't stack onto a door/switch either
     }
   }
 
-  return withEdits(base, rows as string[], spawnsOut, interactables);
+  const rawPickups = (raw as { pickups?: unknown }).pickups;
+  const pickups: PickupDef[] = [];
+  if (rawPickups !== undefined) {
+    if (!Array.isArray(rawPickups)) throw new Error('"pickups" must be a list.');
+    const ids = new Set<number>();
+    for (const rawP of rawPickups) {
+      const { id, type, x, y, amount } = rawP as Partial<PickupDef>;
+      if (typeof id !== 'number' || !Number.isInteger(id)) throw new Error(`Bad pickup id "${String(id)}".`);
+      if (ids.has(id)) throw new Error(`Two pickups share id ${id}.`);
+      ids.add(id);
+      if (!type || !(ITEM_ORDER as string[]).includes(type)) throw new Error(`Unknown pickup type "${String(type)}" (id ${id}).`);
+      if (!Number.isInteger(x) || !Number.isInteger(y)) throw new Error(`Bad position for pickup ${id}.`);
+      if (!WALKABLE.includes((rows[y as number] as string | undefined)?.[x as number] ?? '#')) throw new Error(`Pickup ${id} at (${x},${y}) is not on an open tile.`);
+      const key = `${x},${y}`;
+      if (taken.has(key)) throw new Error(`Pickup ${id} at (${x},${y}) shares a tile with something already there.`);
+      taken.add(key);
+      if (amount !== undefined && (!Number.isInteger(amount) || amount <= 0)) throw new Error(`Bad "amount" for pickup ${id}.`);
+      pickups.push({ id, type, x: x as number, y: y as number, ...(amount !== undefined && { amount }) });
+    }
+  }
+
+  return withEdits(base, rows as string[], spawnsOut, interactables, pickups);
 }
 
 /** JSON text for export/import and storage: one row per line so it stays readable and diff-able. */
@@ -97,5 +124,6 @@ export function serializeMap(map: MapDef): string {
   const rows = map.rows.map((r) => `  ${JSON.stringify(r)}`).join(',\n');
   const team = (t: 'player' | 'enemy') => map.spawns[t].map((s) => JSON.stringify(s)).join(', ');
   const interactables = map.interactables?.length ? `,\n "interactables": [\n${map.interactables.map((it) => `  ${JSON.stringify(it)}`).join(',\n')}\n ]` : '';
-  return `{\n "rows": [\n${rows}\n ],\n "spawns": {\n  "player": [${team('player')}],\n  "enemy": [${team('enemy')}]\n }${interactables}\n}`;
+  const pickups = map.pickups?.length ? `,\n "pickups": [\n${map.pickups.map((p) => `  ${JSON.stringify(p)}`).join(',\n')}\n ]` : '';
+  return `{\n "rows": [\n${rows}\n ],\n "spawns": {\n  "player": [${team('player')}],\n  "enemy": [${team('enemy')}]\n }${interactables}${pickups}\n}`;
 }

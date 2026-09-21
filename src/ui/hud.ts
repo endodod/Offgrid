@@ -170,7 +170,7 @@ export class Hud {
         <div class="row"><span>HP</span><b>${sel.hp}/${d.hp}</b><span>Armor</span><b>${d.armor}</b><span>Move</span><b>${move}${move !== d.move ? ` <em class="boost">(base ${d.move})</em>` : ''}${sel.moveBonus ? ` <em class="boost">+${sel.moveBonus} next move</em>` : ''}</b><span>Vision</span><b>${vision}${vision !== d.vision ? ` <em class="boost">(base ${d.vision})</em>` : ''}</b></div>
         <div class="row"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · acc ${w.accuracy}%${acc ? ` <em class="boost">(${acc > 0 ? '+' : ''}${acc}%)</em>` : ''}</b></div>
         <div class="row"><span>Actions</span><b class="pips">${pips(sel.actions, RULES.actionsPerTurn)}</b></div>
-        <div class="row"><span>Ammo</span><b>${sel.ammo}/${w.magazine}</b><span>Medkits</span><b>${sel.medkits}/${RULES.medkitsPerUnit}</b></div>
+        <div class="row"><span>Ammo</span><b>${sel.ammo}/${w.magazine} <em class="boost">(+${sel.reserve} reserve)</em></b><span>Medkits</span><b>${sel.medkits}/${RULES.medkitsPerUnit}</b></div>
         <div class="row"><span>Gadget</span><b>${gtext}</b></div>
         ${g ? `<p class="dim">${GADGETS[g.id].blurb}</p>` : ''}
         ${sel.overwatch ? '<p class="ow">On overwatch</p>' : ''}

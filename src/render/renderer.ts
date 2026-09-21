@@ -1,5 +1,6 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
+import type { ItemType } from '../data/items';
 import { shelterAt } from '../core/combat';
 import { hasLos, idx, dist } from '../core/grid';
 import type { GameState, Pos, Unit } from '../core/types';
@@ -56,6 +57,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
 
   for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) drawTile(ctx, v, x, y);
   drawInteractables(ctx, v);
+  drawPickups(ctx, v);
   drawShields(ctx, v);
   drawHighlights(ctx, v);
   drawScans(ctx, v);
@@ -299,6 +301,35 @@ function drawSwitch(ctx: CanvasRenderingContext2D, px: number, py: number, on: b
   ctx.fillRect(px + TILE / 2 - 6, py + TILE / 2 - 8, 12, 16);
   ctx.fillStyle = c(on ? '#8fd19a' : '#6b6656');
   ctx.fillRect(px + TILE / 2 - 4, py + (on ? TILE / 2 - 6 : TILE / 2), 8, 6); // lever position shows on/off
+}
+
+/**
+ * Ammo/medkit/gadget pickups (4). No remembered state - unlike a door, a pickup is only ever "there" or
+ * "gone" (it's removed from `GameState.pickups` the instant anyone collects it, possibly off-screen), so it's
+ * drawn purely from current visibility rather than fog memory.
+ */
+function drawPickups(ctx: CanvasRenderingContext2D, v: View) {
+  const { s } = v;
+  for (const p of s.pickups) {
+    if (s.fogEnabled && !isVisible(s, p.x, p.y)) continue;
+    drawPickupIcon(ctx, p.x * TILE, p.y * TILE, p.type);
+  }
+}
+
+const PICKUP_COLOR: Record<ItemType, string> = { ammo: '#c8883a', medkit: '#d8524a', gadget: '#6ab0d8' };
+
+function drawPickupIcon(ctx: CanvasRenderingContext2D, px: number, py: number, type: ItemType) {
+  const cx = px + TILE / 2, cy = py + TILE / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = PICKUP_COLOR[type];
+  ctx.fillRect(-7, -7, 14, 14); // a diamond (a square rotated 45deg), distinct from every square/rect terrain shape
+  ctx.restore();
+  ctx.fillStyle = C.ink;
+  if (type === 'medkit') { ctx.fillRect(cx - 1, cy - 5, 2, 10); ctx.fillRect(cx - 5, cy - 1, 10, 2); } // cross
+  else if (type === 'ammo') ctx.fillRect(cx - 2, cy - 5, 4, 10); // a round, bullet-shaped silhouette
+  else { ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); } // gadget: a simple charge dot
 }
 
 function drawGhosts(ctx: CanvasRenderingContext2D, v: View) {

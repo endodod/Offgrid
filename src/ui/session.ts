@@ -1,5 +1,6 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
+import { ITEMS } from '../data/items';
 import type { AiProfileId } from '../data/aiProfiles';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
@@ -523,6 +524,8 @@ export class Session {
         return [`Switch: ${active ? 'on' : 'off'}${stale}`, `Linked to ${linkCount} door${linkCount === 1 ? '' : 's'}`];
       }
     }
+    const pickup = s.pickups.find((x) => x.x === p.x && x.y === p.y);
+    if (pickup && (!s.fogEnabled || s.visible.player[idx(s, p.x, p.y)] === 1)) return [`${ITEMS[pickup.type].name} (+${pickup.amount}) - walk onto it to collect`];
     const ghost = Object.entries(s.memory.player.lastSeen).find(([id, g]) => g.x === p.x && g.y === p.y && s.units[Number(id)].alive);
     if (ghost) return [`Last seen: ${nameOf(s.units[Number(ghost[0])])}`];
     const i = idx(s, p.x, p.y);

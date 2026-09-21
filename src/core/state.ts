@@ -2,9 +2,10 @@ import type { MapDef } from '../data/trainingGrounds';
 import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
 import { GADGETS } from '../data/gadgets';
+import { ITEMS } from '../data/items';
 import { refreshVision } from './vision';
 import { holdRounds, objectiveComplete } from './objectives';
-import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pos, Team, Terrain, Unit } from './types';
+import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pickup, Pos, Team, Terrain, Unit } from './types';
 
 const TEAMS: Team[] = ['player', 'enemy'];
 
@@ -27,25 +28,27 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
   });
   const objectiveDef = map.objective ?? (objective ? { type: 'hold' as const } : null);
 
+  const reserveMult = options.reserveMult ?? map.reserveMult ?? 1;
   const units: Unit[] = [];
   for (const team of TEAMS) {
     for (const [cls, x, y, aiProfile] of map.spawns[team]) {
       const def = CLASSES[cls];
       units.push({
         id: units.length, team, cls, x, y,
-        hp: def.hp, ammo: def.weapon.magazine, medkits: RULES.medkitsPerUnit,
+        hp: def.hp, ammo: def.weapon.magazine, reserve: Math.round(def.reserve * reserveMult), medkits: RULES.medkitsPerUnit,
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: team === 'player' ? { id: def.gadget, uses: RULES.gadgetUsesPerMission, cooldown: 0 } : null,
-        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, aiProfile,
+        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, aiProfile,
       });
     }
   }
 
   const interactables: Interactable[] = (map.interactables ?? []).map((it) => ({ ...it, active: it.active ?? false }));
+  const pickups: Pickup[] = (map.pickups ?? []).map((p) => ({ ...p, amount: p.amount ?? ITEMS[p.type].defaultAmount }));
 
   const emptyMemory = () => ({ lastSeen: {}, objectiveSeen: false, searchIndex: 0, doors: {} });
   const s: GameState = {
-    map, width, height, terrain, cover, coverRot, capture: null, objective, objectiveZone, objectiveDef, interactables, units,
+    map, width, height, terrain, cover, coverRot, capture: null, objective, objectiveZone, objectiveDef, interactables, pickups, units,
     phase: 'player', turn: 1, scans: [], seed, rng: seed, winner: null, fogEnabled: true,
     timeOfDay: options.timeOfDay ?? map.startTimeOfDay ?? 'midday',
     weather: options.weather ?? map.startWeather ?? 'clear',

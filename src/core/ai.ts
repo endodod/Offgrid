@@ -81,7 +81,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
       }
       if (best && (best.pos.x !== u.x || best.pos.y !== u.y)) return { type: 'move', unit: u.id, to: best.pos };
     }
-    if (here) return { type: 'attack', unit: u.id, target: here.target.id };
+    if (here && u.ammo > 0) return { type: 'attack', unit: u.id, target: here.target.id }; // ammo (4): a real attack needs ammo, not just a good angle
     if (holding) return validate(s, { type: 'overwatch', unit: u.id }) === null ? { type: 'overwatch', unit: u.id } : null;
     const nearest = enemies.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
     return advance(s, u, nearest);
@@ -96,6 +96,17 @@ export function planAction(s: GameState, u: Unit): Action | null {
       const revive: Action = { type: 'revive', unit: u.id, target: target.id };
       if (ok(s, revive)) return revive;
       if (!holding) return advance(s, u, target);
+    }
+  }
+
+  // Ammo (4): truly out (nothing left to reload with either) - head for the nearest *visible* ammo pickup
+  // instead of idling per habitat. Refilling beats patrolling on an empty gun.
+  if (!holding && u.ammo === 0 && u.reserve === 0) {
+    const ammoHere = s.pickups.filter((p) => p.type === 'ammo' && s.visible[u.team][idx(s, p.x, p.y)]);
+    const nearestPickup = nearestOf(u, ammoHere);
+    if (nearestPickup) {
+      const mv = advance(s, u, nearestPickup);
+      if (mv) return mv;
     }
   }
 

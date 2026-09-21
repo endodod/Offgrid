@@ -19,19 +19,20 @@ export interface ClassDef {
   move: number;
   vision: number;
   weapon: WeaponDef;
+  reserve: number; // ammo (4): total reload-able rounds beyond the starting magazine, see RULES/ammo economy
   gadget: GadgetId; // only handed to player-team units
 }
 
 export const CLASSES: Record<ClassId, ClassDef> = {
-  sniper:  { name: 'Sniper',  letter: 'S', hp: 8,  armor: 0, move: 5, vision: 8, gadget: 'scan',
+  sniper:  { name: 'Sniper',  letter: 'S', hp: 8,  armor: 0, move: 5, vision: 8, reserve: 6, gadget: 'scan',
              weapon: { range: 12, damage: 7, shots: 1, accuracy: 85, magazine: 3 } },
-  assault: { name: 'Assault', letter: 'A', hp: 12, armor: 0, move: 6, vision: 6, gadget: 'adrenaline',
+  assault: { name: 'Assault', letter: 'A', hp: 12, armor: 0, move: 6, vision: 6, reserve: 12, gadget: 'adrenaline',
              weapon: { range: 4,  damage: 2, shots: 3, accuracy: 60, magazine: 4 } },
-  soldier: { name: 'Soldier', letter: 'R', hp: 12, armor: 1, move: 5, vision: 7, gadget: 'grenade',
+  soldier: { name: 'Soldier', letter: 'R', hp: 12, armor: 1, move: 5, vision: 7, reserve: 18, gadget: 'grenade',
              weapon: { range: 7,  damage: 4, shots: 1, accuracy: 70, magazine: 6 } },
   // A soldier who trades the grenade for a full-heal medkit, and is frailer (less HP, no armor).
-  medic:   { name: 'Medic',   letter: 'M', hp: 9,  armor: 0, move: 5, vision: 7, gadget: 'medkit',
+  medic:   { name: 'Medic',   letter: 'M', hp: 9,  armor: 0, move: 5, vision: 7, reserve: 18, gadget: 'medkit',
              weapon: { range: 7,  damage: 4, shots: 1, accuracy: 70, magazine: 6 } },
-  tank:    { name: 'Tank',    letter: 'T', hp: 24, armor: 3, move: 4, vision: 5, gadget: 'cover',
+  tank:    { name: 'Tank',    letter: 'T', hp: 24, armor: 3, move: 4, vision: 5, reserve: 12, gadget: 'cover',
              weapon: { range: 6,  damage: 3, shots: 1, accuracy: 70, magazine: 6 } },
 };

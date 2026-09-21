@@ -4,6 +4,7 @@ import type { AiProfileId } from '../data/aiProfiles';
 import type { InteractableType, MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
 import type { ObjectiveDef } from '../data/objectives';
+import type { ItemType } from '../data/items';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 
@@ -21,6 +22,7 @@ export interface Unit {
   y: number;
   hp: number;
   ammo: number;
+  reserve: number; // ammo (4): rounds a reload can still draw from, beyond what's in the magazine
   medkits: number;
   actions: number;
   alive: boolean; // false only once truly (permanently) dead - a downed unit is still alive
@@ -36,6 +38,8 @@ export interface Unit {
   dmgTaken: number;
   kills: number;
   revives: number;
+  reserveUsed: number; // ammo (4): total rounds drawn from reserve by reloads, for the sim's balance table
+  ranDry: boolean; // ammo (4): true once this unit has ever had both ammo and reserve at 0 simultaneously
 }
 
 /** Last-seen marker. `hidden` becomes true once its tile has been out of sight, so a fresh look can clear it. */
@@ -58,6 +62,19 @@ export interface Interactable {
   y: number;
   active: boolean;
   links?: number[]; // switch only: ids of doors it toggles when interacted with
+}
+
+/**
+ * An ammo/medkit/gadget pickup on the map (4). No fog memory of its own - unlike a door's state, a pickup is
+ * only ever "there" or "gone" (removed from `GameState.pickups` the instant anyone collects it), so it's drawn
+ * purely from current visibility rather than remembered state (see render/renderer.ts's `drawPickups`).
+ */
+export interface Pickup {
+  id: number;
+  type: ItemType;
+  x: number;
+  y: number;
+  amount: number;
 }
 
 /** What a team remembers. Never contains information the team has not seen. */
@@ -86,6 +103,7 @@ export type EventBody =
   | { t: 'cover'; at: Pos; from: Cover | null; to: Cover | null }
   | { t: 'door'; unit: number; id: number; at: Pos; open: boolean }
   | { t: 'switch'; unit: number; id: number; at: Pos; on: boolean; linked: number[] }
+  | { t: 'pickup'; unit: number; item: ItemType; amount: number; at: Pos }
   | { t: 'objective'; unit: number }
   | { t: 'capture'; unit: number; status: 'start' | 'progress' | 'broken'; roundsLeft: number }
   | { t: 'end'; winner: Team | 'draw' };
@@ -96,6 +114,7 @@ export interface GameOptions {
   aiRevive?: boolean; // default true: whether the AI will path to and revive its own downed allies
   enemyProfile?: AiProfileId; // default 'standard' (or the map's own default)
   playerProfile?: AiProfileId; // only matters when the player team is AI-driven (the simulator, or 0d's auto-run)
+  reserveMult?: number; // ammo (4): scales every unit's starting reserve; default 1 (or the map's own default)
 }
 
 export interface GameState {
@@ -110,6 +129,7 @@ export interface GameState {
   objectiveZone: Pos[]; // every 'O' tile (3); for 'hold' this is just [objective], 'reach' can have several
   objectiveDef: ObjectiveDef | null; // this mission's primary objective (3), resolved from MapDef.objective
   interactables: Interactable[]; // doors and switches (2); runtime copies, mutated in place
+  pickups: Pickup[]; // ammo/medkit/gadget pickups (4); removed from the list once collected
   units: Unit[];
   phase: Team;
   turn: number;
