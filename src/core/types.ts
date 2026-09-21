@@ -1,7 +1,7 @@
 import type { ClassId } from '../data/units';
 import type { GadgetId } from '../data/gadgets';
 import type { AiProfileId } from '../data/aiProfiles';
-import type { MapDef } from '../data/trainingGrounds';
+import type { InteractableType, MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
@@ -45,11 +45,26 @@ export interface Capture { team: Team; unit: number; at: Pos; roundsLeft: number
 
 export interface Scan { team: Team; x: number; y: number; radius: number; turnsLeft: number }
 
+/**
+ * A door or switch (2). `active` means: door -> open (passable, no LOS block); switch -> already thrown
+ * (cosmetic only - what actually happens is toggling every door in `links`). Doors and switches share one
+ * shape since both are just "a tile with a binary state a unit can flip by interacting with it."
+ */
+export interface Interactable {
+  id: number;
+  type: InteractableType;
+  x: number;
+  y: number;
+  active: boolean;
+  links?: number[]; // switch only: ids of doors it toggles when interacted with
+}
+
 /** What a team remembers. Never contains information the team has not seen. */
 export interface Memory {
   lastSeen: Record<number, Ghost>; // enemy unit id -> last seen position (the "ghost")
   objectiveSeen: boolean;
   searchIndex: number;
+  doors: Record<number, boolean>; // interactable id -> last-seen `active` state (2)
 }
 
 /** `seen` = whether the player team could see it when it happened (used to filter the log). */
@@ -68,6 +83,8 @@ export type EventBody =
   | { t: 'heal'; unit: number; target: number; amount: number; at: Pos }
   | { t: 'gadget'; unit: number; gadget: GadgetId; target?: Pos }
   | { t: 'cover'; at: Pos; from: Cover | null; to: Cover | null }
+  | { t: 'door'; unit: number; id: number; at: Pos; open: boolean }
+  | { t: 'switch'; unit: number; id: number; at: Pos; on: boolean; linked: number[] }
   | { t: 'objective'; unit: number }
   | { t: 'capture'; unit: number; status: 'start' | 'progress' | 'broken'; roundsLeft: number }
   | { t: 'end'; winner: Team | 'draw' };
@@ -89,6 +106,7 @@ export interface GameState {
   coverRot: number[]; // 0..3 quarter turns; purely visual
   capture: Capture | null;
   objective: Pos | null;
+  interactables: Interactable[]; // doors and switches (2); runtime copies, mutated in place
   units: Unit[];
   phase: Team;
   turn: number;

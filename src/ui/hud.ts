@@ -22,7 +22,7 @@ const BUTTON_INFO: Record<ButtonId, { desc: string; cost: string }> = {
   overwatch: { desc: 'Reserve your weapon to react to the first enemy that moves or acts in your range and sight.', cost: '1 action, needs ammo' },
   aid: { desc: 'First aid: heal an adjacent ally (or yourself) for a fixed amount from your personal medkits.', cost: '1 action, 1 medkit' },
   revive: { desc: 'Bring a downed adjacent ally back with partial HP before their bleed-out timer runs out.', cost: '1 action, 1 medkit' },
-  interact: { desc: 'Interact with the objective terminal, then hold position to capture it.', cost: '1 action' },
+  interact: { desc: 'Open/close an adjacent door, flip a switch, or interact with the objective terminal and hold position to capture it.', cost: '1 action' },
   endTurn: { desc: 'End your phase; the enemy acts next.', cost: 'no action cost' },
 };
 

@@ -16,7 +16,7 @@ export type Action =
   | { type: 'overwatch'; unit: number }
   | { type: 'aid'; unit: number; target: number }
   | { type: 'revive'; unit: number; target: number }
-  | { type: 'interact'; unit: number }
+  | { type: 'interact'; unit: number; target?: number } // target: an interactable id (2); omitted = the objective
   | { type: 'endTurn' };
 
 export type Result = { ok: true; events: GameEvent[] } | { ok: false; error: string; events: [] };
@@ -90,6 +90,15 @@ export function interactBlock(s: GameState, u: Unit): string | null {
   return null;
 }
 
+/** Why `u` cannot interact with interactable `targetId` (a door or switch, 2) right now, or null. */
+export function interactableBlock(s: GameState, u: Unit, targetId: number): string | null {
+  if (hasActions(u)) return hasActions(u);
+  const it = s.interactables.find((i) => i.id === targetId);
+  if (!it) return 'No such interactable';
+  if (cheb(u, it) > 1) return 'Not adjacent';
+  return null;
+}
+
 /** Returns an error message, or null if the action is legal. */
 export function validate(s: GameState, a: Action): string | null {
   if (s.winner) return 'The battle is over';
@@ -121,7 +130,7 @@ export function validate(s: GameState, a: Action): string | null {
     case 'revive':
       return reviveBlock(u, unitById(s, a.target));
     case 'interact':
-      return interactBlock(s, u);
+      return a.target !== undefined ? interactableBlock(s, u, a.target) : interactBlock(s, u);
     case 'gadget':
       return gadgetBlock(u) ?? gadgetTargetBlock(s, u, a.target);
   }
@@ -176,9 +185,12 @@ export function perform(s: GameState, a: Action): Result {
       break;
     }
     case 'interact':
-      u.actions--;
-      emit(s, { t: 'objective', unit: u.id }, [u]);
-      beginCapture(s, u); // now it has to hold still; the win comes when the rounds run out
+      if (a.target !== undefined) doInteractable(s, u, a.target);
+      else {
+        u.actions--;
+        emit(s, { t: 'objective', unit: u.id }, [u]);
+        beginCapture(s, u); // now it has to hold still; the win comes when the rounds run out
+      }
       break;
     case 'gadget': doGadget(s, u, a.target, a.rotation); break;
   }
@@ -252,6 +264,27 @@ function doGadget(s: GameState, u: Unit, target?: Pos, rotation = 0) {
     emit(s, { t: 'heal', unit: u.id, target: t.id, amount, at: { x: t.x, y: t.y } }, [u, t]);
   }
   else if (g.id === 'grenade') blast(s, u, target!, def.radius!, def.damage!);
+}
+
+/** Toggle a door or switch (2). A switch also flips every door in its `links`; its own `active` is cosmetic. */
+function doInteractable(s: GameState, u: Unit, targetId: number) {
+  const it = s.interactables.find((i) => i.id === targetId)!;
+  u.actions--;
+  it.active = !it.active;
+  const at: Pos = { x: it.x, y: it.y }; // never pass `it` itself to emit(): it has an `id` too and would be
+  // mistaken for a Unit by isSeenByPlayer's `'id' in w` check.
+  if (it.type === 'door') {
+    emit(s, { t: 'door', unit: u.id, id: it.id, at, open: it.active }, [u, at]);
+  } else {
+    const linked: number[] = [];
+    for (const doorId of it.links ?? []) {
+      const door = s.interactables.find((d) => d.id === doorId && d.type === 'door');
+      if (!door) continue;
+      door.active = !door.active;
+      linked.push(door.id);
+    }
+    emit(s, { t: 'switch', unit: u.id, id: it.id, at, on: it.active, linked }, [u, at]);
+  }
 }
 
 function setCover(s: GameState, at: Pos, to: 'low' | 'high' | null, rotation?: number) {

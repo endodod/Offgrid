@@ -13,7 +13,7 @@ export interface View {
   s: GameState;
   selected: Unit | null;
   hover: Pos | null;
-  mode: 'move' | 'attack' | 'gadget' | 'aid' | 'revive';
+  mode: 'move' | 'attack' | 'gadget' | 'aid' | 'revive' | 'interact';
   reach: Set<number> | null; // tiles the selected unit can walk to (move mode)
   path: Pos[] | null; // walk path from the selected unit to the hovered tile, if reachable (move mode)
   ringed: Set<number>; // unit ids to ring (valid attack / aid targets)
@@ -55,6 +55,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   ctx.fillRect(0, 0, s.width * TILE, s.height * TILE);
 
   for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) drawTile(ctx, v, x, y);
+  drawInteractables(ctx, v);
   drawShields(ctx, v);
   drawHighlights(ctx, v);
   drawScans(ctx, v);
@@ -181,7 +182,7 @@ function coveredTiles(s: GameState, u: Unit): number[] {
 function drawHighlights(ctx: CanvasRenderingContext2D, v: View) {
   const { s } = v;
   if (v.mode === 'move' && v.reach) fillTiles(ctx, s, v.reach, 'rgba(176,214,176,0.16)');
-  if (v.mode === 'gadget') fillTiles(ctx, s, v.aimTiles, 'rgba(176,214,176,0.14)');
+  if (v.mode === 'gadget' || v.mode === 'interact') fillTiles(ctx, s, v.aimTiles, 'rgba(176,214,176,0.14)');
   // Overwatch coverage (weapon range + LOS) is only drawn in the overwatch view, and only for units that are actually
   // on overwatch: friendly green, enemy red (enemies only if we can see them). Overlaps stack darker.
   // Outside the view, an active overwatch is just the eye icon on the unit.
@@ -244,6 +245,50 @@ function drawObjective(ctx: CanvasRenderingContext2D, v: View) {
     ctx.fillStyle = C.objective;
     ctx.fillText(`HOLD ${s.capture.roundsLeft}`, px + TILE / 2, py - 4);
   }
+}
+
+/**
+ * Doors and switches (2). Fog-fair: never drawn until the player's memory has seen that tile at least once
+ * (or fog is off in debug), then drawn using the *remembered* state while out of sight - a door seen closed
+ * but opened later behind your back should show closed until you look again, not silently update off-screen.
+ */
+function drawInteractables(ctx: CanvasRenderingContext2D, v: View) {
+  const { s } = v;
+  const mem = s.memory.player;
+  for (const it of s.interactables) {
+    const nowVisible = isVisible(s, it.x, it.y);
+    const known = !s.fogEnabled || nowVisible || it.id in mem.doors;
+    if (!known) continue;
+    const active = !s.fogEnabled || nowVisible ? it.active : mem.doors[it.id];
+    const c = !s.fogEnabled || nowVisible ? (h: string) => h : grey;
+    const px = it.x * TILE, py = it.y * TILE;
+    if (it.type === 'door') drawDoor(ctx, px, py, active, c);
+    else drawSwitch(ctx, px, py, active, c);
+  }
+}
+
+function drawDoor(ctx: CanvasRenderingContext2D, px: number, py: number, open: boolean, c: (hex: string) => string) {
+  if (!open) {
+    ctx.fillStyle = c('#6b4a2a');
+    ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
+    ctx.fillStyle = c('#8a6438');
+    ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
+    ctx.fillStyle = c('#e0c88a'); // handle
+    ctx.fillRect(px + TILE - 12, py + TILE / 2 - 2, 4, 4);
+  } else {
+    ctx.strokeStyle = c('#8a6438');
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
+    ctx.fillStyle = c('#6b4a2a'); // door swung open, hugging one edge
+    ctx.fillRect(px + 2, py + 2, 4, TILE - 4);
+  }
+}
+
+function drawSwitch(ctx: CanvasRenderingContext2D, px: number, py: number, on: boolean, c: (hex: string) => string) {
+  ctx.fillStyle = c('#3a332b');
+  ctx.fillRect(px + TILE / 2 - 6, py + TILE / 2 - 8, 12, 16);
+  ctx.fillStyle = c(on ? '#8fd19a' : '#6b6656');
+  ctx.fillRect(px + TILE / 2 - 4, py + (on ? TILE / 2 - 6 : TILE / 2), 8, 6); // lever position shows on/off
 }
 
 function drawGhosts(ctx: CanvasRenderingContext2D, v: View) {

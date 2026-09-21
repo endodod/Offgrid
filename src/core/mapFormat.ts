@@ -1,21 +1,22 @@
-import type { MapDef, Spawn } from '../data/trainingGrounds';
+import type { InteractableDef, MapDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
 import { AI_PROFILES, type AiProfileId } from '../data/aiProfiles';
 
 /** Tile characters a map may contain (see MapDef.rows). */
 export const TILE_CHARS = '.#bl123hO';
-/** Tiles a unit may stand on. */
+/** Tiles a unit may stand on. A door/switch (2) sits on one of these too - the grid stays plain floor under it. */
 export const WALKABLE = '.b';
 
 type Spawns = MapDef['spawns'];
 
-/** Builds a map from edited rows/spawns. Search waypoints that ended up inside an obstacle are dropped. */
-export function withEdits(base: MapDef, rows: string[], spawns: Spawns): MapDef {
+/** Builds a map from edited rows/spawns(/interactables). Search waypoints that ended up inside an obstacle are dropped. */
+export function withEdits(base: MapDef, rows: string[], spawns: Spawns, interactables: InteractableDef[] = base.interactables ?? []): MapDef {
   const open = ([x, y]: [number, number]) => WALKABLE.includes(rows[y]?.[x] ?? '#');
   return {
     ...base,
     rows,
     spawns,
+    interactables,
     searchPoints: { player: base.searchPoints.player.filter(open), enemy: base.searchPoints.enemy.filter(open) },
   };
 }
@@ -52,12 +53,46 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
       return profile !== undefined ? [cls as ClassId, px, py, profile as AiProfileId] : [cls as ClassId, px, py];
     });
   };
-  return withEdits(base, rows as string[], { player: parseTeam('player'), enemy: parseTeam('enemy') });
+  const spawnsOut = { player: parseTeam('player'), enemy: parseTeam('enemy') };
+
+  const rawInteractables = (raw as { interactables?: unknown }).interactables;
+  const interactables: InteractableDef[] = [];
+  if (rawInteractables !== undefined) {
+    if (!Array.isArray(rawInteractables)) throw new Error('"interactables" must be a list.');
+    const ids = new Set<number>();
+    for (const rawIt of rawInteractables) {
+      const { id, type, x, y, active, links } = rawIt as Partial<InteractableDef>;
+      if (typeof id !== 'number' || !Number.isInteger(id)) throw new Error(`Bad interactable id "${String(id)}".`);
+      if (ids.has(id)) throw new Error(`Two interactables share id ${id}.`);
+      ids.add(id);
+      if (type !== 'door' && type !== 'switch') throw new Error(`Unknown interactable type "${String(type)}" (id ${id}).`);
+      if (!Number.isInteger(x) || !Number.isInteger(y)) throw new Error(`Bad position for interactable ${id}.`);
+      if (!WALKABLE.includes((rows[y as number] as string | undefined)?.[x as number] ?? '#')) throw new Error(`Interactable ${id} at (${x},${y}) is not on an open tile.`);
+      if (taken.has(`${x},${y}`)) throw new Error(`Interactable ${id} at (${x},${y}) shares a tile with a unit.`);
+      if (active !== undefined && typeof active !== 'boolean') throw new Error(`Bad "active" for interactable ${id}.`);
+      if (links !== undefined && (!Array.isArray(links) || links.some((l) => !Number.isInteger(l)))) throw new Error(`Bad "links" for interactable ${id}.`);
+      interactables.push({ id, type, x: x as number, y: y as number, ...(active !== undefined && { active }), ...(links !== undefined && { links }) });
+    }
+    const doorIds = new Set(interactables.filter((it) => it.type === 'door').map((it) => it.id));
+    for (const it of interactables) {
+      if (it.type !== 'switch') continue;
+      for (const l of it.links ?? []) if (!doorIds.has(l)) throw new Error(`Switch ${it.id} links to non-door id ${l}.`);
+    }
+    const spots = new Map<string, number>();
+    for (const it of interactables) {
+      const key = `${it.x},${it.y}`;
+      if (spots.has(key)) throw new Error(`Interactables ${spots.get(key)} and ${it.id} share tile (${it.x},${it.y}).`);
+      spots.set(key, it.id);
+    }
+  }
+
+  return withEdits(base, rows as string[], spawnsOut, interactables);
 }
 
 /** JSON text for export/import and storage: one row per line so it stays readable and diff-able. */
 export function serializeMap(map: MapDef): string {
   const rows = map.rows.map((r) => `  ${JSON.stringify(r)}`).join(',\n');
   const team = (t: 'player' | 'enemy') => map.spawns[t].map((s) => JSON.stringify(s)).join(', ');
-  return `{\n "rows": [\n${rows}\n ],\n "spawns": {\n  "player": [${team('player')}],\n  "enemy": [${team('enemy')}]\n }\n}`;
+  const interactables = map.interactables?.length ? `,\n "interactables": [\n${map.interactables.map((it) => `  ${JSON.stringify(it)}`).join(',\n')}\n ]` : '';
+  return `{\n "rows": [\n${rows}\n ],\n "spawns": {\n  "player": [${team('player')}],\n  "enemy": [${team('enemy')}]\n }${interactables}\n}`;
 }

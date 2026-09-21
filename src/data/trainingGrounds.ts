@@ -8,11 +8,23 @@ import type { WeatherId } from './weather';
  *  (e.g. one camper covering a doorway while the rest patrol). */
 export type Spawn = [ClassId, number, number, AiProfileId?];
 
+/** A door or switch (2). See core/types.ts's Interactable for the runtime (mutable) shape this seeds. */
+export type InteractableType = 'door' | 'switch';
+export interface InteractableDef {
+  id: number;
+  type: InteractableType;
+  x: number;
+  y: number;
+  active?: boolean; // defaults to false (door closed / switch not yet thrown)
+  links?: number[]; // switch only: ids of doors it toggles when interacted with
+}
+
 export interface MapDef {
   name: string;
   /**
    * '.' floor  '#' wall  'b' bush  'h' high cover  'O' objective
    * 'l' low cover, and '1' '2' '3' = low cover rotated 90 / 180 / 270 degrees (visual only)
+   * Doors and switches are not tile characters - the grid stays plain floor under them (2); see `interactables`.
    */
   rows: string[];
   spawns: Record<'player' | 'enemy', Spawn[]>;
@@ -23,6 +35,8 @@ export interface MapDef {
   startWeather?: WeatherId;
   /** The enemy squad's AI habitat/difficulty; undefined falls back to createGame's default ('standard'). */
   enemyProfile?: AiProfileId;
+  /** Doors and switches (2); undefined/omitted is the same as an empty list. */
+  interactables?: InteractableDef[];
 }
 
 // Laid out in the debug map builder (see README) and pasted back from its JSON export.

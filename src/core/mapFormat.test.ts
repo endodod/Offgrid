@@ -65,3 +65,48 @@ describe('map format', () => {
     expect(m.searchPoints.player).toHaveLength(base.searchPoints.player.length - 1);
   });
 });
+
+describe('interactables (doors/switches, feature 2)', () => {
+  // (0,0) and (0,15) are both open floor, unoccupied by any spawn or the objective.
+  const door = { id: 1, type: 'door' as const, x: 0, y: 0 };
+  const sw = { id: 2, type: 'switch' as const, x: 0, y: 15, links: [1] };
+  const cloneWith = (interactables: unknown[]) => JSON.parse(serializeMap(withEdits(base, base.rows, base.spawns, interactables as never)));
+
+  it('round-trips through serialize -> parse, including links', () => {
+    const back = parseMap(cloneWith([door, sw]), base);
+    expect(back.interactables).toEqual([door, sw]);
+  });
+
+  it('builder round-trip: withEdits -> serializeMap -> parseMap preserves an edited interactable list', () => {
+    const edited = withEdits(base, base.rows, base.spawns, [door]);
+    const back = parseMap(JSON.parse(serializeMap(edited)), base);
+    expect(back.interactables).toEqual([door]);
+  });
+
+  it('rejects an unknown interactable type', () => {
+    const raw = cloneWith([door]);
+    raw.interactables[0].type = 'nope';
+    expect(() => parseMap(raw, base)).toThrow('Unknown interactable type');
+  });
+
+  it('rejects a door/switch not on an open tile', () => {
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'door', x: 5, y: 0 }]), base)).toThrow('not on an open tile'); // (5,0) is a wall
+  });
+
+  it('rejects two interactables sharing an id', () => {
+    expect(() => parseMap(cloneWith([door, { id: 1, type: 'door', x: 0, y: 15 }]), base)).toThrow('share id');
+  });
+
+  it('rejects an interactable sharing a tile with a unit spawn', () => {
+    const [, x, y] = base.spawns.player[0];
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'door', x, y }]), base)).toThrow('shares a tile with a unit');
+  });
+
+  it('rejects two interactables sharing a tile with each other', () => {
+    expect(() => parseMap(cloneWith([door, { id: 2, type: 'switch', x: 0, y: 0 }]), base)).toThrow('share tile');
+  });
+
+  it("rejects a switch linking to an id that isn't a door", () => {
+    expect(() => parseMap(cloneWith([{ id: 1, type: 'switch', x: 0, y: 0, links: [99] }]), base)).toThrow('non-door id');
+  });
+});

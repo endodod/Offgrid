@@ -3,7 +3,7 @@ import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
 import { GADGETS } from '../data/gadgets';
 import { refreshVision } from './vision';
-import type { Cover, EventBody, GameEvent, GameOptions, GameState, Pos, Team, Terrain, Unit } from './types';
+import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pos, Team, Terrain, Unit } from './types';
 
 const TEAMS: Team[] = ['player', 'enemy'];
 
@@ -38,9 +38,11 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     }
   }
 
-  const emptyMemory = () => ({ lastSeen: {}, objectiveSeen: false, searchIndex: 0 });
+  const interactables: Interactable[] = (map.interactables ?? []).map((it) => ({ ...it, active: it.active ?? false }));
+
+  const emptyMemory = () => ({ lastSeen: {}, objectiveSeen: false, searchIndex: 0, doors: {} });
   const s: GameState = {
-    map, width, height, terrain, cover, coverRot, capture: null, objective, units,
+    map, width, height, terrain, cover, coverRot, capture: null, objective, interactables, units,
     phase: 'player', turn: 1, scans: [], seed, rng: seed, winner: null, fogEnabled: true,
     timeOfDay: options.timeOfDay ?? map.startTimeOfDay ?? 'midday',
     weather: options.weather ?? map.startWeather ?? 'clear',

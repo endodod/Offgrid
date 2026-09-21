@@ -5,17 +5,18 @@ import { refreshVision } from '../core/vision';
 import type { Pos } from '../core/types';
 import { AI_PROFILES, PROFILE_ORDER, type AiProfileId } from '../data/aiProfiles';
 import type { Mission } from '../data/missions';
-import type { MapDef, Spawn } from '../data/trainingGrounds';
+import type { InteractableDef, MapDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
 import { draw, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
 
-type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'player' | 'enemy' | 'erase';
+type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'link' | 'player' | 'enemy' | 'erase';
 type Team = 'player' | 'enemy';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'floor', label: 'Floor' }, { id: 'wall', label: 'Wall' }, { id: 'bush', label: 'Bush' },
   { id: 'low', label: 'Low cover' }, { id: 'high', label: 'High cover' }, { id: 'objective', label: 'Objective' },
+  { id: 'door', label: 'Door' }, { id: 'switch', label: 'Switch' }, { id: 'link', label: 'Link switch↔door' },
   { id: 'player', label: 'Friendly unit' }, { id: 'enemy', label: 'Enemy unit' }, { id: 'erase', label: 'Erase' },
 ];
 const TERRAIN_CHAR: Partial<Record<Tool, string>> = { floor: '.', wall: '#', bush: 'b', high: 'h', objective: 'O' };
@@ -36,12 +37,14 @@ export class Builder {
   private mission!: Mission;
   private grid: string[][] = [];
   private spawns: Record<Team, Spawn[]> = { player: [], enemy: [] };
+  private interactables: InteractableDef[] = [];
   private tool: Tool = 'wall';
   private cls: ClassId = 'soldier';
   private profile: AiProfileId = 'standard'; // AI habitat/difficulty for the next enemy unit painted
   private rot = 0;
   private hover: Pos | null = null;
   private stroke: Tool | null = null; // tool of the drag in progress
+  private linkFrom: number | null = null; // switch id waiting for a door click, while the link tool is active
   private dirty = false;
   private canvas = $<HTMLCanvasElement>('bcanvas');
   private ctx = this.canvas.getContext('2d')!;
@@ -49,7 +52,7 @@ export class Builder {
   constructor(private hooks: BuilderHooks) {
     $('b-tools').addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
-      if (b) { this.tool = b.dataset.tool as Tool; this.refresh(); }
+      if (b) { this.tool = b.dataset.tool as Tool; this.linkFrom = null; this.note(''); this.refresh(); }
     });
     const select = $<HTMLSelectElement>('b-class');
     select.innerHTML = CLASS_ORDER.map((c) => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
@@ -71,7 +74,9 @@ export class Builder {
       return { x: Math.floor((ev.clientX - r.left) * k), y: Math.floor((ev.clientY - r.top) * k) };
     };
     this.canvas.addEventListener('mousedown', (ev) => {
-      this.stroke = ev.button === 2 ? 'erase' : this.tool; // right button always erases
+      const tool = ev.button === 2 ? 'erase' : this.tool; // right button always erases
+      if (tool === 'link') { const { x, y } = tileAt(ev); this.link(x, y); return; } // click, not drag
+      this.stroke = tool;
       this.paint(tileAt(ev));
     });
     this.canvas.addEventListener('mousemove', (ev) => {
@@ -123,10 +128,12 @@ export class Builder {
   private load(map: MapDef) {
     this.grid = map.rows.map((r) => [...r]);
     this.spawns = { player: map.spawns.player.map((s) => [...s] as Spawn), enemy: map.spawns.enemy.map((s) => [...s] as Spawn) };
+    this.interactables = (map.interactables ?? []).map((it) => ({ ...it, links: it.links ? [...it.links] : undefined }));
+    this.linkFrom = null;
   }
 
   private toMap(): MapDef {
-    return withEdits(this.mission.map, this.grid.map((r) => r.join('')), this.spawns);
+    return withEdits(this.mission.map, this.grid.map((r) => r.join('')), this.spawns, this.interactables);
   }
 
   // ---------- editing ----------
@@ -138,27 +145,74 @@ export class Builder {
     return null;
   }
 
+  private interactableAt(x: number, y: number): InteractableDef | null {
+    return this.interactables.find((it) => it.x === x && it.y === y) ?? null;
+  }
+
+  private nextInteractableId(): number {
+    return this.interactables.reduce((m, it) => Math.max(m, it.id), 0) + 1;
+  }
+
+  /** Removes an interactable and, if it was a door, scrubs it out of every switch's links. */
+  private removeInteractable(id: number) {
+    const i = this.interactables.findIndex((it) => it.id === id);
+    if (i < 0) return;
+    const removed = this.interactables[i];
+    this.interactables.splice(i, 1);
+    if (removed.type === 'door') for (const it of this.interactables) if (it.links) it.links = it.links.filter((l) => l !== id);
+    if (this.linkFrom === id) this.linkFrom = null;
+  }
+
+  /** Link tool: click a switch, then click a door to toggle it on/off that switch's link list. */
+  private link(x: number, y: number) {
+    const it = this.interactableAt(x, y);
+    if (this.linkFrom === null) {
+      if (!it || it.type !== 'switch') { this.note('Click a switch, then click a door, to link or unlink them.'); return; }
+      this.linkFrom = it.id;
+      this.note(`Switch ${it.id} selected - click a door to link/unlink it, or click the switch again to cancel.`);
+      this.render();
+      return;
+    }
+    if (it && it.id === this.linkFrom) { this.linkFrom = null; this.note(''); this.render(); return; }
+    if (!it || it.type !== 'door') { this.note('Click a door to link it to the selected switch.'); return; }
+    const sw = this.interactables.find((s) => s.id === this.linkFrom)!;
+    const links = sw.links ?? (sw.links = []);
+    const i = links.indexOf(it.id);
+    if (i >= 0) { links.splice(i, 1); this.note(`Unlinked door ${it.id} from switch ${sw.id}.`); }
+    else { links.push(it.id); this.note(`Linked door ${it.id} to switch ${sw.id}.`); }
+    this.dirty = true;
+    this.refresh();
+  }
+
   private paint({ x, y }: Pos) {
     const tool = this.stroke;
     if (!tool || y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length) return;
     const before = this.grid[y][x];
     const sp = this.spawnAt(x, y);
+    const it = this.interactableAt(x, y);
     const dropSpawn = () => { if (sp) this.spawns[sp.team].splice(sp.i, 1); };
     let changed = true;
     if (tool === 'erase') {
-      if (sp) dropSpawn(); else this.grid[y][x] = '.';
+      if (sp) dropSpawn(); else if (it) this.removeInteractable(it.id); else this.grid[y][x] = '.';
     } else if (tool === 'player' || tool === 'enemy') {
       if (!WALKABLE.includes(before)) { this.note('Units need an open floor or bush tile.'); return; }
+      if (it) { this.note('Tile is occupied by a door/switch.'); return; }
       const dup = sp && sp.team === tool && this.spawns[tool][sp.i][0] === this.cls;
       dropSpawn();
       // painting the same unit again removes it; 'standard' is left implicit (the mission/team default) rather
       // than baked into every spawn, so a mission's own default can still change later without editing every unit
       if (!dup) this.spawns[tool].push(tool === 'enemy' && this.profile !== 'standard' ? [this.cls, x, y, this.profile] : [this.cls, x, y]);
+    } else if (tool === 'door' || tool === 'switch') {
+      if (!WALKABLE.includes(before)) { this.note('Doors/switches need an open floor or bush tile.'); return; }
+      if (sp) { this.note('Tile is occupied by a unit.'); return; }
+      // painting the same kind onto its own tile removes it, matching the unit tools' toggle behaviour
+      if (it && it.type === tool) this.removeInteractable(it.id);
+      else { if (it) this.removeInteractable(it.id); this.interactables.push({ id: this.nextInteractableId(), type: tool, x, y }); }
     } else {
       const ch = tool === 'low' ? (this.rot === 0 ? 'l' : String(this.rot)) : TERRAIN_CHAR[tool]!;
       const keepsUnit = WALKABLE.includes(ch); // floor and bush can hold a unit; walls, cover and the terminal can't
-      changed = before !== ch || (!keepsUnit && !!sp);
-      if (!keepsUnit) dropSpawn();
+      changed = before !== ch || (!keepsUnit && !!sp) || (!keepsUnit && !!it);
+      if (!keepsUnit) { dropSpawn(); if (it) this.removeInteractable(it.id); }
       if (ch === 'O') for (const row of this.grid) row.forEach((c, i) => { if (c === 'O') row[i] = '.'; }); // only one objective
       this.grid[y][x] = ch;
     }
@@ -228,6 +282,7 @@ export class Builder {
       const d = distanceMap(s, first);
       for (const u of s.units) if (u.team === 'enemy' && d[idx(s, u.x, u.y)] < 0) out.push(`Enemy at (${u.x},${u.y}) is walled off from the friendly squad.`);
     }
+    for (const it of this.interactables) if (it.type === 'switch' && !it.links?.length) out.push(`Switch ${it.id} at (${it.x},${it.y}) has no linked doors.`);
     return out;
   }
 

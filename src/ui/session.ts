@@ -5,7 +5,7 @@ import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 import type { MapDef } from '../data/trainingGrounds';
 import { RULES } from '../data/rules';
-import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, reviveBlock, validate, type Action } from '../core/actions';
+import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, interactableBlock, moveRange, perform, reviveBlock, validate, type Action } from '../core/actions';
 import { aiTurn } from '../core/ai';
 import { coverAgainst, coverAt, damageAgainst, hitChance, targetBlock } from '../core/combat';
 import { envMods } from '../core/environment';
@@ -16,7 +16,7 @@ import type { GameEvent, GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
 import { describe, nameOf, type LogLine } from './log';
 
-export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive';
+export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive' | 'interact';
 export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'revive' | 'interact' | 'endTurn';
 export interface ButtonState { enabled: boolean; reason: string | null; label: string; active: boolean }
 
@@ -186,6 +186,12 @@ export class Session {
       if (at?.team === 'player' && this.try({ type: 'aid', unit: sel.id, target: at.id })) this.mode = 'move';
     } else if (sel && this.mode === 'revive') {
       if (at?.team === 'player' && this.try({ type: 'revive', unit: sel.id, target: at.id })) this.mode = 'move';
+    } else if (sel && this.mode === 'interact') {
+      const it = this.state.interactables.find((x) => x.x === p.x && x.y === p.y);
+      const obj = this.state.objective;
+      const onObjective = !!obj && obj.x === p.x && obj.y === p.y;
+      if (it) { if (this.try({ type: 'interact', unit: sel.id, target: it.id })) this.mode = 'move'; }
+      else if (onObjective) { if (this.try({ type: 'interact', unit: sel.id })) this.mode = 'move'; }
     } else if (at?.team === 'player' && !at.downed) {
       this.toggleSelect(at.id); // clicking the selected unit again deselects it
     } else if (sel && at) {
@@ -194,6 +200,15 @@ export class Session {
       this.try({ type: 'move', unit: sel.id, to: p });
     }
     this.onChange();
+  }
+
+  /** Every interact target `u` could legally use right now: the objective (undefined) and/or nearby doors/switches. */
+  private interactTargets(u: Unit): (number | undefined)[] {
+    const s = this.state;
+    const out: (number | undefined)[] = [];
+    if (interactBlock(s, u) === null) out.push(undefined);
+    for (const it of s.interactables) if (interactableBlock(s, u, it.id) === null) out.push(it.id);
+    return out;
   }
 
   // ---------- action bar ----------
@@ -212,7 +227,12 @@ export class Session {
       case 'overwatch': return gate(validate(this.state, { type: 'overwatch', unit: u.id }), 'Overwatch');
       case 'aid': return gate(aidBlock(u), 'First aid', this.mode === 'aid');
       case 'revive': return gate(reviveBlock(u), 'Revive', this.mode === 'revive');
-      case 'interact': return gate(interactBlock(this.state, u), 'Interact');
+      case 'interact': {
+        const targets = this.interactTargets(u);
+        if (targets.length) return gate(null, 'Interact', this.mode === 'interact');
+        const reason = this.state.interactables.length && !this.state.objective ? 'Not adjacent to a door or switch' : interactBlock(this.state, u);
+        return gate(reason, 'Interact');
+      }
     }
   }
 
@@ -226,7 +246,13 @@ export class Session {
       case 'attack': this.mode = b; break;
       case 'reload': this.try({ type: 'reload', unit: u.id }); break;
       case 'overwatch': this.try({ type: 'overwatch', unit: u.id }); break;
-      case 'interact': this.try({ type: 'interact', unit: u.id }); break;
+      case 'interact': {
+        const targets = this.interactTargets(u);
+        if (targets.length === 1) this.try({ type: 'interact', unit: u.id, target: targets[0] });
+        else this.mode = this.mode === 'interact' ? 'move' : 'interact';
+        this.status = this.mode === 'interact' ? 'Pick the objective, a door, or a switch to interact with.' : '';
+        break;
+      }
       case 'gadget':
         if (GADGETS[u.gadget!.id].target === 'none') this.try({ type: 'gadget', unit: u.id });
         else {
@@ -368,6 +394,10 @@ export class Session {
     if (this.mode === 'attack') for (const t of s.units) if (t.team === 'enemy' && validate(s, { type: 'attack', unit: u.id, target: t.id }) === null) view.ringed.add(t.id);
     if (this.mode === 'aid') for (const t of s.units) if (aidBlock(u, t) === null) view.ringed.add(t.id);
     if (this.mode === 'revive') for (const t of s.units) if (reviveBlock(u, t) === null) view.ringed.add(t.id);
+    if (this.mode === 'interact') {
+      for (const it of s.interactables) if (interactableBlock(s, u, it.id) === null) view.aimTiles.add(idx(s, it.x, it.y));
+      if (s.objective && interactBlock(s, u) === null) view.aimTiles.add(idx(s, s.objective.x, s.objective.y));
+    }
     if (this.mode === 'gadget' && u.gadget && GADGETS[u.gadget.id].range !== undefined) {
       const r = GADGETS[u.gadget.id].range!;
       for (let y = u.y - r; y <= u.y + r; y++)
@@ -480,6 +510,18 @@ export class Session {
       if (at.downed) lines.push(downedLine(at));
       if (at.exposed) lines.push('Exposed: visible in the bush until your next turn');
       return lines;
+    }
+    const it = s.interactables.find((x) => x.x === p.x && x.y === p.y);
+    if (it) {
+      const nowVisible = s.visible.player[idx(s, p.x, p.y)] === 1;
+      const known = !s.fogEnabled || nowVisible || it.id in s.memory.player.doors;
+      if (known) {
+        const active = !s.fogEnabled || nowVisible ? it.active : s.memory.player.doors[it.id];
+        const stale = s.fogEnabled && !nowVisible ? ' (last seen - may have changed)' : '';
+        if (it.type === 'door') return [`Door: ${active ? 'open' : 'closed'}${stale}`];
+        const linkCount = it.links?.length ?? 0;
+        return [`Switch: ${active ? 'on' : 'off'}${stale}`, `Linked to ${linkCount} door${linkCount === 1 ? '' : 's'}`];
+      }
     }
     const ghost = Object.entries(s.memory.player.lastSeen).find(([id, g]) => g.x === p.x && g.y === p.y && s.units[Number(id)].alive);
     if (ghost) return [`Last seen: ${nameOf(s.units[Number(ghost[0])])}`];

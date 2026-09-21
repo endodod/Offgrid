@@ -1,4 +1,4 @@
-import type { MapDef, Spawn } from '../data/trainingGrounds';
+import type { InteractableDef, MapDef, Spawn } from '../data/trainingGrounds';
 import type { AiProfileId } from '../data/aiProfiles';
 import type { ClassId } from '../data/units';
 import { perform, type Action } from './actions';
@@ -20,10 +20,11 @@ export function blank(w: number, h: number, edits: [number, number, string][] = 
 }
 
 /** Small hand-made scenario. Both teams should have a unit or the game ends on the first action. */
-export function makeGame(rows: string[], spawns: Spawns, options: Partial<GameOptions> = {}): GameState {
+export function makeGame(rows: string[], spawns: Spawns, options: Partial<GameOptions> = {}, interactables: InteractableDef[] = []): GameState {
   const map: MapDef = {
     name: 'test', rows, searchPoints: { player: [], enemy: [] },
     spawns: { player: toSpawns(spawns.player), enemy: toSpawns(spawns.enemy) },
+    interactables,
   };
   return createGame(map, 1, options);
 }

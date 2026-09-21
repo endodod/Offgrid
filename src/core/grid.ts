@@ -6,18 +6,23 @@ export const inBounds = (s: GameState, x: number, y: number) => x >= 0 && y >= 0
 export const dist = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.y - b.y); // range metric (Euclidean)
 export const cheb = (a: Pos, b: Pos) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
-/** Static obstacles: walls, cover objects and the objective terminal. */
+/** A closed door at (x,y), if any (2). Switches never block anything. */
+export function closedDoorAt(s: GameState, x: number, y: number) {
+  return s.interactables.find((it) => it.type === 'door' && !it.active && it.x === x && it.y === y);
+}
+
+/** Static obstacles: walls, cover objects, the objective terminal, and a closed door (2). */
 export function blocksMove(s: GameState, x: number, y: number): boolean {
   if (!inBounds(s, x, y)) return true;
   const i = idx(s, x, y);
-  return s.terrain[i] === 'wall' || s.cover[i] !== null || (s.objective?.x === x && s.objective.y === y);
+  return s.terrain[i] === 'wall' || s.cover[i] !== null || (s.objective?.x === x && s.objective.y === y) || !!closedDoorAt(s, x, y);
 }
 
-/** Walls block sight. High cover does only if RULES.highCoverBlocksLos is set; low cover and bushes never do. */
+/** Walls and a closed door (2) block sight. High cover does only if RULES.highCoverBlocksLos is set; low cover and bushes never do. */
 export function blocksLos(s: GameState, x: number, y: number): boolean {
   if (!inBounds(s, x, y)) return true;
   const i = idx(s, x, y);
-  return s.terrain[i] === 'wall' || (RULES.highCoverBlocksLos && s.cover[i] === 'high');
+  return s.terrain[i] === 'wall' || (RULES.highCoverBlocksLos && s.cover[i] === 'high') || !!closedDoorAt(s, x, y);
 }
 
 export function unitAt(s: GameState, x: number, y: number): Unit | undefined {

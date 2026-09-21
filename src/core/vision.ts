@@ -74,4 +74,7 @@ function updateMemory(s: GameState, team: Team) {
     else if (g.hidden || s.units.some((o) => o.alive && !o.downed && o.team === team && dist(o, g) <= 1)) delete mem.lastSeen[e.id];
   }
   if (s.objective && s.visible[team][idx(s, s.objective.x, s.objective.y)]) mem.objectiveSeen = true;
+  // Doors/switches (2): remember the last-seen state, same treatment as everything else fog-related - a door
+  // seen closed but opened later behind your back should surprise you, not silently update off-screen.
+  for (const it of s.interactables) if (s.visible[team][idx(s, it.x, it.y)]) mem.doors[it.id] = it.active;
 }

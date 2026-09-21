@@ -37,5 +37,7 @@ export function describe(s: GameState, e: GameEvent): LogLine | null {
       if (e.status === 'start') return { kind: kind(e.unit), text: `${who(e.unit)} is securing the objective - hold position for ${e.roundsLeft} rounds` };
       if (e.status === 'progress') return { kind: kind(e.unit), text: `Objective: ${e.roundsLeft} more round${e.roundsLeft > 1 ? 's' : ''} to hold` };
       return { kind: 'system', text: `${who(e.unit)} lost the objective hold!` };
+    case 'door': return { kind: kind(e.unit), text: `${who(e.unit)} ${e.open ? 'opens' : 'closes'} the door at (${e.at.x},${e.at.y})` };
+    case 'switch': return { kind: kind(e.unit), text: `${who(e.unit)} throws the switch at (${e.at.x},${e.at.y})${e.linked.length ? ` (${e.linked.length} door${e.linked.length > 1 ? 's' : ''} toggled)` : ''}` };
   }
 }
