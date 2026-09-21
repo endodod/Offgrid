@@ -1,0 +1,90 @@
+import {
+  availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, type CampaignState,
+} from '../core/campaign';
+import { DISTRICTS, type GeneratedMissionDef, type StoryMissionDef } from '../data/campaign';
+import type { MapDef } from '../data/trainingGrounds';
+import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
+
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+export interface CampaignHooks {
+  /** Launch `map` as a mission; `missionId` is reported back to `Campaign.reportWin` once it's won. */
+  onPlay: (map: MapDef, missionId: string) => void;
+  onBack: () => void;
+}
+
+/**
+ * The campaign screen (5): district progress, the four handcrafted Act 1 story missions, and a rotating pool
+ * of generated "supply run" missions. Owns its own `CampaignState`, persisted via `ui/campaignStore.ts`.
+ */
+export class Campaign {
+  private state: CampaignState;
+
+  constructor(private hooks: CampaignHooks) {
+    this.state = loadCampaign() ?? newCampaign();
+    $('campaign-back').addEventListener('click', () => hooks.onBack());
+    $('campaign-reset').addEventListener('click', () => {
+      if (!confirm('Start a brand new campaign? This discards all current progress.')) return;
+      clearCampaign();
+      this.state = newCampaign();
+      saveCampaign(this.state);
+      this.render();
+    });
+    $('campaign-story').addEventListener('click', (e) => this.onPlayClick(e, 'story'));
+    $('campaign-supply').addEventListener('click', (e) => this.onPlayClick(e, 'supply'));
+  }
+
+  /** Show the screen with fresh data (call every time it's entered, in case something changed elsewhere). */
+  open() {
+    this.render();
+  }
+
+  /** Called once a mission launched from here ends in a player win. */
+  reportWin(missionId: string) {
+    if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
+    else completeStoryMission(this.state, missionId);
+    saveCampaign(this.state);
+  }
+
+  private onPlayClick(e: Event, kind: 'story' | 'supply') {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-play]');
+    if (!btn) return;
+    const id = btn.dataset.play!;
+    if (kind === 'story') {
+      const m = availableStoryMissions(this.state).find((x) => x.id === id);
+      if (m) this.hooks.onPlay(m.map, m.id);
+    } else {
+      const m = this.state.supplyRunPool.find((x) => x.id === id);
+      if (m) this.hooks.onPlay({ ...m.map, enemyProfile: m.enemyProfile }, m.id);
+    }
+  }
+
+  private render() {
+    $('campaign-currency').textContent = `Currency: ${this.state.currency}`;
+
+    $('campaign-districts').innerHTML = DISTRICTS.map((d) => {
+      const status = districtStatus(this.state, d.id);
+      return `<span class="district ${status}" title="${d.blurb}">${d.name} <em>(act ${d.act}, ${d.antagonist})</em> - ${status}</span>`;
+    }).join('');
+
+    const story = availableStoryMissions(this.state);
+    $('campaign-story').innerHTML = story.length ? story.map((m) => storyCard(m)).join('')
+      : '<p class="dim">No story missions available right now - clear the current district\'s missions to unlock the next one.</p>';
+
+    $('campaign-supply').innerHTML = this.state.supplyRunPool.map((m) => supplyCard(m)).join('');
+  }
+}
+
+const storyCard = (m: StoryMissionDef) => `<article class="mission">
+  <h3>${m.name}</h3>
+  <p>${m.blurb}</p>
+  <p class="obj"><b>Objective</b> ${m.objective}</p>
+  <div class="btns"><button data-play="${m.id}">Play</button></div>
+</article>`;
+
+const supplyCard = (m: GeneratedMissionDef) => `<article class="mission">
+  <h3>${m.name}</h3>
+  <p>${m.blurb}</p>
+  <div class="chips"><span>AI: ${m.enemyProfile}</span><span>Reward: ${m.reward}</span></div>
+  <div class="btns"><button data-play="${m.id}">Play</button></div>
+</article>`;

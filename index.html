@@ -13,9 +13,27 @@
           <button id="home-settings">Settings</button>
         </div>
         <p class="dim">Turn-based squad tactics. Fog of war, cover, overwatch.</p>
+        <div class="row"><button id="home-campaign">Campaign</button><span class="dim">Play through Ashport's districts, or jump straight into a single mission below.</span></div>
         <h2>Select mission</h2>
         <div id="missions"></div>
         <p class="dim help">Combat log, hit chances and cover are shown in-game. Numbers live in <code>src/data</code>.</p>
+      </div>
+    </section>
+
+    <section id="campaign" hidden>
+      <div class="home-inner">
+        <div class="home-header">
+          <h1>CAMPAIGN</h1>
+          <div class="btns"><span id="campaign-currency" class="dim"></span><button id="campaign-back">Back</button></div>
+        </div>
+        <h2>Districts</h2>
+        <div id="campaign-districts" class="chips"></div>
+        <h2>Story missions</h2>
+        <div id="campaign-story"></div>
+        <h2>Supply runs</h2>
+        <p class="dim">Generated missions - low narrative stakes, good practice for delegating a phase.</p>
+        <div id="campaign-supply"></div>
+        <p class="dim help"><button id="campaign-reset">Reset campaign</button> starts a brand new save over.</p>
       </div>
     </section>
 

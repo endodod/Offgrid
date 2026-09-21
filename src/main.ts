@@ -4,6 +4,7 @@ import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
 import { draw, TILE } from './render/renderer';
 import { Builder } from './ui/builder';
+import { Campaign } from './ui/campaign';
 import { initHome, showScreen, type Screen } from './ui/home';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
@@ -48,6 +49,11 @@ function request() {
 session.onChange = () => { tutorial.onSessionChange(); hud.update(); request(); };
 
 // ---------- screens ----------
+// Set when a mission is launched from the campaign screen (5), so a win can be reported back to it, and so
+// "Main menu" returns to the campaign screen instead of home.
+let activeCampaignMissionId: string | null = null;
+let returnScreen: Screen = 'home';
+
 const startGame = (map: MapDef, fromBuilder: boolean, missionId?: string) => {
   (el('dbg-fog') as HTMLInputElement).checked = true;
   el('to-builder').hidden = !fromBuilder;
@@ -75,11 +81,23 @@ refreshHome = initHome(MISSIONS, {
   resolve,
   isCustom: (m) => custom(m) !== null,
   debug: DEBUG,
-  onEnter: (m) => startGame(resolve(m), false, m.id),
+  onEnter: (m) => { activeCampaignMissionId = null; returnScreen = 'home'; startGame(resolve(m), false, m.id); },
   onEdit: (m) => { builder!.open(m, resolve(m)); showScreen('builder'); },
 });
 el('tutorial-replay').addEventListener('click', () => tutorial.start());
-const toMenu = () => { refreshHome(); showScreen('home'); };
+
+const campaign = new Campaign({
+  onPlay: (map, missionId) => { activeCampaignMissionId = missionId; returnScreen = 'campaign'; startGame(map, false, missionId); },
+  onBack: () => showScreen('home'),
+});
+el('home-campaign').addEventListener('click', () => { campaign.open(); showScreen('campaign'); });
+
+const toMenu = () => {
+  if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId);
+  activeCampaignMissionId = null;
+  if (returnScreen === 'campaign') { campaign.open(); showScreen('campaign'); }
+  else { refreshHome(); showScreen('home'); }
+};
 el('menu').addEventListener('click', toMenu);
 el('banner-menu').addEventListener('click', toMenu);
 
