@@ -1,5 +1,6 @@
 import type { ClassId } from '../data/units';
 import type { GadgetId } from '../data/gadgets';
+import type { AiProfileId } from '../data/aiProfiles';
 import type { MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
 import type { TimeOfDayId } from '../data/timeOfDay';
@@ -74,6 +75,8 @@ export type GameEvent = EventBody & { seen: boolean };
 export interface GameOptions {
   objectiveCapture: ObjectiveCapture; timeOfDay?: TimeOfDayId; weather?: WeatherId;
   aiRevive?: boolean; // default true: whether the AI will path to and revive its own downed allies
+  enemyProfile?: AiProfileId; // default 'standard' (or the map's own default)
+  playerProfile?: AiProfileId; // only matters when the player team is AI-driven (the simulator, or 0d's auto-run)
 }
 
 export interface GameState {
@@ -97,6 +100,7 @@ export interface GameState {
   fogEnabled: boolean; // debug: only affects the player team's view
   timeOfDay: TimeOfDayId;
   weather: WeatherId;
+  aiProfiles: Record<Team, AiProfileId>;
   options: GameOptions;
   visible: Record<Team, Uint8Array>;
   seenUnits: Record<Team, Set<number>>; // enemy units each team currently sees

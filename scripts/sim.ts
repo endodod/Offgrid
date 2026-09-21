@@ -1,9 +1,10 @@
 // Bot-vs-bot balance simulation:
 //   npm run sim -- [--n 200] [--seed 1] [--max-turns 40] [--objective none|player|both]
 //                  [--time-of-day midday|morning|afternoon|midnight] [--weather clear|cloudy|rain|fog|stormy]
-//                  [--no-ai-revive]
+//                  [--no-ai-revive] [--enemy-profile standard|easy|hard|camper|ambush] [--player-profile ...]
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
+import type { AiProfileId } from '../src/data/aiProfiles';
 import { TRAINING_GROUNDS } from '../src/data/trainingGrounds';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
 import type { WeatherId } from '../src/data/weather';
@@ -28,16 +29,21 @@ const objectiveCapture = (oi >= 0 ? args[oi + 1] : 'none') as ObjectiveCapture;
 const timeOfDay = str('--time-of-day', 'midday') as TimeOfDayId;
 const weather = str('--weather', 'clear') as WeatherId;
 const aiRevive = !args.includes('--no-ai-revive');
+const enemyProfile = str('--enemy-profile', 'standard') as AiProfileId;
+const playerProfile = str('--player-profile', 'standard') as AiProfileId;
 
 const results: MatchResult[] = [];
-for (let i = 0; i < n; i++) results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive }, maxTurns));
+for (let i = 0; i < n; i++) {
+  results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive, enemyProfile, playerProfile }, maxTurns));
+}
 
 const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
 const count = (f: (r: MatchResult) => boolean) => results.filter(f).length;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 console.log(`${TRAINING_GROUNDS.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
-  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}`);
+  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}, ` +
+  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +

@@ -1,5 +1,6 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
+import type { AiProfileId } from '../data/aiProfiles';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 import type { MapDef } from '../data/trainingGrounds';
@@ -84,6 +85,11 @@ export class Session {
   setWeather(w: WeatherId) {
     this.state.weather = w;
     refreshVision(this.state);
+    this.onChange();
+  }
+
+  setEnemyProfile(p: AiProfileId) {
+    this.state.aiProfiles.enemy = p;
     this.onChange();
   }
 

@@ -1,4 +1,5 @@
 import type { ClassId } from './units';
+import type { AiProfileId } from './aiProfiles';
 import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
 
@@ -18,6 +19,8 @@ export interface MapDef {
   /** Starting conditions for this map; undefined falls back to createGame's default (midday, clear). */
   startTimeOfDay?: TimeOfDayId;
   startWeather?: WeatherId;
+  /** The enemy squad's AI habitat/difficulty; undefined falls back to createGame's default ('standard'). */
+  enemyProfile?: AiProfileId;
 }
 
 // Laid out in the debug map builder (see README) and pasted back from its JSON export.

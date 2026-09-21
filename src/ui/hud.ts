@@ -1,6 +1,7 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { RULES } from '../data/rules';
+import { AI_PROFILES, PROFILE_ORDER } from '../data/aiProfiles';
 import { TIME_ORDER, TIMES_OF_DAY } from '../data/timeOfDay';
 import { WEATHER_ORDER, WEATHERS } from '../data/weather';
 import { envMods, scaledMove, scaledVision } from '../core/environment';
@@ -70,6 +71,9 @@ export class Hud {
     const weatherSel = $<HTMLSelectElement>('dbg-weather');
     weatherSel.innerHTML = WEATHER_ORDER.map((w) => `<option value="${w}">${WEATHERS[w].name}</option>`).join('');
     weatherSel.addEventListener('change', () => session.setWeather(weatherSel.value as (typeof WEATHER_ORDER)[number]));
+    const profileSel = $<HTMLSelectElement>('dbg-enemy-profile');
+    profileSel.innerHTML = PROFILE_ORDER.map((p) => `<option value="${p}">${AI_PROFILES[p].name}</option>`).join('');
+    profileSel.addEventListener('change', () => session.setEnemyProfile(profileSel.value as (typeof PROFILE_ORDER)[number]));
     $('dbg-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
@@ -127,6 +131,7 @@ export class Hud {
     $('phase').className = s.phase;
     $<HTMLSelectElement>('dbg-time').value = s.timeOfDay;
     $<HTMLSelectElement>('dbg-weather').value = s.weather;
+    $<HTMLSelectElement>('dbg-enemy-profile').value = s.aiProfiles.enemy;
     $('status').textContent = this.session.status;
     $('objective').textContent = this.objectiveText();
     $('objective').className = s.capture ? 'securing' : '';

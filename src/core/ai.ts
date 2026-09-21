@@ -1,17 +1,22 @@
 import { CLASSES } from '../data/units';
+import { AI_PROFILES, type Habitat } from '../data/aiProfiles';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
 import { scaledMove } from './environment';
 import { cheb, dist, distanceMap, hasLos, idx, reachable } from './grid';
+import { rollPercent } from './rng';
 import type { GameState, Pos, Team, Unit } from './types';
 
 /**
- * Simple, replaceable AI. It only reads what its own team knows: `seenUnits[team]`, `visible[team]` and
- * `memory[team]` - the same fog rules the human plays under. Replace `planAction` to change behaviour.
+ * Simple, replaceable AI, parametrized by a per-team AiProfile (`data/aiProfiles.ts`, `GameState.aiProfiles`).
+ * It only reads what its own team knows: `seenUnits[team]`, `visible[team]` and `memory[team]` - the same fog
+ * rules the human plays under. Replace `planAction` to change behaviour.
  *
- * Per unit: reload if empty; with a visible target, step to the best cover tile that still has range + LOS and
- * shoot the highest expected-damage target; with no target, advance toward the last known enemy position, the
- * objective (once seen) or a search waypoint, and finish on overwatch.
+ * The 'standard' profile (reactionChance 1, habitat 'patrol', no retreat) reproduces the original fixed
+ * behaviour exactly: reload if empty, with a visible target step to the best cover tile that still has range +
+ * LOS and shoot the highest expected-damage target, with no target advance toward the last known enemy
+ * position, the objective (once seen) or a search waypoint, and finish on overwatch. Other profiles vary
+ * reaction quality (hesitation), self-preservation (retreat) and habitat (patrol/camper/ambush idle behaviour).
  */
 export function* aiTurn(s: GameState, team: Team): Generator<Action> {
   for (const u of s.units.filter((x) => x.team === team && x.alive && !x.downed)) {
@@ -49,12 +54,25 @@ export function planAction(s: GameState, u: Unit): Action | null {
     }
   }
 
+  const profile = AI_PROFILES[s.aiProfiles[u.team]];
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
   const move = scaledMove(s, CLASSES[u.cls].move);
+
+  // Difficulty: a unit that fails its reaction roll doesn't act with full competence this decision - it holds
+  // position/overwatch instead of taking its best move or shot. reactionChance 1 (most profiles) never rolls,
+  // so this is a no-op for the regression-safe default. Goes through the same seeded roll as combat (rollPercent)
+  // so it stays deterministic and is overridable by tests the same way.
+  const reacts = profile.reactionChance >= 1 || rollPercent(s) < profile.reactionChance * 100;
+
   if (enemies.length) {
+    if (!reacts) return ok(s, { type: 'overwatch', unit: u.id }) ? { type: 'overwatch', unit: u.id } : null;
+    if (profile.retreatBelowHp !== undefined && !holding && u.hp / CLASSES[u.cls].hp < profile.retreatBelowHp) {
+      const r = retreat(s, u, enemies, move);
+      if (r) return r;
+    }
     const here = evaluate(s, u, enemies, u, 0);
-    if (u.actions >= 2 && !holding) {
-      // Room to move and still shoot: take the best cover tile that keeps range + LOS.
+    // Camper: reluctant to leave a position it already has - only reposition when it has no shot at all.
+    if (u.actions >= 2 && !holding && profile.habitat !== 'camper') {
       let best = here;
       for (const [i, r] of reachable(s, u, move)) {
         const e = evaluate(s, u, enemies, { x: i % s.width, y: Math.floor(i / s.width) }, r.cost);
@@ -69,7 +87,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
   }
 
   // No visible enemy: chase a downed ally that isn't adjacent yet (the adjacent case is handled above,
-  // before combat is even considered), before falling back to search behaviour.
+  // before combat is even considered), before falling back to habitat-gated search behaviour.
   if (s.options.aiRevive !== false) {
     const downed = s.units.filter((a) => a.team === u.team && a.alive && a.downed);
     if (downed.length) {
@@ -80,7 +98,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
     }
   }
 
-  const goal = holding ? null : pickGoal(s, u);
+  const goal = holding || !reacts ? null : pickGoal(s, u, profile.habitat);
   if (u.actions >= 2 || u.ammo === 0) {
     const mv = goal && advance(s, u, goal);
     if (mv) return mv;
@@ -88,6 +106,20 @@ export function planAction(s: GameState, u: Unit): Action | null {
   const ow: Action = { type: 'overwatch', unit: u.id };
   if (ok(s, ow)) return ow;
   return goal ? advance(s, u, goal) : null;
+}
+
+/** Self-preservation (a profile's retreatBelowHp): the reachable tile furthest from the nearest visible threat. */
+function retreat(s: GameState, u: Unit, enemies: Unit[], move: number): Action | null {
+  const nearest = enemies.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
+  const here = dist(u, nearest);
+  let best: { pos: Pos; d: number } | null = null;
+  for (const [i] of reachable(s, u, move)) {
+    const pos = { x: i % s.width, y: Math.floor(i / s.width) };
+    const d = dist(pos, nearest);
+    if (!best || d > best.d) best = { pos, d };
+  }
+  if (!best || best.d <= here) return null;
+  return { type: 'move', unit: u.id, to: best.pos };
 }
 
 /**
@@ -120,9 +152,16 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
   return { type: 'move', unit: u.id, to: best.pos };
 }
 
-/** No target in sight: chase the nearest ghost, else the objective if it has been seen, else a search waypoint. */
-function pickGoal(s: GameState, u: Unit): Pos | null {
+/**
+ * No target in sight: habitat decides how (or whether) the unit looks for one.
+ * - patrol: chase the nearest ghost, else the objective if it has been seen, else a search waypoint (default).
+ * - camper: holds a position once it has one - defends the objective if it has been seen, otherwise stays put.
+ * - ambush: stays completely still and hidden until it has a visible target; then it fights like a patrol.
+ */
+function pickGoal(s: GameState, u: Unit, habitat: Habitat): Pos | null {
+  if (habitat === 'ambush') return null;
   const mem = s.memory[u.team];
+  if (habitat === 'camper') return mem.objectiveSeen && s.objective ? s.objective : null;
   const ghosts = Object.values(mem.lastSeen);
   if (ghosts.length) return ghosts.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
   if (mem.objectiveSeen && s.objective) return s.objective;

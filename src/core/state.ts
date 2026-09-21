@@ -44,6 +44,10 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     phase: 'player', turn: 1, scans: [], seed, rng: seed, winner: null, fogEnabled: true,
     timeOfDay: options.timeOfDay ?? map.startTimeOfDay ?? 'midday',
     weather: options.weather ?? map.startWeather ?? 'clear',
+    aiProfiles: {
+      player: options.playerProfile ?? 'standard',
+      enemy: options.enemyProfile ?? map.enemyProfile ?? 'standard',
+    },
     options: { objectiveCapture: RULES.objectiveCapture, ...options },
     visible: { player: new Uint8Array(width * height), enemy: new Uint8Array(width * height) },
     seenUnits: { player: new Set(), enemy: new Set() },
