@@ -21,11 +21,17 @@ update this file.
    `ui/session.ts` (key `P`, HUD button `#auto-run-toggle`), mirroring the existing enemy-phase stepped-loop
    pattern. Hands control back automatically on a player casualty; chains phase after phase until the
    mission ends or the player toggles it off.
+6. **Feature 0e**: rebindable hotkey settings. `ui/keybindings.ts` (new) + `ui/input.ts` (now owns the live
+   `KeyBindings`, `bindInput` dispatches by lookup instead of a hard-coded map) + `ui/settings.ts` (new
+   screen, reachable from home and the in-game topbar). `ui/hud.ts`'s action bar/tooltips read the live
+   binding instead of a hard-coded key label. One deliberate behaviour change: `Enter` no longer also ends
+   the turn alongside `E` (the old map's hidden second binding for one action doesn't fit "one key per
+   action, settings screen shows the whole truth" - rebind it back if you want it).
 
 Each of these has its own **Status: done** section in `md_files/ROADMAP.md` with full design notes,
 resolved open questions, and what was deliberately deferred - read those before re-deriving anything. All
 were verified with `npx vitest run` and, for UI-touching ones, a driven headless browser (see below) before
-committing. 152 tests passing as of the 0d commit.
+committing. 168 tests passing as of the 0e commit.
 
 ## Nothing uncommitted right now
 
@@ -60,19 +66,13 @@ session since `lsof` isn't available in this Git Bash), and `npm uninstall playw
 panel (`window.session` in the console, fog toggle, time/weather/enemy-AI selectors) is available for
 setting up test scenarios without playing a full mission by hand.
 
-## What's next: 0e, then 0f
+## What's next: 0f
 
-Per `md_files/ROADMAP.md`'s suggested order, 0a-0d are all done. Next up:
-
-**0e. Hotkey settings** (small) - a `ui/keybindings.ts` (new) making `ui/input.ts`'s hard-coded `KEYS` map
-(and the inline checks for Escape/V/Q/1-5/P) rebindable, persisted in `localStorage`, with a settings
-screen. Ties into 0a's tooltip work (show the bound key in each button's tooltip once rebinding exists -
-`Hud.buttonTip`/`BUTTON_INFO` in `ui/hud.ts` would need the live binding instead of the hard-coded `key`
-field in `BUTTONS`). Read ROADMAP.md's #0e section for the full design sketch and open questions before
-starting.
+Per `md_files/ROADMAP.md`'s suggested order, 0a-0e are all done. Next up:
 
 **0f. Tutorial** (medium) - depends on 0a (reuses hover/tooltip) and benefits from 0b-0e existing first so
-it can cover them too. Read ROADMAP.md's #0f section.
+it can cover them too - all now in place. Read ROADMAP.md's #0f section for the full design sketch and open
+questions before starting.
 
 After 0f, the roadmap moves to feature 1 (already done, out of order - it landed before this effort's 0a-0d
 work), then 2 (doors), 3 (objective types), 4 (consumables/ammo economy), then the meta-game layer 5-8.
