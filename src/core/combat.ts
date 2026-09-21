@@ -4,6 +4,7 @@ import { ARMOR } from '../data/armor';
 import { effectiveAccuracyMod } from './environment';
 import { dist, hasLos, idx, inBounds } from './grid';
 import { lootOnDeath } from './loot';
+import { perkBonus } from './leveling';
 import { rollPercent } from './rng';
 import { emit } from './state';
 import type { Cover, CoverState, GameState, Pos, Unit } from './types';
@@ -49,13 +50,17 @@ export function hitChance(s: GameState, attacker: Unit, target: Unit, from: Pos 
 
 export const damageAgainst = (damage: number, armor: number) => Math.max(1, damage - armor);
 
-/** A unit's armor after its class base plus any equipped armor piece (7) - stacks, doesn't replace. */
-export const effectiveArmor = (u: Unit): number => CLASSES[u.cls].armor + (u.armor ? ARMOR[u.armor].armorBonus : 0);
+/** A unit's armor after its class base, any equipped armor piece (7) and any equipped perk (8) - all stack. */
+export const effectiveArmor = (u: Unit): number =>
+  CLASSES[u.cls].armor + (u.armor ? ARMOR[u.armor].armorBonus : 0) + perkBonus(u.equippedPerks).armorBonus;
+
+/** A unit's weapon damage after any equipped perk's bonus (8), before armor is applied. */
+export const effectiveDamage = (u: Unit): number => CLASSES[u.cls].weapon.damage + perkBonus(u.equippedPerks).damageBonus;
 
 /** Expected damage of one attack action (all shots) - used by the AI to pick targets. */
 export function expectedDamage(s: GameState, attacker: Unit, target: Unit, from: Pos = attacker): number {
   const w = CLASSES[attacker.cls].weapon;
-  return (hitChance(s, attacker, target, from) / 100) * damageAgainst(w.damage, effectiveArmor(target)) * w.shots;
+  return (hitChance(s, attacker, target, from) / 100) * damageAgainst(effectiveDamage(attacker), effectiveArmor(target)) * w.shots;
 }
 
 /** Geometry + fog check shared by attacks and overwatch: range, own LOS, and target visible to the attacker's team. */
@@ -103,7 +108,7 @@ function finalizeDeath(s: GameState, target: Unit, source: Unit | null) {
 export function fireWeapon(s: GameState, attacker: Unit, target: Unit, overwatch: boolean) {
   const w = CLASSES[attacker.cls].weapon;
   if (target.downed) {
-    const damage = damageAgainst(w.damage, effectiveArmor(target));
+    const damage = damageAgainst(effectiveDamage(attacker), effectiveArmor(target));
     emit(s, {
       t: 'shot', attacker: attacker.id, target: target.id, shot: 1, shots: 1, chance: 100, roll: 0, hit: true,
       damage, overwatch, finishing: true, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
@@ -115,7 +120,7 @@ export function fireWeapon(s: GameState, attacker: Unit, target: Unit, overwatch
   for (let i = 0; i < w.shots && target.alive && !target.downed; i++) {
     const roll = rollPercent(s);
     const hit = roll < chance;
-    const damage = hit ? damageAgainst(w.damage, effectiveArmor(target)) : 0;
+    const damage = hit ? damageAgainst(effectiveDamage(attacker), effectiveArmor(target)) : 0;
     emit(s, {
       t: 'shot', attacker: attacker.id, target: target.id, shot: i + 1, shots: w.shots, chance, roll, hit, damage,
       overwatch, finishing: false, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },

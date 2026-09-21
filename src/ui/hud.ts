@@ -8,6 +8,7 @@ import { effectiveAccuracyMod, effectiveMove, effectiveVision, envMods } from '.
 import { effectiveArmor } from '../core/combat';
 import { ARMOR } from '../data/armor';
 import { EQUIPMENT } from '../data/equipment';
+import { PERKS } from '../data/perks';
 import type { Unit } from '../core/types';
 import { describeObjective } from '../core/objectives';
 import type { GameState } from '../core/types';
@@ -37,6 +38,9 @@ const pips = (n: number, max: number) => '●'.repeat(Math.max(0, n)) + '○'.re
 /** Equipped armor/equipment (7), comma-joined; '' if the unit carries none. */
 const gearText = (u: Unit): string =>
   [u.armor ? ARMOR[u.armor].name : null, ...u.equipment.map((id) => (id ? EQUIPMENT[id].name : null))].filter(Boolean).join(', ');
+
+/** Equipped perks (8), comma-joined; '' if none are equipped. */
+const perkText = (u: Unit): string => u.equippedPerks.map((id) => PERKS[id].name).join(', ');
 
 /** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 export class Hud {
@@ -175,7 +179,7 @@ export class Hud {
       const armor = effectiveArmor(sel);
       const acc = effectiveAccuracyMod(s, sel);
       $('card').innerHTML = `
-        <h3>${nameOf(sel)}</h3>
+        <h3>${nameOf(sel)} <span class="badge">Lv ${sel.level}</span></h3>
         <div class="row"><span>HP</span><b>${sel.hp}/${d.hp}</b><span>Armor</span><b>${armor}${armor !== d.armor ? ` <em class="boost">(base ${d.armor})</em>` : ''}</b><span>Move</span><b>${move}${move !== d.move ? ` <em class="boost">(base ${d.move})</em>` : ''}${sel.moveBonus ? ` <em class="boost">+${sel.moveBonus} next move</em>` : ''}</b><span>Vision</span><b>${vision}${vision !== d.vision ? ` <em class="boost">(base ${d.vision})</em>` : ''}</b></div>
         <div class="row"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · acc ${w.accuracy}%${acc ? ` <em class="boost">(${acc > 0 ? '+' : ''}${acc}%)</em>` : ''}</b></div>
         <div class="row"><span>Actions</span><b class="pips">${pips(sel.actions, RULES.actionsPerTurn)}</b></div>
@@ -183,6 +187,7 @@ export class Hud {
         <div class="row"><span>Gadget</span><b>${gtext}</b></div>
         ${g ? `<p class="dim">${GADGETS[g.id].blurb}</p>` : ''}
         ${gearText(sel) ? `<div class="row"><span>Gear</span><b>${gearText(sel)}</b></div>` : ''}
+        ${perkText(sel) ? `<div class="row"><span>Perks</span><b>${perkText(sel)}</b></div>` : ''}
         ${sel.overwatch ? '<p class="ow">On overwatch</p>' : ''}
         ${sel.exposed ? '<p class="exposed">Exposed: seen in the bush until your next turn</p>' : ''}`;
     }

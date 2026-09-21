@@ -2,6 +2,7 @@ import { CLASSES } from '../data/units';
 import { TIMES_OF_DAY } from '../data/timeOfDay';
 import { WEATHERS, type EnvModifier } from '../data/weather';
 import { EQUIPMENT, type EquipmentDef } from '../data/equipment';
+import { perkBonus } from './leveling';
 import type { GameState, Unit } from './types';
 
 /** Combined effect of the current time of day and weather. Multipliers multiply, accuracy modifiers add. */
@@ -28,9 +29,10 @@ const equippedItems = (u: Unit): EquipmentDef[] => u.equipment.filter((id): id i
 const blendTowardOne = (mult: number, strength: number): number => mult + (1 - mult) * strength;
 
 /**
- * `u`'s vision radius after weather, time of day, AND its own equipped items (7) - a flashlight blunts
- * weather's vision penalty specifically, NVG blunts time-of-day's specifically, each independent of the
- * other (so both together fully address a stormy midnight; either alone only helps with its own half).
+ * `u`'s vision radius after weather, time of day, its own equipped items (7 - a flashlight blunts weather's
+ * vision penalty specifically, NVG blunts time-of-day's specifically, each independent of the other, so both
+ * together fully address a stormy midnight while either alone only helps with its own half) AND any equipped
+ * perk's vision bonus (8).
  */
 export function effectiveVision(s: GameState, u: Unit): number {
   const t = TIMES_OF_DAY[s.timeOfDay];
@@ -39,19 +41,21 @@ export function effectiveVision(s: GameState, u: Unit): number {
   const timeCounter = Math.max(0, ...items.map((e) => e.timeCounter ?? 0));
   const weatherCounter = Math.max(0, ...items.map((e) => e.weatherVisionCounter ?? 0));
   const mult = blendTowardOne(t.visionMult, timeCounter) * blendTowardOne(w.visionMult, weatherCounter);
-  return Math.max(1, Math.round(CLASSES[u.cls].vision * mult));
+  return Math.max(1, Math.round(CLASSES[u.cls].vision * mult)) + perkBonus(u.equippedPerks).visionBonus;
 }
 
-/** `u`'s move range after weather/time of day and its own equipment's flat bonus (e.g. boots), floored to at least 1. */
+/** `u`'s move range after weather/time of day, its own equipment's flat bonus (e.g. boots, 7) and any equipped
+ *  perk's move bonus (8), floored to at least 1. */
 export function effectiveMove(s: GameState, u: Unit): number {
-  const moveBonus = equippedItems(u).reduce((sum, e) => sum + (e.moveBonus ?? 0), 0);
+  const moveBonus = equippedItems(u).reduce((sum, e) => sum + (e.moveBonus ?? 0), 0) + perkBonus(u.equippedPerks).moveBonus;
   return scaledMove(s, CLASSES[u.cls].move) + moveBonus;
 }
 
-/** `attacker`'s accuracy modifier (percentage points) after weather/time of day and NVG's time-of-day counter. */
+/** `attacker`'s accuracy modifier (percentage points) after weather/time of day, NVG's time-of-day counter (7)
+ *  and any equipped perk's accuracy bonus (8). */
 export function effectiveAccuracyMod(s: GameState, attacker: Unit): number {
   const t = TIMES_OF_DAY[s.timeOfDay];
   const w = WEATHERS[s.weather];
   const timeCounter = Math.max(0, ...equippedItems(attacker).map((e) => e.timeCounter ?? 0));
-  return t.accuracyMod * (1 - timeCounter) + w.accuracyMod;
+  return t.accuracyMod * (1 - timeCounter) + w.accuracyMod + perkBonus(attacker.equippedPerks).accuracyBonus;
 }

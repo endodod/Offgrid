@@ -3,10 +3,13 @@
 //                  [--time-of-day midday|morning|afternoon|midnight] [--weather clear|cloudy|rain|fog|stormy]
 //                  [--no-ai-revive] [--enemy-profile standard|easy|hard|camper|ambush] [--player-profile ...]
 //                  [--reserve-mult 1] (ammo economy, 4 - e.g. 0.5 for a scarcer mission)
+//                  [--player-level 1] (leveling, 8 - every player class starts at this level with its
+//                  perks-so-far equipped up to its slot count; 0/omitted = no progress, matching a fresh campaign)
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
 import type { AiProfileId } from '../src/data/aiProfiles';
-import { TRAINING_GROUNDS } from '../src/data/trainingGrounds';
+import { TRAINING_GROUNDS, type ClassProgress } from '../src/data/trainingGrounds';
+import { LEVEL_PATHS } from '../src/data/leveling';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
 import type { WeatherId } from '../src/data/weather';
 import { playMatch, type MatchResult } from '../src/core/sim';
@@ -33,10 +36,24 @@ const aiRevive = !args.includes('--no-ai-revive');
 const enemyProfile = str('--enemy-profile', 'standard') as AiProfileId;
 const playerProfile = str('--player-profile', 'standard') as AiProfileId;
 const reserveMult = num('--reserve-mult', 1);
+const playerLevel = num('--player-level', 0);
+
+/** Every perk granted by `level` or below, with as many equipped as the level's own slot count allows - the
+ *  same rule core/leveling.ts's `gainXp`/`equipPerk` would produce for a class that actually leveled up there. */
+function progressAtLevel(cls: ClassId, level: number): ClassProgress {
+  const path = LEVEL_PATHS[cls];
+  const perkPool = path.filter((d) => d.level <= level && d.perksGranted).flatMap((d) => d.perksGranted!);
+  const slots = path.filter((d) => d.level <= level && d.slotUnlock).length;
+  return { xp: 0, level, perkPool, equippedPerks: perkPool.slice(0, slots) };
+}
+
+const map = playerLevel > 0
+  ? { ...TRAINING_GROUNDS, startingProgress: Object.fromEntries(CLASS_ORDER.map((cls) => [cls, progressAtLevel(cls, playerLevel)])) }
+  : TRAINING_GROUNDS;
 
 const results: MatchResult[] = [];
 for (let i = 0; i < n; i++) {
-  results.push(playMatch(TRAINING_GROUNDS, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive, enemyProfile, playerProfile, reserveMult }, maxTurns));
+  results.push(playMatch(map, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive, enemyProfile, playerProfile, reserveMult }, maxTurns));
 }
 
 const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
@@ -45,7 +62,7 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 
 console.log(`${TRAINING_GROUNDS.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
   `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}, ` +
-  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}`);
+  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}, player level: ${playerLevel || 1}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +

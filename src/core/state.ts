@@ -6,6 +6,7 @@ import { ITEMS } from '../data/items';
 import { refreshVision } from './vision';
 import { holdRounds, objectiveComplete } from './objectives';
 import { lootOnDeath } from './loot';
+import { perkBonus } from './leveling';
 import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pickup, Pos, Team, Terrain, Unit } from './types';
 
 const TEAMS: Team[] = ['player', 'enemy'];
@@ -40,16 +41,20 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     const forPlayer = team === 'player';
     for (const [cls, x, y, aiProfile] of map.spawns[team]) {
       const def = CLASSES[cls];
-      // Equipment (7): only the player squad starts with a loadout (enemies never carry gear in v1).
+      // Equipment (7) and leveling (8): only the player squad starts with a loadout/progress (enemies never
+      // carry gear or perks in v1).
       const loadout = forPlayer ? map.startingLoadouts?.[cls] : undefined;
+      const progress = forPlayer ? map.startingProgress?.[cls] : undefined;
+      const equippedPerks = progress ? [...progress.equippedPerks] : [];
       units.push({
         id: units.length, team, cls, x, y,
         hp: def.hp, ammo: def.weapon.magazine,
         reserve: Math.round(def.reserve * reserveMult * (forPlayer ? playerReserveMult : 1)),
-        medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0),
+        medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0) + perkBonus(equippedPerks).medkitBonus,
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: forPlayer ? { id: def.gadget, uses: RULES.gadgetUsesPerMission + gadgetUsesBonus, cooldown: 0 } : null,
         armor: loadout?.armor ?? null, equipment: loadout ? [...loadout.equipment] : [null, null],
+        xp: progress?.xp ?? 0, level: progress?.level ?? 1, perkPool: progress ? [...progress.perkPool] : [], equippedPerks,
         dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, aiProfile,
       });
     }

@@ -24,6 +24,7 @@ export function loadCampaign(): CampaignState | null {
     if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState(); // base building (6)
     if (!parsed.loadouts || typeof parsed.loadouts !== 'object') parsed.loadouts = {}; // equipment (7)
     if (!parsed.unlockedGear || typeof parsed.unlockedGear !== 'object') parsed.unlockedGear = { armor: [], equipment: [] }; // equipment (7)
+    if (!parsed.levels || typeof parsed.levels !== 'object') parsed.levels = {}; // leveling (8)
     return parsed;
   } catch {
     return null;

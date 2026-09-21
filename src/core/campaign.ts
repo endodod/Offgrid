@@ -6,8 +6,10 @@ import type { FacilityId } from '../data/base';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
-import type { UnitLoadout } from '../data/trainingGrounds';
+import type { UnitLoadout, ClassProgress } from '../data/trainingGrounds';
+import type { PerkId } from '../data/perks';
 import { buildLevel, newBaseState, upgradeCost, type BaseState } from './base';
+import { equipPerk, gainXp, newClassProgress, resetOnDeath, unequipPerk, xpEarned } from './leveling';
 import { nextRandom } from './rng';
 
 /** Persistent progress between missions (5), independent of any single mission's GameState. Mutated in place,
@@ -24,25 +26,30 @@ export interface CampaignState {
   base: BaseState; // home-base facilities (6)
   loadouts: Partial<Record<ClassId, UnitLoadout>>; // equipment (7): what each class starts its next mission with
   unlockedGear: { armor: ArmorId[]; equipment: EquipmentId[] }; // equipment (7): ever found, so assignable at the equip screen
+  levels: Partial<Record<ClassId, ClassProgress>>; // leveling (8): each class's XP/level/perks
 }
 
 const POOL_SIZE = 3;
 
-/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities built
- *  or gear found yet. */
+/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities
+ *  built, gear found, or levels earned yet. */
 export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], completedStoryMissions: [],
     completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
-    loadouts: {}, unlockedGear: { armor: [], equipment: [] },
+    loadouts: {}, unlockedGear: { armor: [], equipment: [] }, levels: {},
   };
   fillPool(cs);
   return cs;
 }
 
-/** The minimal shape `recordMissionGear` needs - matches core/types.ts's `Unit` structurally, but this module
- *  deliberately doesn't depend on a live GameState/Unit, only on plain data, to stay testable in isolation. */
-interface EndedUnit { team: 'player' | 'enemy'; cls: ClassId; armor: ArmorId | null; equipment: [EquipmentId | null, EquipmentId | null] }
+/** The minimal shape `recordMissionGear`/`applyMissionXp` need - matches core/types.ts's `Unit` structurally,
+ *  but this module deliberately doesn't depend on a live GameState/Unit, only on plain data, to stay testable
+ *  in isolation. */
+interface EndedUnit {
+  team: 'player' | 'enemy'; cls: ClassId; armor: ArmorId | null; equipment: [EquipmentId | null, EquipmentId | null];
+  dmgDealt: number; kills: number; revives: number; alive: boolean;
+}
 
 /**
  * Called once a campaign-launched mission ends in a win (see ui/campaign.ts's `reportWin`): persists each
@@ -56,6 +63,34 @@ export function recordMissionGear(cs: CampaignState, units: EndedUnit[]): void {
     if (u.armor && !cs.unlockedGear.armor.includes(u.armor)) cs.unlockedGear.armor.push(u.armor);
     for (const e of u.equipment) if (e && !cs.unlockedGear.equipment.includes(e)) cs.unlockedGear.equipment.push(e);
   }
+}
+
+/**
+ * Called alongside `recordMissionGear` once a campaign-launched mission ends in a win: awards each player
+ * unit's class the XP it earned this mission (from its own final stat counters - see core/leveling.ts's
+ * `xpEarned`), resolving any level-up and granting newly-unlocked perks to the pool. A unit that died for
+ * good instead resets its class to level 1 (permadeath - see ROADMAP.md's Resolved for why the perk pool
+ * itself survives this).
+ */
+export function applyMissionXp(cs: CampaignState, units: EndedUnit[]): void {
+  for (const u of units) {
+    if (u.team !== 'player') continue;
+    const progress = cs.levels[u.cls] ?? newClassProgress();
+    if (u.alive) gainXp(u.cls, progress, xpEarned(u));
+    else resetOnDeath(progress);
+    cs.levels[u.cls] = progress;
+  }
+}
+
+/** Toggles perk `id` equipped/unequipped for `cls`, or returns why it can't be equipped (unequipping never fails). */
+export function togglePerk(cs: CampaignState, cls: ClassId, id: PerkId): string | null {
+  const progress = cs.levels[cls] ?? newClassProgress();
+  cs.levels[cls] = progress;
+  if (progress.equippedPerks.includes(id)) {
+    unequipPerk(progress, id);
+    return null;
+  }
+  return equipPerk(cls, progress, id);
 }
 
 /** Spends currency to build/upgrade a facility one level, or returns why it can't (nothing is charged then). */

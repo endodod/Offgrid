@@ -7,6 +7,7 @@ import type { ObjectiveDef } from '../data/objectives';
 import type { ItemType } from '../data/items';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
+import type { PerkId } from '../data/perks';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 
@@ -36,6 +37,10 @@ export interface Unit {
   gadget: { id: GadgetId; uses: number; cooldown: number } | null;
   armor: ArmorId | null; // equipment (7): stacks on top of the class's own base armor - see core/combat.ts's effectiveArmor
   equipment: [EquipmentId | null, EquipmentId | null]; // equipment (7): two slots
+  xp: number; // leveling (8)
+  level: number;
+  perkPool: PerkId[]; // unlocked so far, may exceed what's currently equipped
+  equippedPerks: PerkId[]; // active - see core/leveling.ts's perkBonus for their combined effect
   aiProfile?: AiProfileId; // overrides GameState.aiProfiles[team] for this one unit; set from its spawn (see Spawn)
   // stats for the simulator
   dmgDealt: number;

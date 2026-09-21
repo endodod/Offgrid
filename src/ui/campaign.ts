@@ -1,6 +1,7 @@
 import { baseGameOptions } from '../core/base';
 import {
-  availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, recordMissionGear, type CampaignState,
+  applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
+  recordMissionGear, type CampaignState,
 } from '../core/campaign';
 import type { Unit } from '../core/types';
 import { DISTRICTS, type GeneratedMissionDef, type StoryMissionDef } from '../data/campaign';
@@ -46,16 +47,18 @@ export class Campaign {
     return this.state;
   }
 
-  /** Called once a mission launched from here ends in a player win; `finalUnits` persists ending loadouts (7). */
+  /** Called once a mission launched from here ends in a player win; `finalUnits` persists ending loadouts (7)
+   *  and awards XP/levels (8). */
   reportWin(missionId: string, finalUnits: Unit[]) {
     if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
     else completeStoryMission(this.state, missionId);
     recordMissionGear(this.state, finalUnits);
+    applyMissionXp(this.state, finalUnits);
     saveCampaign(this.state);
   }
 
-  /** Layers a built base's meta-progression bonuses (6) and the campaign's current per-class loadouts (7) onto
-   *  a mission's own map - see core/base.ts and core/campaign.ts's `CampaignState.loadouts`. */
+  /** Layers a built base's meta-progression bonuses (6), the campaign's current per-class loadouts (7) and
+   *  levels/perks (8) onto a mission's own map - see core/base.ts and core/campaign.ts's `CampaignState`. */
   private applyBase(map: MapDef): MapDef {
     const bonus = baseGameOptions(this.state.base);
     return {
@@ -64,6 +67,7 @@ export class Campaign {
       ...(bonus.medkitBonus ? { medkitBonus: bonus.medkitBonus } : {}),
       ...(bonus.gadgetUsesBonus ? { gadgetUsesBonus: bonus.gadgetUsesBonus } : {}),
       startingLoadouts: this.state.loadouts,
+      startingProgress: this.state.levels,
     };
   }
 

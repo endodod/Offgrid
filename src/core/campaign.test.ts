@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { DISTRICT_ORDER, STORY_MISSIONS } from '../data/campaign';
-import { availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, recordMissionGear } from './campaign';
+import type { ArmorId } from '../data/armor';
+import type { EquipmentId } from '../data/equipment';
+import type { ClassId } from '../data/units';
+import {
+  applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
+  recordMissionGear, togglePerk,
+} from './campaign';
+
+/** A minimal EndedUnit for recordMissionGear/applyMissionXp tests - fills in stat defaults not under test. */
+const endedUnit = (over: {
+  team?: 'player' | 'enemy'; cls: ClassId; armor?: ArmorId | null; equipment?: [EquipmentId | null, EquipmentId | null];
+  dmgDealt?: number; kills?: number; revives?: number; alive?: boolean;
+}) => ({
+  team: 'player' as const, armor: null, equipment: [null, null] as [EquipmentId | null, EquipmentId | null],
+  dmgDealt: 0, kills: 0, revives: 0, alive: true, ...over,
+});
 
 describe('campaign (feature 5)', () => {
   it('a fresh campaign starts with only the first district unlocked and a full supply-run pool', () => {
@@ -104,8 +119,8 @@ describe('campaign (feature 5)', () => {
     it('persists a player unit\'s ending loadout by class, and unlocks what it found', () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [
-        { team: 'player', cls: 'soldier', armor: 'heavyPlate', equipment: ['boots', null] },
-        { team: 'enemy', cls: 'soldier', armor: 'lightVest', equipment: [null, null] }, // enemy gear never persists
+        endedUnit({ cls: 'soldier', armor: 'heavyPlate', equipment: ['boots', null] }),
+        endedUnit({ team: 'enemy', cls: 'soldier', armor: 'lightVest' }), // enemy gear never persists
       ]);
       expect(cs.loadouts.soldier).toEqual({ armor: 'heavyPlate', equipment: ['boots', null] });
       expect(cs.unlockedGear.armor).toEqual(['heavyPlate']);
@@ -114,8 +129,8 @@ describe('campaign (feature 5)', () => {
 
     it('overwrites a class\'s loadout on a later mission rather than merging', () => {
       const cs = newCampaign(1);
-      recordMissionGear(cs, [{ team: 'player', cls: 'medic', armor: 'lightVest', equipment: [null, null] }]);
-      recordMissionGear(cs, [{ team: 'player', cls: 'medic', armor: null, equipment: ['nvg', 'flashlight'] }]);
+      recordMissionGear(cs, [endedUnit({ cls: 'medic', armor: 'lightVest' })]);
+      recordMissionGear(cs, [endedUnit({ cls: 'medic', equipment: ['nvg', 'flashlight'] })]);
       expect(cs.loadouts.medic).toEqual({ armor: null, equipment: ['nvg', 'flashlight'] });
       // but the armor found on the first mission stays unlocked even though it's no longer equipped
       expect(cs.unlockedGear.armor).toEqual(['lightVest']);
@@ -124,9 +139,65 @@ describe('campaign (feature 5)', () => {
 
     it('never unlocks the same item id twice', () => {
       const cs = newCampaign(1);
-      recordMissionGear(cs, [{ team: 'player', cls: 'tank', armor: 'lightVest', equipment: [null, null] }]);
-      recordMissionGear(cs, [{ team: 'player', cls: 'sniper', armor: 'lightVest', equipment: [null, null] }]);
+      recordMissionGear(cs, [endedUnit({ cls: 'tank', armor: 'lightVest' })]);
+      recordMissionGear(cs, [endedUnit({ cls: 'sniper', armor: 'lightVest' })]);
       expect(cs.unlockedGear.armor).toEqual(['lightVest']); // not duplicated
+    });
+  });
+
+  describe('applyMissionXp and togglePerk (feature 8)', () => {
+    it('a fresh campaign has no per-class progress', () => {
+      const cs = newCampaign(1);
+      expect(cs.levels).toEqual({});
+    });
+
+    it('awards XP from a unit\'s own final stats, only for surviving player units', () => {
+      const cs = newCampaign(1);
+      applyMissionXp(cs, [
+        endedUnit({ cls: 'soldier', dmgDealt: 20, kills: 1 }), // 20*1 + 1*15 + 5 (survived) = 40
+        endedUnit({ team: 'enemy', cls: 'soldier', dmgDealt: 999, kills: 99 }), // enemy XP never recorded
+      ]);
+      expect(cs.levels.soldier?.xp).toBe(40);
+      expect(cs.levels.soldier?.level).toBe(1); // below the level-2 threshold (100)
+    });
+
+    it('levels up and grants exactly 2 perks at a significant level', () => {
+      const cs = newCampaign(1);
+      applyMissionXp(cs, [endedUnit({ cls: 'sniper', dmgDealt: 100 })]); // 100 + 5 = 105 xp -> level 2
+      expect(cs.levels.sniper?.level).toBe(2);
+      expect(cs.levels.sniper?.perkPool).toHaveLength(2);
+      expect(cs.levels.sniper?.equippedPerks).toEqual([]); // granted, not auto-equipped
+    });
+
+    it('XP accumulates across missions rather than resetting each time', () => {
+      const cs = newCampaign(1);
+      applyMissionXp(cs, [endedUnit({ cls: 'tank', dmgDealt: 50 })]); // 55 xp
+      applyMissionXp(cs, [endedUnit({ cls: 'tank', dmgDealt: 50 })]); // +55 = 110 xp -> level 2
+      expect(cs.levels.tank?.xp).toBe(110);
+      expect(cs.levels.tank?.level).toBe(2);
+    });
+
+    it('permadeath resets XP/level/equipped perks but keeps the unlocked pool (institutional knowledge)', () => {
+      const cs = newCampaign(1);
+      applyMissionXp(cs, [endedUnit({ cls: 'medic', dmgDealt: 100 })]); // -> level 2, 2 perks unlocked
+      const unlockedId = cs.levels.medic!.perkPool[0];
+      expect(togglePerk(cs, 'medic', unlockedId)).toBeNull(); // equip it
+      expect(cs.levels.medic?.equippedPerks).toContain(unlockedId);
+
+      applyMissionXp(cs, [endedUnit({ cls: 'medic', alive: false })]); // died for good this time
+      expect(cs.levels.medic?.xp).toBe(0);
+      expect(cs.levels.medic?.level).toBe(1);
+      expect(cs.levels.medic?.equippedPerks).toEqual([]);
+      expect(cs.levels.medic?.perkPool).toContain(unlockedId); // still unlocked, just not equipped
+    });
+
+    it('togglePerk respects the slot cap and refuses a locked perk', () => {
+      const cs = newCampaign(1);
+      applyMissionXp(cs, [endedUnit({ cls: 'assault', dmgDealt: 100 })]); // level 2, 1 slot (from level 1), 2 unlocked perks
+      const [a, b] = cs.levels.assault!.perkPool;
+      expect(togglePerk(cs, 'assault', a)).toBeNull();
+      expect(togglePerk(cs, 'assault', b)).toBe('No open perk slots'); // only 1 slot until level 3
+      expect(togglePerk(cs, 'assault', 'tankPlating')).toBe('Not unlocked yet'); // a different class's perk
     });
   });
 });

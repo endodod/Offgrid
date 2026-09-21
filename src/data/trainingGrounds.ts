@@ -6,6 +6,7 @@ import type { ObjectiveDef } from './objectives';
 import type { ItemType } from './items';
 import type { ArmorId } from './armor';
 import type { EquipmentId } from './equipment';
+import type { PerkId } from './perks';
 
 /** [class, x, y, aiProfile?]. A team can field several units of one class. aiProfile overrides the team/mission
  *  default (MapDef.enemyProfile / GameOptions) for this one unit - most useful to mix habitats in one squad
@@ -41,6 +42,15 @@ export interface UnitLoadout {
   equipment: [EquipmentId | null, EquipmentId | null];
 }
 
+/** A class's leveling progress (8): both an in-mission `Unit`'s live fields and what a campaign mission (5)
+ *  starts a class at - see `MapDef.startingProgress` below and core/campaign.ts's `CampaignState.levels`. */
+export interface ClassProgress {
+  xp: number;
+  level: number;
+  perkPool: PerkId[]; // unlocked so far - permanent, never lost (see core/leveling.ts's resetOnDeath)
+  equippedPerks: PerkId[]; // currently active, length capped by the current level's slot count
+}
+
 export interface MapDef {
   name: string;
   /**
@@ -74,6 +84,8 @@ export interface MapDef {
   /** Starting armor/equipment per player class (7), same "system-set MapDef field" trick as the base-building
    *  fields above - see ui/campaign.ts's `applyBase`. undefined (or a missing class entry) means no loadout. */
   startingLoadouts?: Partial<Record<ClassId, UnitLoadout>>;
+  /** Starting level/XP/perks per player class (8), same trick as `startingLoadouts` above. */
+  startingProgress?: Partial<Record<ClassId, ClassProgress>>;
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;
