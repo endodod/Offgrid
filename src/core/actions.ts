@@ -2,6 +2,7 @@ import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { RULES } from '../data/rules';
 import { applyDamage, coverAt, fireWeapon, targetBlock } from './combat';
+import { scaledMove } from './environment';
 import { cheb, dist, findPath, idx, inBounds, unitAt } from './grid';
 import { beginCapture, checkCapture, declareWinner, emit, endTurn } from './state';
 import { refreshVision } from './vision';
@@ -22,8 +23,8 @@ export type Result = { ok: true; events: GameEvent[] } | { ok: false; error: str
 const unitById = (s: GameState, id: number) => s.units.find((u) => u.id === id);
 const hasActions = (u: Unit) => (u.actions > 0 ? null : 'No actions left');
 
-/** Tiles a move action can cover right now: the Move stat plus any pending adrenaline bonus. */
-export const moveRange = (u: Unit) => CLASSES[u.cls].move + u.moveBonus;
+/** Tiles a move action can cover right now: the Move stat (scaled by time of day/weather) plus any pending adrenaline bonus. */
+export const moveRange = (s: GameState, u: Unit) => scaledMove(s, CLASSES[u.cls].move) + u.moveBonus;
 
 /** Why the unit cannot use its gadget right now (ignoring the target), or null. */
 export function gadgetBlock(u: Unit): string | null {
@@ -86,7 +87,7 @@ export function validate(s: GameState, a: Action): string | null {
   switch (a.type) {
     case 'move':
       if (u.actions <= 0) return 'No actions left';
-      return findPath(s, u, a.to, moveRange(u)) ? null : 'Cannot reach that tile';
+      return findPath(s, u, a.to, moveRange(s, u)) ? null : 'Cannot reach that tile';
     case 'attack': {
       const t = unitById(s, a.target);
       if (hasActions(u)) return hasActions(u);
@@ -173,7 +174,7 @@ function expose(s: GameState, u: Unit): boolean {
 }
 
 function doMove(s: GameState, u: Unit, to: Pos) {
-  const path = findPath(s, u, to, moveRange(u))!;
+  const path = findPath(s, u, to, moveRange(s, u))!;
   u.moveBonus = 0; // adrenaline boosts one move, however far it goes
   u.actions--;
   const ev = emit(s, { t: 'move', unit: u.id, from: { x: u.x, y: u.y }, to }, false);

@@ -1,6 +1,10 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { RULES } from '../data/rules';
+import { TIME_ORDER, TIMES_OF_DAY } from '../data/timeOfDay';
+import { WEATHER_ORDER, WEATHERS } from '../data/weather';
+import { envMods, scaledMove, scaledVision } from '../core/environment';
+import type { GameState } from '../core/types';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
 
@@ -12,7 +16,7 @@ const BUTTONS: { id: ButtonId; key: string }[] = [
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const pips = (n: number, max: number) => '●'.repeat(Math.max(0, n)) + '○'.repeat(Math.max(0, max - n));
 
-/** DOM side of the UI: action bar, unit card, roster, log, debug panel. Rebuilt from Session state on every change. */
+/** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 export class Hud {
   private logShown = 0;
   private mouse = { x: 0, y: 0 };
@@ -28,6 +32,12 @@ export class Hud {
     });
     $<HTMLInputElement>('dbg-fog').addEventListener('change', (e) => session.toggleFog((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('dbg-skip').addEventListener('change', (e) => { session.skipEnemyPhase = (e.target as HTMLInputElement).checked; });
+    const timeSel = $<HTMLSelectElement>('dbg-time');
+    timeSel.innerHTML = TIME_ORDER.map((t) => `<option value="${t}">${TIMES_OF_DAY[t].name}</option>`).join('');
+    timeSel.addEventListener('change', () => session.setTimeOfDay(timeSel.value as (typeof TIME_ORDER)[number]));
+    const weatherSel = $<HTMLSelectElement>('dbg-weather');
+    weatherSel.innerHTML = WEATHER_ORDER.map((w) => `<option value="${w}">${WEATHERS[w].name}</option>`).join('');
+    weatherSel.addEventListener('change', () => session.setWeather(weatherSel.value as (typeof WEATHER_ORDER)[number]));
     $('dbg-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
@@ -49,6 +59,21 @@ export class Hud {
       : 'Objective: find the terminal (not yet spotted). Or eliminate all enemies.';
   }
 
+  /** Mission panel: current map, time of day and weather, and their combined effect on move/vision/accuracy. */
+  private missionInfo(s: GameState): string {
+    const mods = envMods(s);
+    const delta = (mult: number) => { const d = Math.round((mult - 1) * 100); return `${d > 0 ? '+' : ''}${d}%`; };
+    const acc = `${mods.accuracyMod > 0 ? '+' : ''}${mods.accuracyMod}%`;
+    return `
+      <h3>Mission</h3>
+      <div class="row"><span>Map</span><b>${s.map.name}</b></div>
+      <div class="row"><span>Time of day</span><b>${TIMES_OF_DAY[s.timeOfDay].name}</b></div>
+      <p class="dim">${TIMES_OF_DAY[s.timeOfDay].blurb}</p>
+      <div class="row"><span>Weather</span><b>${WEATHERS[s.weather].name}</b></div>
+      <p class="dim">${WEATHERS[s.weather].blurb}</p>
+      <div class="row"><span>Combined effect</span><b>Vision ${delta(mods.visionMult)} · Move ${delta(mods.moveMult)} · Accuracy ${acc}</b></div>`;
+  }
+
   setMouse(x: number, y: number) {
     this.mouse = { x, y };
   }
@@ -59,6 +84,8 @@ export class Hud {
 
     $('phase').textContent = `Turn ${s.turn} · ${s.phase === 'player' ? 'PLAYER' : 'ENEMY'} PHASE`;
     $('phase').className = s.phase;
+    $<HTMLSelectElement>('dbg-time').value = s.timeOfDay;
+    $<HTMLSelectElement>('dbg-weather').value = s.weather;
     $('status').textContent = this.session.status;
     $('objective').textContent = this.objectiveText();
     $('objective').className = s.capture ? 'securing' : '';
@@ -75,6 +102,8 @@ export class Hud {
       return `<button data-unit="${u.id}" class="${cls}"><b>${n + 1}</b> ${CLASSES[u.cls].name}<span>${u.alive ? `${u.hp}/${CLASSES[u.cls].hp}` : 'KIA'}</span></button>`;
     }).join('');
 
+    $('mission').innerHTML = this.missionInfo(s);
+
     if (!sel) $('card').innerHTML = '<p class="dim">No unit selected.</p>';
     else {
       const d = CLASSES[sel.cls];
@@ -82,10 +111,13 @@ export class Hud {
       const g = sel.gadget;
       const gtext = !g ? 'none'
         : `${GADGETS[g.id].name} · uses ${g.uses}/${RULES.gadgetUsesPerMission} · ${g.cooldown > 0 ? `ready in ${g.cooldown} turn${g.cooldown > 1 ? 's' : ''}` : 'ready'}`;
+      const move = scaledMove(s, d.move);
+      const vision = scaledVision(s, d.vision);
+      const acc = envMods(s).accuracyMod;
       $('card').innerHTML = `
         <h3>${nameOf(sel)}</h3>
-        <div class="row"><span>HP</span><b>${sel.hp}/${d.hp}</b><span>Armor</span><b>${d.armor}</b><span>Move</span><b>${d.move}${sel.moveBonus ? ` <em class="boost">+${sel.moveBonus} next move</em>` : ''}</b><span>Vision</span><b>${d.vision}</b></div>
-        <div class="row"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · acc ${w.accuracy}%</b></div>
+        <div class="row"><span>HP</span><b>${sel.hp}/${d.hp}</b><span>Armor</span><b>${d.armor}</b><span>Move</span><b>${move}${move !== d.move ? ` <em class="boost">(base ${d.move})</em>` : ''}${sel.moveBonus ? ` <em class="boost">+${sel.moveBonus} next move</em>` : ''}</b><span>Vision</span><b>${vision}${vision !== d.vision ? ` <em class="boost">(base ${d.vision})</em>` : ''}</b></div>
+        <div class="row"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · acc ${w.accuracy}%${acc ? ` <em class="boost">(${acc > 0 ? '+' : ''}${acc}%)</em>` : ''}</b></div>
         <div class="row"><span>Actions</span><b class="pips">${pips(sel.actions, RULES.actionsPerTurn)}</b></div>
         <div class="row"><span>Ammo</span><b>${sel.ammo}/${w.magazine}</b><span>Medkits</span><b>${sel.medkits}/${RULES.medkitsPerUnit}</b></div>
         <div class="row"><span>Gadget</span><b>${gtext}</b></div>

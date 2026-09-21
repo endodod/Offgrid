@@ -1,9 +1,12 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
+import type { TimeOfDayId } from '../data/timeOfDay';
+import type { WeatherId } from '../data/weather';
 import type { MapDef } from '../data/trainingGrounds';
 import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, validate, type Action } from '../core/actions';
 import { aiTurn } from '../core/ai';
 import { coverAgainst, damageAgainst, hitChance, targetBlock } from '../core/combat';
+import { envMods } from '../core/environment';
 import { idx, inBounds, reachable } from '../core/grid';
 import { createGame, reseed } from '../core/state';
 import { refreshVision } from '../core/vision';
@@ -67,6 +70,18 @@ export class Session {
 
   toggleFog(on: boolean) {
     this.state.fogEnabled = on;
+    refreshVision(this.state);
+    this.onChange();
+  }
+
+  setTimeOfDay(t: TimeOfDayId) {
+    this.state.timeOfDay = t;
+    refreshVision(this.state);
+    this.onChange();
+  }
+
+  setWeather(w: WeatherId) {
+    this.state.weather = w;
     refreshVision(this.state);
     this.onChange();
   }
@@ -274,7 +289,7 @@ export class Session {
     const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now };
     if (!u || !this.ready) return view;
     if (this.mode === 'move' && u.actions > 0) {
-      view.reach = new Set([...reachable(s, u, moveRange(u)).keys()].filter((i) => i !== idx(s, u.x, u.y)));
+      view.reach = new Set([...reachable(s, u, moveRange(s, u)).keys()].filter((i) => i !== idx(s, u.x, u.y)));
     }
     if (this.mode === 'attack') for (const t of s.units) if (t.team === 'enemy' && validate(s, { type: 'attack', unit: u.id, target: t.id }) === null) view.ringed.add(t.id);
     if (this.mode === 'aid') for (const t of s.units) if (aidBlock(u, t) === null) view.ringed.add(t.id);
@@ -302,6 +317,8 @@ export class Session {
       const w = CLASSES[sel.cls].weapon;
       if (at.exposed) lines.push('Exposed: visible in the bush until its next turn');
       lines.push(`Cover: ${cover.state}${cover.penalty ? ` (-${cover.penalty}% to hit)` : ''}`);
+      const envMod = envMods(s).accuracyMod;
+      if (envMod) lines.push(`Weather/time: ${envMod > 0 ? '+' : ''}${envMod}% to hit`);
       lines.push(`Hit chance ${hitChance(s, sel, at)}%   Damage ${damageAgainst(w.damage, def.armor)}${w.shots > 1 ? ` x${w.shots} shots` : ''}`);
       const blocked = targetBlock(s, sel, at);
       if (blocked) lines.push(`Cannot fire: ${blocked}`);

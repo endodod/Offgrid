@@ -1,5 +1,6 @@
 import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
+import { envMods } from './environment';
 import { dist, hasLos, idx, inBounds } from './grid';
 import { rollPercent } from './rng';
 import { emit } from './state';
@@ -40,7 +41,7 @@ export function coverAgainst(s: GameState, target: Pos, from: Pos): { state: Cov
 }
 
 export function hitChance(s: GameState, attacker: Unit, target: Unit, from: Pos = attacker): number {
-  const raw = CLASSES[attacker.cls].weapon.accuracy - coverAgainst(s, target, from).penalty;
+  const raw = CLASSES[attacker.cls].weapon.accuracy - coverAgainst(s, target, from).penalty + envMods(s).accuracyMod;
   return Math.min(RULES.hitClamp.max, Math.max(RULES.hitClamp.min, raw));
 }
 

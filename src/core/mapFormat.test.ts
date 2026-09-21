@@ -41,7 +41,7 @@ describe('map format', () => {
 
   it('allows several units of one class and units in bushes', () => {
     const m = clone();
-    m.spawns.player.push(['soldier', 3, 2]); // (3,2) is a bush
+    m.spawns.player.push(['soldier', 8, 1]); // (8,1) is a bush
     expect(parseMap(m, base).spawns.player).toHaveLength(base.spawns.player.length + 1);
   });
 

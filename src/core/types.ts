@@ -2,6 +2,8 @@ import type { ClassId } from '../data/units';
 import type { GadgetId } from '../data/gadgets';
 import type { MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
+import type { TimeOfDayId } from '../data/timeOfDay';
+import type { WeatherId } from '../data/weather';
 
 export type Team = 'player' | 'enemy';
 export type Terrain = 'floor' | 'wall' | 'bush';
@@ -64,7 +66,7 @@ export type EventBody =
   | { t: 'end'; winner: Team | 'draw' };
 export type GameEvent = EventBody & { seen: boolean };
 
-export interface GameOptions { objectiveCapture: ObjectiveCapture }
+export interface GameOptions { objectiveCapture: ObjectiveCapture; timeOfDay?: TimeOfDayId; weather?: WeatherId }
 
 export interface GameState {
   map: MapDef;
@@ -85,6 +87,8 @@ export interface GameState {
   rollSource?: () => number;
   winner: Team | 'draw' | null;
   fogEnabled: boolean; // debug: only affects the player team's view
+  timeOfDay: TimeOfDayId;
+  weather: WeatherId;
   options: GameOptions;
   visible: Record<Team, Uint8Array>;
   seenUnits: Record<Team, Set<number>>; // enemy units each team currently sees

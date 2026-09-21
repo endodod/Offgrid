@@ -67,7 +67,7 @@ Where the brief was silent or ambiguous I picked a default. Everything numeric l
 - A match that runs past `RULES.maxTurns` counts as a draw.
 
 ## Map and missions
-- Spawns are a list of `[class, x, y]`, so a team can field several units of a class. The Training Grounds fields **5 friendly units** (sniper, assault, soldier, medic, tank) against **3 enemy soldiers**. That is a comfortable win for the player in the sim, so raise the enemy count in the map file if you want a harder test.
+- Spawns are a list of `[class, x, y]`, so a team can field several units of a class. The Training Grounds fields **5 friendly units** (sniper, assault, soldier, medic, tank) against **5 enemies** (sniper, 2x medic, 2x assault). The enemy spawns sit right next to the objective's walled courtyard while the player spawns are spread across the far side of the map, so `--objective player|both` is now a fast, near-deterministic enemy win by capture; `--objective none` (the sim default) is the one that measures combat balance. With 5-unit squads funnelling through the courtyard's single doorway, enemy units can also jam each other there and never reach combat range at all in elimination mode (the "Known weakness" below) - this is a map/AI-scale issue tracked for the roadmap's AI rework, not a balance guarantee.
 - Missions are listed in `src/data/missions.ts` and shown on the home screen. Leaving to the menu discards the current game; entering a mission starts it fresh.
 - "Some cover destructible, some upgradeable" is implemented as **all** cover being both (the rules don't distinguish). The features are simply placed in different areas. A feature table is at the top of `src/data/trainingGrounds.ts`.
 

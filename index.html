@@ -74,11 +74,14 @@
       <aside>
         <div id="roster"></div>
         <div id="card"></div>
-        <div id="log-wrap"><h3>Combat log</h3><div id="log"></div></div>
+        <div id="mission"></div>
+        <div id="log-wrap" hidden><h3>Combat log</h3><div id="log"></div></div>
         <div id="debug" hidden>
           <h3>Debug</h3>
           <label><input type="checkbox" id="dbg-fog" checked /> Fog of war</label>
           <label><input type="checkbox" id="dbg-skip" /> Skip enemy phase</label>
+          <label>Time of day <select id="dbg-time"></select></label>
+          <label>Weather <select id="dbg-weather"></select></label>
           <div class="btns">
             <button id="dbg-reset">Reset map</button>
             <button id="dbg-reseed">Reseed RNG</button>

@@ -1,6 +1,7 @@
 import { CLASSES } from '../data/units';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
+import { scaledMove } from './environment';
 import { dist, distanceMap, hasLos, idx, reachable } from './grid';
 import type { GameState, Pos, Team, Unit } from './types';
 
@@ -39,7 +40,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
   if (u.ammo === 0 && ok(s, reload)) return reload;
 
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
-  const move = CLASSES[u.cls].move;
+  const move = scaledMove(s, CLASSES[u.cls].move);
   if (enemies.length) {
     const here = evaluate(s, u, enemies, u, 0);
     if (u.actions >= 2 && !holding) {
@@ -85,7 +86,7 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
   const d = distanceMap(s, goal);
   const here = d[idx(s, u.x, u.y)];
   let best: { pos: Pos; d: number; cost: number } | null = null;
-  for (const [i, r] of reachable(s, u, CLASSES[u.cls].move)) {
+  for (const [i, r] of reachable(s, u, scaledMove(s, CLASSES[u.cls].move))) {
     if (d[i] < 0) continue;
     if (!best || d[i] < best.d || (d[i] === best.d && r.cost < best.cost)) best = { pos: { x: i % s.width, y: Math.floor(i / s.width) }, d: d[i], cost: r.cost };
   }

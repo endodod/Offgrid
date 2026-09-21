@@ -1,5 +1,6 @@
 import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
+import { scaledVision } from './environment';
 import { dist, hasLos, idx, inBounds } from './grid';
 import type { GameState, Team, Unit } from './types';
 
@@ -15,7 +16,7 @@ export function refreshVision(s: GameState) {
     const vis = new Uint8Array(s.width * s.height);
     for (const u of s.units) {
       if (!u.alive || u.team !== team) continue;
-      const r = CLASSES[u.cls].vision;
+      const r = scaledVision(s, CLASSES[u.cls].vision);
       for (let y = u.y - r; y <= u.y + r; y++) {
         for (let x = u.x - r; x <= u.x + r; x++) {
           if (!inBounds(s, x, y) || vis[idx(s, x, y)] || dist(u, { x, y }) > r) continue;

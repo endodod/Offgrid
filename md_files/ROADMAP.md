@@ -1,6 +1,6 @@
 # Roadmap
 
-Planned work, in the order I would tackle it. These four features come **before** designing real levels and a campaign, because they are the vocabulary the levels will be built from. Multiplayer (PvP and co-op) comes after that.
+Planned work, in the order I would tackle it. Features 1-4 come **before** the meta-game layer (5-8), because they are the vocabulary the levels and missions will be built from. Multiplayer (PvP and co-op) comes after that.
 
 Status: none of this is started. This file is for planning; the current rules are in [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
@@ -8,12 +8,24 @@ Status: none of this is started. This file is for planning; the current rules ar
 
 | # | Feature | Size | Depends on |
 |---|---|---|---|
+| 0a | UI/UX clarity pass (hover info, redesign) | medium | nothing, but every later feature should be built against the clearer UI |
+| 0b | Revive mechanic | small-medium | nothing |
+| 0c | Enemy AI rework (habitat & difficulty profiles) | medium-large | nothing, but pairs well with mission data from 5 |
+| 0d | Friendly AI for auto-run missions (supply runs) | medium | 0c (shares the profile/planAction rework), most useful once 5 exists (supply runs to delegate) |
+| 0e | Hotkey settings | small | nothing, but easiest to add alongside the 0a redesign (action tooltips can show the bound key) |
+| 0f | Tutorial: walk through every mechanic and action | medium | 0a (reuses its hover/tooltip work), most effective once 0b-0e exist so it can cover them too |
 | 1 | Weather | small, isolated | nothing |
 | 2 | Doors and interactive map parts | medium | nothing, but shapes the map format |
 | 3 | Objective types | medium | 2 (some objectives need interactables) |
 | 4 | Consumables and ammo economy | medium-large | 3 (for "retrieve" objectives), balance data from the sim |
+| 5 | Campaign map & mission generation | large | 3 (objective variety), 4 (supply runs feed the ammo economy) |
+| 6 | Base building | medium-large | 5 (base needs a campaign layer to sit in) |
+| 7 | Unit equipment screen (armor + 2 slots, loot system) | medium-large | 2 and 4 (chests and enemy drops need interactables and pickups), 6 for buying/crafting |
+| 8 | Unit leveling & perks (per-class paths, growing perk pool & slots) | medium-large | pairs with 7 (perks and equipment both modify a unit's effective stats) |
 
-Weather can slot in at any time. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
+0a-0f go first: they are core game-feel, not content, and every feature after them (new hazards, objectives, pickups, mission generation) needs the clearer UI, the revive mechanic, a more capable AI, configurable controls and a way to teach all of it already in place instead of retrofitted later. 0d builds directly on 0c's AI rework, and 0f is easiest last among these since it can then cover 0b-0e as well as the base rules, so do them in roughly that order even though most of them can start immediately. Weather can slot in any time after that. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
+
+5-8 are the meta-game layer: base -> equip/level the squad -> pick a mission from the campaign map -> play it -> return to base. Unlike 1-4 (each buildable and testable against the single Training Grounds mission), these need at least a minimal second mission and a persistent save file to test end-to-end, so they naturally come after.
 
 ## Ground rules for every feature
 
@@ -26,6 +38,149 @@ These are what keep the project healthy as it grows. Each feature should meet al
 - **The map format and builder grow with it.** New tile characters or map objects must be validated in `src/core/mapFormat.ts`, editable in the debug map builder, and covered by `mapFormat.test.ts`.
 - **The sim gets a knob.** Add a flag to `scripts/sim.ts` so the effect on balance can be measured (for example `--weather rain`).
 - **Readable feedback.** Anything that changes hit chance, vision or state shows up in the tooltip, the log or the HUD, not silently.
+
+---
+
+## 0a. UI/UX clarity pass: hover info and redesign
+
+**Goal:** a player can tell what will happen before committing to an action, everywhere in the game, without reading the code or guessing. This is a prerequisite for every feature above: new hazards, objective types and pickups all add more state the player has to read correctly.
+
+**Where we are:** `ui/session.ts` already has a `hover` position and a `hoverInfo()` that returns tooltip lines for a hovered tile (hit chance, damage, cover, currently keyed off the selected unit and an enemy target). Movement has no equivalent — hovering a reachable tile does not explain path cost, remaining action points after the move, or danger (overwatch, visible enemies) at the destination. Action buttons (interact, reload, gadgets, overwatch) have no hover explanation of what they cost or do beyond their label.
+
+**Design sketch**
+- **Movement hover:** hovering a reachable tile shows path length/AP cost, AP remaining after the move, and whether the destination is inside known enemy overwatch or visible to any seen enemy (a "danger" flag drawing on `visible`/`memory`, never on hidden information).
+- **Attack hover:** extend the existing enemy-hover tooltip to cover every attack-capable action (not just the default attack), including gadgets with an attack effect, and to state clearly when a shot is blocked (no LOS) rather than just omitting numbers.
+- **Action hover:** every action button (interact, reload, overwatch, gadget, wait, revive once 0b lands) gets a hover/focus tooltip with a one-line description, AP cost, and why it is disabled when it is (no ammo, no target in range, already used this turn).
+- **Redesign pass:** consolidate hover/tooltip rendering into one shared component/style (`ui/style.css` plus a single tooltip builder) instead of ad hoc strings per feature, so weather, doors, objectives and pickups can each add a line without a bespoke UI each time. Review HUD layout, button grouping and iconography for anything that currently requires prior knowledge of the rules to understand (e.g. unlabeled numbers, ambiguous icons).
+- Keyboard/gamepad-friendly: hover info should also appear on focus, not only mouse hover, so keyboard selection of tiles/actions isn't second-class.
+
+**Touches:** `ui/session.ts` (`hoverInfo` and a new move/action-hover equivalent), `ui/hud.ts`, `ui/style.css`, `render/renderer.ts` (danger/path highlighting), no changes expected to `core/` (this is presentation over existing state, using only `visible`/`seenUnits`/`memory` like everything else fog-related).
+
+**Open questions**
+- Does danger highlighting need a new derived field in `core`, or can it be computed entirely in the UI layer from existing `visible`/`memory`? Prefer the latter to keep `core` pure per the ground rules.
+- How much detail before the tooltip becomes clutter — always show full numbers, or a short summary with a "hold for detail" expansion?
+- Does this pass include a redesigned action bar/HUD layout, or only the hover/tooltip layer with layout deferred? Worth deciding before starting so scope doesn't creep into a full visual redesign.
+
+**Tests:** where logic moves out of ad hoc UI strings into shared helpers, cover them with unit tests (e.g. a path-cost/AP-remaining calculator, a danger-at-tile check); otherwise this is largely manual/visual QA since it is presentation, not core rules.
+
+---
+
+## 0b. Revive mechanic
+
+**Goal:** a downed unit is a tactical situation to react to, not an instant, permanent loss.
+
+**Where we are:** units currently go straight from alive to dead once HP reaches 0 (see the HP checks in `core/actions.ts` and their coverage in `core/actions.test.ts` / `core/combat.test.ts`). There is no "downed" state and no action that reverses it.
+
+**Design sketch**
+- Add a **downed** state between alive and dead: HP hits 0 -> unit becomes downed instead of removed, can no longer act, and is at risk of dying for good after N rounds (bleed-out timer) or from further hits while down.
+- New **revive** action: an adjacent ally spends an action (and AP) to bring a downed unit back with partial HP. Optionally gate it behind a resource (a medkit charge, tying into the consumables feature (#4) once it exists) so it isn't free.
+- Downed units still occupy their tile (blocks movement, may or may not block LOS — decide by feel) and should be visibly distinct on the map and in the HUD from both alive and dead units.
+- Fog: a downed unit's state is only known if seen, same treatment as everything else fog-related; an enemy team should not know an off-screen unit went down until they see it.
+- AI: the enemy should be able to both down player units and, if desired for symmetry, revive its own downed units — decide whether the first version gives the AI revive at all, or only exposes it to the player initially.
+
+**Touches:** `core/types.ts` (unit status), `core/actions.ts` (downed transition, revive action, bleed-out timer), `core/ai.ts` (goal hint: revive a downed ally, or finish one off), `core/vision.ts`/memory (downed state under fog), renderer (downed sprite/marker), `ui/hud.ts` and the action-hover work in 0a (revive needs a tooltip too), `scripts/sim.ts` (a knob to measure how often revives happen and how much they change outcomes).
+
+**Open questions**
+- Bleed-out timer length, and whether it's fixed or per-class.
+- Can a downed unit be finished off by an enemy attack, and does that cost the enemy an action or happen automatically on any hit?
+- Does going down count as a "kill" for objectives like Eliminate (#3) until it's permanent, or only once the unit actually dies?
+- Should revive fully clear downed status only, or also cure any status effects picked up while down?
+
+**Tests:** HP reaching 0 downs rather than removes the unit; downed unit cannot act; bleed-out timer kills it after N rounds if not revived; revive restores partial HP and returns it to normal status; downed state respects fog (not visible/remembered until seen); the AI can path to and revive/finish a downed unit; win/lose checks handle downed-but-not-dead units correctly for Eliminate-style objectives.
+
+---
+
+## 0c. Enemy AI rework: habitat and difficulty profiles
+
+**Goal:** enemy behaviour varies by mission instead of every enemy on every map playing the same script, and difficulty can be tuned by making enemies smarter or dumber rather than just tankier or harder-hitting.
+
+**Where we are:** `aiTurn`/`planAction` in `core/ai.ts` is one fixed behaviour for every enemy on every mission: reload if empty, take the best cover-plus-shoot tile if a target is visible, otherwise advance on the last known position, the objective, or a search waypoint, then finish on overwatch. There is no concept of difficulty or a per-mission/per-spawn behaviour profile — the only levers today are per-unit stats in `data/units.ts` and global constants in `data/rules.ts`.
+
+**Design sketch**
+- Introduce an **AI profile**: data read by `planAction`, `evaluate` and `pickGoal` instead of their current hard-coded choices — an aggression setting (hold cover vs push), a reaction/accuracy modifier for difficulty, and a **habitat** preset such as patrol (roams search waypoints readily), turret/camper (holds a position until it has a target, reluctant to leave good cover) or ambush (stays hidden until a trigger, then commits).
+- Mission data (`data/missions.ts`, or the campaign mission templates from #5) assigns a profile per spawn or per squad, the same way weather and objectives are already mission-level data rather than hard-coded.
+- Prefer difficulty knobs that change decision quality (reaction radius, willingness to expose itself, coordination between units) over blunt HP/damage multipliers, so a harder mission feels like a smarter enemy, not a bullet sponge.
+- Keep `core` pure and deterministic: any profile-driven randomness (e.g. a percentage chance to hold vs push) goes through the seeded RNG like everything else.
+
+**Touches:** `core/ai.ts` (parametrize `planAction`/`evaluate`/`pickGoal` by profile), `data/aiProfiles.ts` (new), `data/missions.ts` (assign profile per mission/spawn), map builder (assign a habitat/profile per enemy spawn), `scripts/sim.ts` (a `--aiProfile`/`--difficulty` knob to measure the effect on outcomes).
+
+**Open questions**
+- Profile per unit, or per squad/mission with per-class defaults that a mission can override?
+- Does difficulty ever touch the player's side (e.g. harder missions restrict resupply), or stay purely an enemy-side setting?
+- How does a camper/ambush habitat interact with doors and interactables (#2) — it probably shouldn't wander through an opened door chasing a waypoint the way a patrol would?
+
+**Tests:** the default profile reproduces today's behaviour exactly (regression safety for existing AI tests); each profile produces a measurably different, testable behaviour (an ambush profile holds position until it gets LOS; a patrol profile uses search waypoints more readily than a camper); `scripts/sim.ts` shows a measurable win-rate shift between difficulty profiles.
+
+---
+
+## 0d. Friendly AI for auto-run missions (e.g. supply runs)
+
+**Goal:** the player can hand a low-stakes mission, such as a supply run, to AI control of their own squad instead of playing every turn manually.
+
+**Where we are:** `aiTurn(s, team)` in `core/ai.ts` already takes a `Team` and is not hardcoded to `'enemy'` — it is simply invoked for `'enemy'` today (`runAiTurn(s, 'enemy')`). Nothing currently calls it for the player team, and `planAction`'s current behaviour (cover-seeking, holding, chasing search waypoints) is tuned for an opposing squad, not necessarily what a player would want done with their own.
+
+**Design sketch**
+- A **friendly** behaviour, most naturally expressed as another profile alongside 0c's rework: prioritize squad survival and objective completion over aggression, avoid needless exposure, and read only `visible['player']`/`seenUnits['player']`/`memory['player']` the same as a human player would — a friendly AI must never see anything the player themself couldn't have.
+- An **auto-run** mode: the game loop calls `aiTurn(s, 'player')` with the friendly profile each player phase instead of taking manual input, fast-forwarding the mission. Offer a way to hand control back mid-mission (e.g. on taking a casualty, or on request) rather than making it strictly all-or-nothing.
+- Pairs naturally with the campaign layer's supply-run generation (#5): low narrative stakes, so a player who doesn't want to hand-play every mission can auto-resolve the routine ones and get the outcome, while story missions stay manual.
+- UI: an "auto-run" toggle on missions that support it, a fast-forward/skip control while it plays out, and a results summary (casualties, loot, objective outcome) for a player who isn't watching turn by turn.
+
+**Touches:** `core/ai.ts` (friendly profile / planAction variant), `ui/session.ts` (auto-run mode and speed control), a new mission-results summary UI, `data/campaign.ts`/`data/missions.ts` (mark which mission templates are auto-runnable, ties into #5), `scripts/sim.ts` (already runs both sides via AI, so it's a natural place to validate the friendly profile too).
+
+**Open questions**
+- Is auto-run available on any mission, or gated to specific templates (supply runs) below some risk threshold?
+- Full permadeath during an auto-run same as manual play, or does the friendly AI get a safety margin (e.g. it will retreat rather than push a losing fight) to keep auto-run genuinely low-stakes?
+- Can the player interrupt an in-progress auto-run to take manual control, or only start/stop between missions?
+
+**Tests:** the friendly profile reads only the player team's fog state (no cheating using enemy information); an auto-run mission resolves deterministically for a given seed; every action taken during auto-run passes the same `validate` a manual action would; the results summary matches the final `GameState`.
+
+---
+
+## 0e. Hotkey settings
+
+**Goal:** the player can see and rebind every keyboard shortcut instead of living with a fixed layout.
+
+**Where we are:** `ui/input.ts` hard-codes a single `KEYS` map (`m`/`a`/`r`/`g`/`o`/`f`/`i`/`e`/`Enter` to buttons) plus a handful of inline checks (`Escape` to cancel, `v` to toggle overwatch view, `q`/`shift+q` to rotate cover, `1`-`5` to select a unit). There is no settings/config concept anywhere in the UI layer, no persistence, and no in-game list of what any key does.
+
+**Design sketch**
+- A `KeyBindings` structure (new, e.g. `ui/keybindings.ts`) mapping each bindable action (`ButtonId` plus the extra actions above: cancel, toggle overwatch view, rotate cover CW/CCW, select unit 1-5) to a key, with the current `KEYS` map becoming the shipped default rather than the only option.
+- A settings screen listing every binding with a "click to rebind" control (press a key to capture it), conflict detection (warn or block if a key is already bound to something else), and a reset-to-default action.
+- Persist bindings in `localStorage` (this is a single-player, browser-side concern today; if a save-file system arrives with the campaign layer (#5) it's a natural place to store this too, but it shouldn't have to wait for that).
+- `bindInput` reads from the active `KeyBindings` instead of the hard-coded map and inline `ev.key` checks, so every one of today's shortcuts becomes rebindable, not just the ones already routed through `KEYS`.
+- Ties into the 0a hover/tooltip work: once actions show hover tooltips, the tooltip is the natural place to also show the currently bound key (and stays correct automatically after a rebind).
+
+**Touches:** `ui/input.ts` (read bindings instead of the hard-coded map and inline checks), `ui/keybindings.ts` (new: default bindings, load/save), a new settings screen/UI, `ui/hud.ts`/action tooltips (show the bound key once 0a lands).
+
+**Open questions**
+- Does this cover mouse-bound actions too (e.g. rebinding right-click-to-cancel), or keyboard only for the first version?
+- Should there be more than one named profile (e.g. presets for left-handed play), or just one set of rebindable defaults?
+- Any reserved keys that should never be rebindable (`Escape`, for instance) to avoid a player locking themselves out of canceling an action?
+
+**Tests:** default bindings match today's behaviour exactly (regression safety); rebinding a key changes what `bindInput` dispatches for that key and stops dispatching on the old one; conflicting bindings are caught; bindings persist across a reload; reset-to-default restores the shipped `KEYS` map.
+
+---
+
+## 0f. Tutorial: walk through every mechanic and action
+
+**Goal:** a new player learns the rules and every action by playing a guided first mission, instead of guessing from the HUD or reading the code.
+
+**Where we are:** there is no tutorial or help system anywhere in `ui/`. The only onboarding today is the Training Grounds mission's one-line `blurb`/`objective` text in `data/missions.ts`, and it doubles as a general rules-exercise map (sniper lane, street crossing, cover, bushes, a hidden room, a walled courtyard) rather than a guided walkthrough — a new player is dropped into the full mission with no explanation of move, attack, cover, overwatch, gadgets, interact, or the fog-of-war rules governing what they can see.
+
+**Design sketch**
+- A **guided mode** layered on top of a mission (Training Grounds is the natural first candidate): step-by-step prompts that wait for the player to perform (or explicitly skip) a specific action before advancing — select a unit, move it, take a shot, use overwatch, interact with the objective, use a gadget, and so on through every `ButtonId`.
+- Each step highlights the relevant UI element (the button, the hovered tile) and shows explanatory text, reusing the hover/tooltip infrastructure from 0a rather than inventing a second explanation system — a tutorial step is effectively "force this tooltip to show, plus a sentence of extra context."
+- Steps are data, not hard-coded UI flow, so it stays maintainable as new mechanics ship: a small `data/tutorial.ts` (or similar) listing steps as `{ id, trigger, prompt, highlight }`, checked against `GameState`/`Session` events (e.g. "player performed a move action" satisfies the move step). This also means later features (doors, objective types, consumables, weather, revive, hotkeys) can each register their own step instead of the tutorial content going stale.
+- Skippable and replayable: a "skip tutorial" option for returning players, and a way to revisit it later (e.g. a help/tutorial entry on the home screen) rather than only a one-time first-run experience.
+- Scope for the first version: covers the core actions and rules that exist today (move, attack, reload, overwatch, gadget, interact, cover, fog/vision basics, end turn); extend it as 0b-0e and 1-4 land rather than trying to cover unbuilt features up front.
+
+**Touches:** `data/tutorial.ts` (new: step data), a new `ui/tutorial.ts` (step sequencing, highlight overlay, prompt text), `ui/session.ts`/`ui/hud.ts` (hooks to detect when a step's action was performed, and to force-show a tooltip for a highlighted element), `ui/home.ts` (entry point / replay option), `data/missions.ts` (mark Training Grounds, or a dedicated tutorial mission, as tutorial-capable).
+
+**Open questions**
+- Reuse Training Grounds as the tutorial map, or build a smaller, purpose-built tutorial map so early steps aren't cluttered by the full rules-exercise layout?
+- Does the tutorial block real mission progress/objective completion until each step is satisfied, or run alongside normal play as optional callouts a player can ignore?
+- Does it need to cover the enemy AI/fog-of-war explicitly (e.g. "you can't see that unit because of cover"), given how central fog is to this game's identity?
+
+**Tests:** step data validates (every step's trigger corresponds to a real action/event); a scripted playthrough of all steps in order completes the tutorial; skipping works at any point; a step's highlight/prompt correctly reuses the 0a tooltip system rather than duplicating it.
 
 ---
 
@@ -139,14 +294,156 @@ These are what keep the project healthy as it grows. Each feature should meet al
 
 ---
 
+## Meta-game layer
+
+The features above give a single tactical mission its vocabulary. These four turn that into an actual game loop: base -> equip/level the squad -> pick a mission from the campaign map -> play it -> return to base. They need at least a minimal second mission and a persistent save file to test end-to-end, so they come after 1-4.
+
+## 5. Campaign map & mission generation
+
+**Goal:** a map/menu screen between missions where the player picks the next mission. Some missions are auto-generated from a pool (supply runs and similar); one story mission per act is handcrafted and fixed for that playthrough.
+
+**Design sketch**
+- `data/campaign.ts` (new): the story mission sequence, plus the supply-run generation pool — mission templates parameterized by map, enemy count/composition, objective type (#3), and a reward table.
+- A `CampaignState` (new, alongside `GameState`) tracking which missions are available, completed or locked, persisting between sessions.
+- Generation draws from the existing seeded RNG so a given campaign seed produces reproducible mission pools, same as everything else in `core`.
+- A new UI screen (`src/ui/campaign.ts`) lists available missions with briefing text and feeds into the existing `session.ts` mission-start flow.
+
+**Touches:** `data/campaign.ts` (new), `data/missions.ts` (extend), `core/types.ts` (`CampaignState`), a new `core/campaign.ts` (pure generation/progression logic), `ui/campaign.ts` (new), `ui/session.ts` (wiring), a save/load layer (new — see open questions).
+
+**Open questions**
+- What persists between missions: unit HP/injuries, consumables, base progress? This is the save-format question the project has flagged before.
+- How large does the mission pool need to be before repeats feel stale, and do supply runs scale in difficulty over the campaign?
+- Is the story mission sequence linear or branching?
+
+**Tests:** mission pool generation is deterministic for a given seed; story missions stay fixed within a run but differ between fresh playthroughs (new seed); campaign progression (locked/unlocked/completed) updates correctly; save/load round-trips campaign state.
+
+---
+
+## Story: the Blackout, Ashport, and the Lamplighters
+
+**The premise.** Three years ago the regional grid cascaded and never came back — official story is a transformer chain-failure, but nobody who lived through it believes that anymore. Without power, water treatment and comms, Ashport didn't calm down, it split: every district became whoever had the guns and the fuel. The squad starts as a handful of survivors doing supply runs out of a dead substation in Riverside. What turns that into a campaign is a working theory: someone can still throw switches in this city, and the people doing it call themselves the **Lamplighters** — relighting a district is both the fictional goal and the mechanical one (hold it, clear it, keep it).
+
+**How the mechanics carry the story.** Nothing here needs new narrative systems — it rides entirely on features already on this roadmap:
+- **The squad grows because the fiction says so.** A mission that ends with "found a survivor" is a roster addition; the campaign layer (#5) is where that gets tracked, base building (#6) is where they live between missions.
+- **Gear and levels are loot and progress, not a shop.** Every armor piece, weapon mod and perk (#7, #8) is scavenged or earned on a job, in keeping with "gathers gear, levels up."
+- **Purpose is literally the campaign map.** Each node on the map (#5) is a district; clearing its story mission flips it from raider-held to Lamplighter-held, which is the "cleansing the home city" premise made mechanical rather than narrated.
+
+**Three acts, one city.**
+| Act | Districts | Antagonist | Shape |
+|---|---|---|---|
+| 1 | Riverside (home), Market Row | **the Jackals** — small-time scavenger raiders, opportunists preying on the weak, no real organization | Low-stakes, teaches the loop: clear a block, find a recruit, run a supply mission, take out the local leader |
+| 2 | Dockyards, Substation Hill, Old Town | **the Cinder Wardens** — an organized militia that carved the city into fiefs, runs checkpoints and "tithes" survivor enclaves for fuel and food | Escalation: fortified positions, patrol/turret AI profiles (#0c), the ammo economy (#4) actually bites |
+| 3 | Uptown, the Spire | **Halcyon Systems** (twist) — the utility/security contractor that ran Ashport's grid before the Blackout; the Cinder Wardens turn out to be its enforcement arm gone feral, and the outage that started all this was theirs to begin with | Payoff: the Wardens' command structure collapses once Halcyon is exposed, final mission is retaking the Spire (old Halcyon HQ) and handing grid control back to the districts |
+
+None of act 2 or 3 needs detail yet — the campaign map (#5) only needs the pool/sequencing mechanism, and later sessions can slot in districts and missions the same way Act 1 does below. What matters now is that district order (Riverside -> Market Row -> Dockyards -> Substation Hill -> Old Town -> Uptown -> the Spire) gives #5's story-mission sequence something concrete to schedule.
+
+---
+
+## Act 1 missions: Riverside
+
+The four story missions that open the campaign, in order. They reuse Training Grounds as the standalone tutorial/rules-sandbox (unchanged, per #0f) rather than folding it into the story — Act 1 starts fresh once a player leaves Training Grounds. Each row notes which unbuilt feature it leans on, so these are natural first content once that feature lands rather than needing everything at once.
+
+| # | id | Name | Objective type (#3) | Beat | Needs |
+|---|---|---|---|---|---|
+| 1 | `lights-out` | Lights Out | Sabotage/Hold — reach the substation switch and hold it | Clear the block around the crew's dead substation, throw the switch, power the safehouse. First taste of the loop. Ends with the first recruit (a soldier who'd been holed up in the substation basement). | #2 (switch), #3 (sabotage/hold) |
+| 2 | `signal-fire` | Signal Fire | Defend — hold a rooftop relay N rounds while it broadcasts | Get a relay running to find out who else is still out there; Jackals converge on the broadcast. Good fit for night/storm weather (#1) to sell "signal in the dark." Reward: a gear cache (first armor/equipment drop, #7). | #1 (weather), #3 (defend) |
+| 3 | `supply-run-market-row` | Supply Run: Market Row | Reach/extract — grab marked crates and get to the exfil zone | Routine scavenging for ammo and medkits (#4); the first mission worth delegating to auto-run (#0d) once that exists, since it's low narrative stakes by design. | #4 (pickups), #0d (auto-run, optional) |
+| 4 | `jackals-den` | The Jackals' Den | Eliminate (specific target) — kill or capture the Jackal leader | Act 1 finale: hit the warehouse the Jackals run their district out of, take down their leader. Clears Riverside, unlocks the campaign map onward to the Cinder Wardens in Act 2. | #3 (eliminate-specific), #5 (unlocks next district) |
+
+**Open questions specific to these four**
+- Does "found a recruit" (mission 1) hand the player a new unit immediately, or queue it for the base screen (#6) once that exists? Suggest immediate for Act 1 since base building isn't built yet — revisit once #6 lands.
+- Is the Jackal leader (mission 4) a reskinned soldier with a name, or a distinct stat block? A distinct block is more memorable for an act finale but is scope the class table (`data/units.ts`) doesn't have a slot for yet (no per-unit-instance stats, only per-class) — likely needs a small "boss" affix (bonus HP or a second action) rather than a whole new class, decide when #0c's AI profiles exist to give it a "leader" behavior too.
+- Map layout for these four is not built yet; they can share Riverside's tileset/palette conventions with Training Grounds but should look like a lived-in district, not the rules-exercise range.
+
+---
+
+## 6. Base building
+
+**Goal:** a home-base screen with buildable/upgradeable facilities (medstation, workbench, etc.) that provide meta-progression bonuses or unlock actions between missions.
+
+**Design sketch**
+- `data/base.ts` (new): facility types, upgrade tiers, costs and effects — e.g. the medstation heals/removes injuries between missions, the workbench enables crafting or upgrading equipment (#7).
+- `BaseState` (new): built facilities and their levels, persisted in the campaign save.
+- A base UI screen (`ui/base.ts`, new) for construction and upgrades, spending a resource/currency earned from missions.
+
+**Touches:** `data/base.ts` (new), `core/types.ts` (`BaseState`), a new `core/base.ts` (pure build/upgrade validation and effect application), `ui/base.ts` (new); ties into campaign save/load (#5) and into equipment (#7) if the workbench crafts gear.
+
+**Open questions**
+- What currency/resource funds base building — mission rewards, or a dedicated resource type?
+- Does the medstation replace or supplement in-mission medkits (#4's consumables)?
+- Is construction/upgrade time-gated (turns or missions to complete) or instant, and how many facility slots exist?
+
+**Tests:** build/upgrade costs are validated and deducted correctly; facility effects apply correctly (e.g. medstation heals between missions); base state persists across save/load; invalid builds (insufficient resources, already max level) are rejected.
+
+---
+
+## 7. Unit equipment screen
+
+**Goal:** each unit has an armor slot and two equipment slots that change its effective stats, filled from gear that's bought at base, crafted from found materials, or looted during a mission.
+
+**Where we are:** `ClassDef` (`data/units.ts`) bakes a single flat `armor` value and full weapon stats per class; `damageAgainst` (`core/combat.ts`) reads that armor straight from `CLASSES[target.cls].armor`. `Unit` (`core/types.ts`) has no equipment fields at all. Environmental modifiers already exist as `EnvModifier` (`visionMult`/`accuracyMod`/`moveMult` in `data/weather.ts` and `data/timeOfDay.ts`, e.g. `midnight`'s vision/accuracy/move penalty) and apply uniformly to every unit — nothing today lets a specific unit resist or counter them, which is exactly what a flashlight or night-vision item needs to do.
+
+**Design sketch**
+- **Slots:** one armor slot and two equipment slots per unit — `Unit.armor: ArmorId | null` and `Unit.equipment: [EquipmentId | null, EquipmentId | null]` in `core/types.ts`.
+- `data/armor.ts` (new): armor pieces, each carrying an armor value that combines with (or replaces — see open questions) the class base armor before `damageAgainst` applies it.
+- `data/equipment.ts` (new): equipment pieces, several of them naturally expressed as a per-unit `EnvModifier`-shaped bonus rather than a new concept:
+  - **Boots:** a flat move bonus or `moveMult`, stacking with the mission's own move modifier.
+  - **Flashlight:** counters weather's `visionMult` penalty (rain, fog) specifically, leaving time-of-day untouched.
+  - **Night-vision goggles:** counters time-of-day's `visionMult`/`accuracyMod` penalty at night (`midnight`) specifically, leaving weather untouched.
+  - Room left for later objective-specific gear (a hacking tool for doors/terminals once #2 exists, a detector for pickups once #4 exists) — no need to design those now, just keep the item type open to it.
+- **Applying it:** wherever weather's and time-of-day's `EnvModifier`s are currently combined into one multiplier (`core/vision.ts` for vision, `core/combat.ts` for accuracy), fold in the acting unit's equipped items as a third, per-unit modifier in that same combination step.
+- An equip screen (`ui/`) reads owned inventory (from base/campaign state) and assigns armor/equipment per unit before a mission starts, feeding `core/state.ts` unit setup.
+
+**Loot system** (needed to actually get equipment in a mission, per the design)
+- **Chests:** once doors/interactables (#2) exist, add a `chest` interactable type — opened with `interact`, yields an item from a loot table.
+- **Enemy drops:** on a `died` event for an enemy unit, roll against a loot table (through the seeded RNG) and place the result as a pickup, reusing the pickup-on-tile mechanism from consumables (#4) rather than inventing a second one.
+- Both routes end up producing an ordinary pickup that enters the player's inventory the way an ammo/medkit pickup already would once #4 exists, so the loot system's only genuinely new pieces are the drop tables and the armor/equipment item types themselves — it rides on #2 and #4 rather than needing its own delivery mechanism.
+
+**Touches:** `core/types.ts` (armor/equipment slots on `Unit`), `data/armor.ts` (new), `data/equipment.ts` (new), `data/loot.ts` (new: chest and enemy drop tables), `core/combat.ts` (armor read from the unit's slot), `core/vision.ts`/`core/combat.ts` (equipment folded into the existing weather/time-of-day combination), `core/actions.ts` (chest interact, once #2 generalizes `interact`), `core/ai.ts` (enemy death rolls a drop), `data/units.ts` (base loadouts become defaults, not fixed), `ui/` (new equip screen), `scripts/sim.ts` (a knob to test balance across loadouts).
+
+**Open questions**
+- Does an armor piece stack on top of the class's innate armor (a tank keeps its base 3 plus gear), or replace it outright?
+- All three acquisition routes (buy, craft, loot) from day one, or does loot come first to bootstrap the economy before base building (#6) exists to buy/craft from?
+- Is equipment a shared pool the player reassigns freely between missions, or bound to a unit once equipped, and does that decision happen anywhere or only at base?
+- Do flashlight/NVG fully cancel the relevant penalty or just blunt it — a partial counter is probably easier to balance than a hard "problem solved" item.
+
+**Tests:** an armor slot changes damage taken via `damageAgainst`; boots change effective move range; a flashlight reduces/negates weather's vision penalty but not time-of-day's, and NVG the reverse; a chest interact grants its item; an enemy death rolls a drop deterministically for a given seed and it appears as a pickup; equip state persists in the campaign save; sim balance table reflects equipment variance.
+
+---
+
+## 8. Unit leveling & perks
+
+**Goal:** each class follows its own leveling path. Units earn XP from missions and from what they do during them, leveling up along that path; each significant level adds 2 new perks to that unit's perk pool, and at intervals unlocks another active-perk slot (starting at 1, capping at 3 chosen at once).
+
+**Where we are:** `Unit` (`core/types.ts`) has no xp/level/perk fields yet, but the pieces an XP system needs already exist: per-unit `dmgDealt`/`dmgTaken`/`kills` counters (kept for the simulator), and an event log (`EventBody`/`GameEvent`) that already emits `shot` (with `hit`/`damage`), `died`, `objective`, `capture` and `heal` — everything needed to attribute XP to a specific in-mission action is already produced, it just isn't summed into anything today.
+
+**Design sketch**
+- `Unit` gains `xp`, `level`, `perkPool: PerkId[]` (perks unlocked so far) and `equippedPerks: PerkId[]` (currently active, limited by unlocked slot count).
+- `data/leveling.ts` (new): a **per-class leveling path**, `Record<ClassId, LevelDef[]>`. Each `LevelDef` carries an XP threshold; **significant** levels (a subset flagged in the data, not every level) also list the **2 perks** added to that class's perk pool at that milestone, and some milestones instead (or additionally) unlock the next active-perk slot.
+- `data/perks.ts` (new): the perk definitions referenced by the leveling paths, one list per class, each perk a data-driven stat/rule modifier in the same style as `EnvModifier` (bonus accuracy, extra move, cheaper gadget cooldown, and so on).
+- **Slots vs. pool:** unlocking a perk (pool) and choosing to run it (equipped, up to the current slot count) are separate — a unit can bank more perks than it can currently use, and the player picks which unlocked perks fill the available slots.
+- **XP sources:** a post-mission summary (objective completed, survived) plus per-action XP attributed from the existing event stream as it happens — a hit or kill credits the attacker (`shot`/`died`), objective progress credits whoever advanced it (`objective`/`capture`), a heal credits the medic (`heal`). A new `core/leveling.ts` turns those events into XP deltas per unit rather than inventing a parallel tracking mechanism.
+- Perk effects apply wherever the relevant stat already lives (`core/combat.ts` for accuracy/damage perks, `core/vision.ts` for vision perks, `core/actions.ts` for cost/cooldown perks) — the same pattern `EnvModifier` already uses, just keyed by unit instead of by mission.
+
+**Touches:** `core/types.ts` (`xp`/`level`/`perkPool`/`equippedPerks` on `Unit`), `data/leveling.ts` (new: per-class paths, milestone perk and slot unlocks), `data/perks.ts` (new: per-class perk definitions), `core/leveling.ts` (new: XP accrual from events, level-up resolution), `core/combat.ts`/`core/vision.ts`/`core/actions.ts` (wherever a given perk's modifier applies), `ui/` (level-up/perk-pick screen for choosing which unlocked perks to equip), `scripts/sim.ts` (a knob for perk builds and levels).
+
+**Open questions**
+- Exact XP amounts per action (kill vs. hit vs. objective step) and per-class thresholds for "significant" levels are balance work, best tuned via `scripts/sim.ts` once the shape exists rather than guessed up front.
+- Is equipping/swapping unlocked perks free between missions (respec anytime), while pool unlocks stay permanent — or does equipping also lock in once chosen?
+- Do perks stack with equipment (#7) bonuses in ways that need capping (e.g. a move perk plus boots)?
+- Does a unit lost mid-campaign lose its levels and perk pool permanently, sharpening the permadeath stakes, or is progress banked some other way?
+
+**Tests:** XP accrues correctly from each event type (hit, kill, objective, heal) and from the post-mission summary; level-up fires at the correct per-class thresholds; a significant level adds exactly 2 perks to that unit's pool; a slot-unlock milestone increases equippable count and never exceeds the cap of 3; equipping is limited to unlocked perks and the current slot count; perk effects apply correctly to their relevant calculation; levels, perk pool and equipped perks persist in the campaign save; sim reflects perk-driven balance shifts.
+
+---
+
 ## After these: levels, campaign, multiplayer
 
-Not planned in detail yet. These notes record what the four features above enable, and what in today's code will need attention.
+Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.
 
 **Levels and campaign**
-- The four features give level design its vocabulary: per-level weather, objective type, doors and switches, pickups.
-- A campaign needs mission definitions to grow beyond one entry in `missions.ts` (ordering, briefing text, unlock rules) and a **save format** for progression: unit HP carry-over, consumables, unlocks. Keep `GameState` serialisable now; it mostly is (plain data, seeded RNG state), apart from `Set`s such as `seenUnits`, which are derived anyway.
-- The map builder becomes a real level editor at that point (multiple maps, per-map objective and weather settings, validation).
+- See the Meta-game layer section above for base building, equipment, leveling and the campaign map.
+- The map builder becomes a real level editor once the campaign map exists (multiple maps, per-map objective and weather settings, validation).
 
 **Multiplayer (PvP and co-op)**
 - The design already helps: the rules core is pure and deterministic, all actions go through `validate` / `perform`, and fog and memory are tracked **per team**. That fits either a server-authoritative model or lockstep (each client replays the same action list from the same seed).

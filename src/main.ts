@@ -12,8 +12,9 @@ import { Session } from './ui/session';
 
 const el = (id: string) => document.getElementById(id)!;
 
-// Debug mode (VITE_DEBUG=true): debug panel + map builder. Otherwise none of it is reachable.
+// Debug mode (VITE_DEBUG=true): debug panel, combat log and map builder. Otherwise none of it is reachable.
 el('debug').hidden = !DEBUG;
+el('log-wrap').hidden = !DEBUG;
 
 /** The map a mission plays: a map saved from the builder (debug mode only), else the default. */
 const custom = (m: Mission): MapDef | null => (DEBUG ? loadCustom(m.id, m.map) : null);

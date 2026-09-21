@@ -1,4 +1,6 @@
 import type { ClassId } from './units';
+import type { TimeOfDayId } from './timeOfDay';
+import type { WeatherId } from './weather';
 
 /** [class, x, y]. A team can field several units of one class. */
 export type Spawn = [ClassId, number, number];
@@ -13,6 +15,9 @@ export interface MapDef {
   spawns: Record<'player' | 'enemy', Spawn[]>;
   /** Waypoints the AI explores when it has no target and has not seen the objective. */
   searchPoints: Record<'player' | 'enemy', [number, number][]>;
+  /** Starting conditions for this map; undefined falls back to createGame's default (midday, clear). */
+  startTimeOfDay?: TimeOfDayId;
+  startWeather?: WeatherId;
 }
 
 // Laid out in the debug map builder (see README) and pasted back from its JSON export.
