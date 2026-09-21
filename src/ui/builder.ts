@@ -11,14 +11,14 @@ import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
 import { draw, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
 
-type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'link'
+type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'chest' | 'link'
   | 'pickup-ammo' | 'pickup-medkit' | 'pickup-gadget' | 'player' | 'enemy' | 'erase';
 type Team = 'player' | 'enemy';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'floor', label: 'Floor' }, { id: 'wall', label: 'Wall' }, { id: 'bush', label: 'Bush' },
   { id: 'low', label: 'Low cover' }, { id: 'high', label: 'High cover' }, { id: 'objective', label: 'Objective' },
-  { id: 'door', label: 'Door' }, { id: 'switch', label: 'Switch' }, { id: 'link', label: 'Link switch↔door' },
+  { id: 'door', label: 'Door' }, { id: 'switch', label: 'Switch' }, { id: 'chest', label: 'Chest' }, { id: 'link', label: 'Link switch↔door' },
   { id: 'pickup-ammo', label: 'Ammo pickup' }, { id: 'pickup-medkit', label: 'Medkit pickup' }, { id: 'pickup-gadget', label: 'Gadget pickup' },
   { id: 'player', label: 'Friendly unit' }, { id: 'enemy', label: 'Enemy unit' }, { id: 'erase', label: 'Erase' },
 ];
@@ -217,15 +217,15 @@ export class Builder {
       if (sp) dropSpawn(); else if (it) this.removeInteractable(it.id); else if (pk) this.removePickup(pk.id); else this.grid[y][x] = '.';
     } else if (tool === 'player' || tool === 'enemy') {
       if (!WALKABLE.includes(before)) { this.note('Units need an open floor or bush tile.'); return; }
-      if (it) { this.note('Tile is occupied by a door/switch.'); return; }
+      if (it) { this.note('Tile is occupied by a door/switch/chest.'); return; }
       if (pk) { this.note('Tile is occupied by a pickup.'); return; }
       const dup = sp && sp.team === tool && this.spawns[tool][sp.i][0] === this.cls;
       dropSpawn();
       // painting the same unit again removes it; 'standard' is left implicit (the mission/team default) rather
       // than baked into every spawn, so a mission's own default can still change later without editing every unit
       if (!dup) this.spawns[tool].push(tool === 'enemy' && this.profile !== 'standard' ? [this.cls, x, y, this.profile] : [this.cls, x, y]);
-    } else if (tool === 'door' || tool === 'switch') {
-      if (!WALKABLE.includes(before)) { this.note('Doors/switches need an open floor or bush tile.'); return; }
+    } else if (tool === 'door' || tool === 'switch' || tool === 'chest') {
+      if (!WALKABLE.includes(before)) { this.note('Doors/switches/chests need an open floor or bush tile.'); return; }
       if (sp) { this.note('Tile is occupied by a unit.'); return; }
       if (pk) { this.note('Tile is occupied by a pickup.'); return; }
       // painting the same kind onto its own tile removes it, matching the unit tools' toggle behaviour
@@ -235,7 +235,7 @@ export class Builder {
       const type = PICKUP_TOOL_TYPE[tool]!;
       if (!WALKABLE.includes(before)) { this.note(`${ITEMS[type].name} needs an open floor or bush tile.`); return; }
       if (sp) { this.note('Tile is occupied by a unit.'); return; }
-      if (it) { this.note('Tile is occupied by a door/switch.'); return; }
+      if (it) { this.note('Tile is occupied by a door/switch/chest.'); return; }
       // painting the same kind onto its own tile removes it, matching the door/switch tools' toggle behaviour
       if (pk && pk.type === type) this.removePickup(pk.id);
       else { if (pk) this.removePickup(pk.id); this.pickups.push({ id: this.nextPickupId(), type, x, y }); }

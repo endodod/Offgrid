@@ -260,9 +260,10 @@ function drawObjectiveMarker(ctx: CanvasRenderingContext2D, s: GameState, pos: P
 }
 
 /**
- * Doors and switches (2). Fog-fair: never drawn until the player's memory has seen that tile at least once
- * (or fog is off in debug), then drawn using the *remembered* state while out of sight - a door seen closed
- * but opened later behind your back should show closed until you look again, not silently update off-screen.
+ * Doors, switches and chests (2, 7). Fog-fair: never drawn until the player's memory has seen that tile at
+ * least once (or fog is off in debug), then drawn using the *remembered* state while out of sight - a door
+ * seen closed but opened later behind your back should show closed until you look again, not silently update
+ * off-screen.
  */
 function drawInteractables(ctx: CanvasRenderingContext2D, v: View) {
   const { s } = v;
@@ -275,7 +276,8 @@ function drawInteractables(ctx: CanvasRenderingContext2D, v: View) {
     const c = !s.fogEnabled || nowVisible ? (h: string) => h : grey;
     const px = it.x * TILE, py = it.y * TILE;
     if (it.type === 'door') drawDoor(ctx, px, py, active, c);
-    else drawSwitch(ctx, px, py, active, c);
+    else if (it.type === 'switch') drawSwitch(ctx, px, py, active, c);
+    else drawChest(ctx, px, py, active, c);
   }
 }
 
@@ -303,6 +305,22 @@ function drawSwitch(ctx: CanvasRenderingContext2D, px: number, py: number, on: b
   ctx.fillRect(px + TILE / 2 - 4, py + (on ? TILE / 2 - 6 : TILE / 2), 8, 6); // lever position shows on/off
 }
 
+/** A chest (7): shut with a gold clasp when unopened, an open lid with nothing inside once looted. */
+function drawChest(ctx: CanvasRenderingContext2D, px: number, py: number, opened: boolean, c: (hex: string) => string) {
+  ctx.fillStyle = c('#6b5637');
+  ctx.fillRect(px + 5, py + (opened ? 14 : 10), TILE - 10, TILE - (opened ? 19 : 15));
+  ctx.fillStyle = c('#4a3a23');
+  ctx.fillRect(px + 5, py + (opened ? 14 : 10), TILE - 10, 3);
+  if (!opened) {
+    ctx.fillStyle = c('#d4af37'); // clasp
+    ctx.fillRect(px + TILE / 2 - 3, py + 9, 6, 6);
+  } else {
+    ctx.strokeStyle = c('#8a7148'); // open lid, tipped back
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px + 6, py + 5, TILE - 12, 8);
+  }
+}
+
 /**
  * Ammo/medkit/gadget pickups (4). No remembered state - unlike a door, a pickup is only ever "there" or
  * "gone" (it's removed from `GameState.pickups` the instant anyone collects it, possibly off-screen), so it's
@@ -316,7 +334,9 @@ function drawPickups(ctx: CanvasRenderingContext2D, v: View) {
   }
 }
 
-const PICKUP_COLOR: Record<ItemType, string> = { ammo: '#c8883a', medkit: '#d8524a', gadget: '#6ab0d8' };
+const PICKUP_COLOR: Record<ItemType, string> = {
+  ammo: '#c8883a', medkit: '#d8524a', gadget: '#6ab0d8', armor: '#8d8171', equipment: '#c9a5d9',
+};
 
 function drawPickupIcon(ctx: CanvasRenderingContext2D, px: number, py: number, type: ItemType) {
   const cx = px + TILE / 2, cy = py + TILE / 2;
@@ -329,6 +349,8 @@ function drawPickupIcon(ctx: CanvasRenderingContext2D, px: number, py: number, t
   ctx.fillStyle = C.ink;
   if (type === 'medkit') { ctx.fillRect(cx - 1, cy - 5, 2, 10); ctx.fillRect(cx - 5, cy - 1, 10, 2); } // cross
   else if (type === 'ammo') ctx.fillRect(cx - 2, cy - 5, 4, 10); // a round, bullet-shaped silhouette
+  else if (type === 'armor') { ctx.beginPath(); ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 5, cy - 1); ctx.lineTo(cx + 3, cy + 5); ctx.lineTo(cx - 3, cy + 5); ctx.lineTo(cx - 5, cy - 1); ctx.closePath(); ctx.fill(); } // shield
+  else if (type === 'equipment') ctx.fillRect(cx - 4, cy - 4, 8, 8); // a simple gear-box square
   else { ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); } // gadget: a simple charge dot
 }
 

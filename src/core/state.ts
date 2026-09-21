@@ -5,6 +5,7 @@ import { GADGETS } from '../data/gadgets';
 import { ITEMS } from '../data/items';
 import { refreshVision } from './vision';
 import { holdRounds, objectiveComplete } from './objectives';
+import { lootOnDeath } from './loot';
 import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pickup, Pos, Team, Terrain, Unit } from './types';
 
 const TEAMS: Team[] = ['player', 'enemy'];
@@ -39,6 +40,8 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     const forPlayer = team === 'player';
     for (const [cls, x, y, aiProfile] of map.spawns[team]) {
       const def = CLASSES[cls];
+      // Equipment (7): only the player squad starts with a loadout (enemies never carry gear in v1).
+      const loadout = forPlayer ? map.startingLoadouts?.[cls] : undefined;
       units.push({
         id: units.length, team, cls, x, y,
         hp: def.hp, ammo: def.weapon.magazine,
@@ -46,6 +49,7 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
         medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0),
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: forPlayer ? { id: def.gadget, uses: RULES.gadgetUsesPerMission + gadgetUsesBonus, cooldown: 0 } : null,
+        armor: loadout?.armor ?? null, equipment: loadout ? [...loadout.equipment] : [null, null],
         dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, aiProfile,
       });
     }
@@ -107,6 +111,7 @@ function tickBleedOut(s: GameState, team: Team) {
       u.alive = false;
       u.downed = false;
       emit(s, { t: 'died', unit: u.id, at: { x: u.x, y: u.y } }, [u]);
+      lootOnDeath(s, u); // loot (7): a second death path from combat.ts's finalizeDeath - see lootOnDeath's own doc
     }
   }
 }

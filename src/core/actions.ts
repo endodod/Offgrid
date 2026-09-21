@@ -1,9 +1,12 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { RULES } from '../data/rules';
+import type { ArmorId } from '../data/armor';
+import type { EquipmentId } from '../data/equipment';
 import { applyDamage, coverAt, fireWeapon, targetBlock } from './combat';
-import { scaledMove } from './environment';
+import { effectiveMove } from './environment';
 import { cheb, dist, findPath, idx, inBounds, unitAt } from './grid';
+import { dropLoot } from './loot';
 import { beginCapture, checkCapture, checkWin, emit, endTurn } from './state';
 import { refreshVision } from './vision';
 import type { GameEvent, GameState, Pos, Unit } from './types';
@@ -24,8 +27,8 @@ export type Result = { ok: true; events: GameEvent[] } | { ok: false; error: str
 const unitById = (s: GameState, id: number) => s.units.find((u) => u.id === id);
 const hasActions = (u: Unit) => (u.actions > 0 ? null : 'No actions left');
 
-/** Tiles a move action can cover right now: the Move stat (scaled by time of day/weather) plus any pending adrenaline bonus. */
-export const moveRange = (s: GameState, u: Unit) => scaledMove(s, CLASSES[u.cls].move) + u.moveBonus;
+/** Tiles a move action can cover right now: the Move stat (scaled by time of day/weather/equipment) plus any pending adrenaline bonus. */
+export const moveRange = (s: GameState, u: Unit) => effectiveMove(s, u) + u.moveBonus;
 
 /** Why the unit cannot use its gadget right now (ignoring the target), or null. */
 export function gadgetBlock(u: Unit): string | null {
@@ -90,11 +93,12 @@ export function interactBlock(s: GameState, u: Unit): string | null {
   return null;
 }
 
-/** Why `u` cannot interact with interactable `targetId` (a door or switch, 2) right now, or null. */
+/** Why `u` cannot interact with interactable `targetId` (a door, switch or chest, 2/7) right now, or null. */
 export function interactableBlock(s: GameState, u: Unit, targetId: number): string | null {
   if (hasActions(u)) return hasActions(u);
   const it = s.interactables.find((i) => i.id === targetId);
   if (!it) return 'No such interactable';
+  if (it.type === 'chest' && it.active) return 'Already opened';
   if (cheb(u, it) > 1) return 'Not adjacent';
   return null;
 }
@@ -273,7 +277,7 @@ function doGadget(s: GameState, u: Unit, target?: Pos, rotation = 0) {
   else if (g.id === 'grenade') blast(s, u, target!, def.radius!, def.damage!);
 }
 
-/** Free pickup (4): collects whatever is on `u`'s current tile, if anything. Any unit of either team can use it. */
+/** Free pickup (4, 7): collects whatever is on `u`'s current tile, if anything. Any unit of either team can use it. */
 function collectPickup(s: GameState, u: Unit) {
   const i = s.pickups.findIndex((p) => p.x === u.x && p.y === u.y);
   if (i < 0) return;
@@ -282,16 +286,31 @@ function collectPickup(s: GameState, u: Unit) {
   if (p.type === 'ammo') u.reserve += p.amount;
   else if (p.type === 'medkit') u.medkits += p.amount;
   else if (p.type === 'gadget' && u.gadget) u.gadget.uses += p.amount;
-  emit(s, { t: 'pickup', unit: u.id, item: p.type, amount: p.amount, at: { x: u.x, y: u.y } }, [u]);
+  else if (p.type === 'armor' && p.itemId) u.armor = p.itemId as ArmorId;
+  else if (p.type === 'equipment' && p.itemId) equipItem(u, p.itemId as EquipmentId);
+  emit(s, { t: 'pickup', unit: u.id, item: p.type, amount: p.amount, at: { x: u.x, y: u.y }, itemId: p.itemId }, [u]);
 }
 
-/** Toggle a door or switch (2). A switch also flips every door in its `links`; its own `active` is cosmetic. */
+/** Equips into the first open slot, or slot 0 if both are already full (7: simplest v1 rule - no "drop the old one" bookkeeping). */
+function equipItem(u: Unit, id: EquipmentId) {
+  const empty = u.equipment.indexOf(null);
+  u.equipment[empty >= 0 ? empty : 0] = id;
+}
+
+/** Toggle a door or switch (2), or open a chest (7) and drop its loot. A switch also flips every door in its
+ *  `links`; its own `active` is cosmetic. A chest's `active` means "already opened" - a one-way flag, not a toggle. */
 function doInteractable(s: GameState, u: Unit, targetId: number) {
   const it = s.interactables.find((i) => i.id === targetId)!;
   u.actions--;
-  it.active = !it.active;
   const at: Pos = { x: it.x, y: it.y }; // never pass `it` itself to emit(): it has an `id` too and would be
   // mistaken for a Unit by isSeenByPlayer's `'id' in w` check.
+  if (it.type === 'chest') {
+    it.active = true;
+    dropLoot(s, it.x, it.y);
+    emit(s, { t: 'chest', unit: u.id, id: it.id, at }, [u, at]);
+    return;
+  }
+  it.active = !it.active;
   if (it.type === 'door') {
     emit(s, { t: 'door', unit: u.id, id: it.id, at, open: it.active }, [u, at]);
   } else {

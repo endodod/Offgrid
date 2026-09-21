@@ -3,6 +3,10 @@ import {
   type GeneratedMissionDef, type StoryMissionDef,
 } from '../data/campaign';
 import type { FacilityId } from '../data/base';
+import type { ArmorId } from '../data/armor';
+import type { EquipmentId } from '../data/equipment';
+import type { ClassId } from '../data/units';
+import type { UnitLoadout } from '../data/trainingGrounds';
 import { buildLevel, newBaseState, upgradeCost, type BaseState } from './base';
 import { nextRandom } from './rng';
 
@@ -18,18 +22,40 @@ export interface CampaignState {
   nextSupplyRunSeq: number; // monotonic, so regenerated pool slots never reuse an id within a campaign
   supplyRunPool: GeneratedMissionDef[];
   base: BaseState; // home-base facilities (6)
+  loadouts: Partial<Record<ClassId, UnitLoadout>>; // equipment (7): what each class starts its next mission with
+  unlockedGear: { armor: ArmorId[]; equipment: EquipmentId[] }; // equipment (7): ever found, so assignable at the equip screen
 }
 
 const POOL_SIZE = 3;
 
-/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities built. */
+/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities built
+ *  or gear found yet. */
 export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], completedStoryMissions: [],
     completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
+    loadouts: {}, unlockedGear: { armor: [], equipment: [] },
   };
   fillPool(cs);
   return cs;
+}
+
+/** The minimal shape `recordMissionGear` needs - matches core/types.ts's `Unit` structurally, but this module
+ *  deliberately doesn't depend on a live GameState/Unit, only on plain data, to stay testable in isolation. */
+interface EndedUnit { team: 'player' | 'enemy'; cls: ClassId; armor: ArmorId | null; equipment: [EquipmentId | null, EquipmentId | null] }
+
+/**
+ * Called once a campaign-launched mission ends in a win (see ui/campaign.ts's `reportWin`): persists each
+ * surviving-or-not player unit's ending loadout back to `cs.loadouts` (so "what the soldier is wearing" carries
+ * into the next mission), and permanently unlocks any armor/equipment id found this way for the equip screen.
+ */
+export function recordMissionGear(cs: CampaignState, units: EndedUnit[]): void {
+  for (const u of units) {
+    if (u.team !== 'player') continue;
+    cs.loadouts[u.cls] = { armor: u.armor, equipment: [...u.equipment] };
+    if (u.armor && !cs.unlockedGear.armor.includes(u.armor)) cs.unlockedGear.armor.push(u.armor);
+    for (const e of u.equipment) if (e && !cs.unlockedGear.equipment.includes(e)) cs.unlockedGear.equipment.push(e);
+  }
 }
 
 /** Spends currency to build/upgrade a facility one level, or returns why it can't (nothing is charged then). */

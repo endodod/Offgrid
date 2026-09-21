@@ -19,9 +19,11 @@ export function loadCampaign(): CampaignState | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!isCampaignState(parsed)) return null;
-    // Repair rather than reject a save from before base building (6) added `base` - a fresh, unbuilt base is
-    // a safe default and losing an otherwise-valid campaign save over one missing field would be needlessly harsh.
-    if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState();
+    // Repair rather than reject a save from before a feature that added a new top-level field - a safe empty
+    // default beats losing an otherwise-valid campaign save over one missing field.
+    if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState(); // base building (6)
+    if (!parsed.loadouts || typeof parsed.loadouts !== 'object') parsed.loadouts = {}; // equipment (7)
+    if (!parsed.unlockedGear || typeof parsed.unlockedGear !== 'object') parsed.unlockedGear = { armor: [], equipment: [] }; // equipment (7)
     return parsed;
   } catch {
     return null;

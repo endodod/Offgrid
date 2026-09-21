@@ -1,6 +1,5 @@
-import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
-import { scaledVision } from './environment';
+import { effectiveVision } from './environment';
 import { dist, hasLos, idx, inBounds } from './grid';
 import type { GameState, Team, Unit } from './types';
 
@@ -16,7 +15,7 @@ export function refreshVision(s: GameState) {
     const vis = new Uint8Array(s.width * s.height);
     for (const u of s.units) {
       if (!u.alive || u.downed || u.team !== team) continue; // downed: no longer actively watching
-      const r = scaledVision(s, CLASSES[u.cls].vision);
+      const r = effectiveVision(s, u);
       for (let y = u.y - r; y <= u.y + r; y++) {
         for (let x = u.x - r; x <= u.x + r; x++) {
           if (!inBounds(s, x, y) || vis[idx(s, x, y)] || dist(u, { x, y }) > r) continue;

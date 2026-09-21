@@ -4,20 +4,22 @@ import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
 import type { ObjectiveDef } from './objectives';
 import type { ItemType } from './items';
+import type { ArmorId } from './armor';
+import type { EquipmentId } from './equipment';
 
 /** [class, x, y, aiProfile?]. A team can field several units of one class. aiProfile overrides the team/mission
  *  default (MapDef.enemyProfile / GameOptions) for this one unit - most useful to mix habitats in one squad
  *  (e.g. one camper covering a doorway while the rest patrol). */
 export type Spawn = [ClassId, number, number, AiProfileId?];
 
-/** A door or switch (2). See core/types.ts's Interactable for the runtime (mutable) shape this seeds. */
-export type InteractableType = 'door' | 'switch';
+/** A door, switch or chest (2, 7). See core/types.ts's Interactable for the runtime (mutable) shape this seeds. */
+export type InteractableType = 'door' | 'switch' | 'chest';
 export interface InteractableDef {
   id: number;
   type: InteractableType;
   x: number;
   y: number;
-  active?: boolean; // defaults to false (door closed / switch not yet thrown)
+  active?: boolean; // defaults to false (door closed / switch not yet thrown / chest not yet opened)
   links?: number[]; // switch only: ids of doors it toggles when interacted with
 }
 
@@ -28,7 +30,15 @@ export interface PickupDef {
   type: ItemType;
   x: number;
   y: number;
-  amount?: number; // defaults to ITEMS[type].defaultAmount
+  amount?: number; // defaults to ITEMS[type].defaultAmount; unused for 'armor'/'equipment' (see itemId)
+  itemId?: ArmorId | EquipmentId; // required when type is 'armor' or 'equipment' (7) - which specific piece
+}
+
+/** A unit's armor/equipment loadout (7): both an in-mission `Unit`'s live fields and what a campaign mission
+ *  (5) starts a unit with - see `MapDef.startingLoadouts` below and core/campaign.ts's `CampaignState.loadouts`. */
+export interface UnitLoadout {
+  armor: ArmorId | null;
+  equipment: [EquipmentId | null, EquipmentId | null];
 }
 
 export interface MapDef {
@@ -61,6 +71,9 @@ export interface MapDef {
   playerReserveMult?: number;
   medkitBonus?: number;
   gadgetUsesBonus?: number;
+  /** Starting armor/equipment per player class (7), same "system-set MapDef field" trick as the base-building
+   *  fields above - see ui/campaign.ts's `applyBase`. undefined (or a missing class entry) means no loadout. */
+  startingLoadouts?: Partial<Record<ClassId, UnitLoadout>>;
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;

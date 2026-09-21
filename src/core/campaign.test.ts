@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DISTRICT_ORDER, STORY_MISSIONS } from '../data/campaign';
-import { availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign } from './campaign';
+import { availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, recordMissionGear } from './campaign';
 
 describe('campaign (feature 5)', () => {
   it('a fresh campaign starts with only the first district unlocked and a full supply-run pool', () => {
@@ -92,5 +92,41 @@ describe('campaign (feature 5)', () => {
     for (let i = 0; i < 9; i++) completeSupplyRun(cs, cs.supplyRunPool[0].id); // 9 completions -> tier index 3
     const fresh = cs.supplyRunPool[cs.supplyRunPool.length - 1];
     expect(['hard', 'ambush']).toContain(fresh.enemyProfile); // tier 3's pool is only ever 'hard' or 'ambush'
+  });
+
+  describe('recordMissionGear (feature 7)', () => {
+    it('a fresh campaign starts with no loadouts and no unlocked gear', () => {
+      const cs = newCampaign(1);
+      expect(cs.loadouts).toEqual({});
+      expect(cs.unlockedGear).toEqual({ armor: [], equipment: [] });
+    });
+
+    it('persists a player unit\'s ending loadout by class, and unlocks what it found', () => {
+      const cs = newCampaign(1);
+      recordMissionGear(cs, [
+        { team: 'player', cls: 'soldier', armor: 'heavyPlate', equipment: ['boots', null] },
+        { team: 'enemy', cls: 'soldier', armor: 'lightVest', equipment: [null, null] }, // enemy gear never persists
+      ]);
+      expect(cs.loadouts.soldier).toEqual({ armor: 'heavyPlate', equipment: ['boots', null] });
+      expect(cs.unlockedGear.armor).toEqual(['heavyPlate']);
+      expect(cs.unlockedGear.equipment).toEqual(['boots']);
+    });
+
+    it('overwrites a class\'s loadout on a later mission rather than merging', () => {
+      const cs = newCampaign(1);
+      recordMissionGear(cs, [{ team: 'player', cls: 'medic', armor: 'lightVest', equipment: [null, null] }]);
+      recordMissionGear(cs, [{ team: 'player', cls: 'medic', armor: null, equipment: ['nvg', 'flashlight'] }]);
+      expect(cs.loadouts.medic).toEqual({ armor: null, equipment: ['nvg', 'flashlight'] });
+      // but the armor found on the first mission stays unlocked even though it's no longer equipped
+      expect(cs.unlockedGear.armor).toEqual(['lightVest']);
+      expect(cs.unlockedGear.equipment).toEqual(['nvg', 'flashlight']);
+    });
+
+    it('never unlocks the same item id twice', () => {
+      const cs = newCampaign(1);
+      recordMissionGear(cs, [{ team: 'player', cls: 'tank', armor: 'lightVest', equipment: [null, null] }]);
+      recordMissionGear(cs, [{ team: 'player', cls: 'sniper', armor: 'lightVest', equipment: [null, null] }]);
+      expect(cs.unlockedGear.armor).toEqual(['lightVest']); // not duplicated
+    });
   });
 });

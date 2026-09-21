@@ -6,6 +6,7 @@ import { draw, TILE } from './render/renderer';
 import { Base } from './ui/base';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
+import { Equip } from './ui/equip';
 import { initHome, showScreen, type Screen } from './ui/home';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
@@ -96,8 +97,11 @@ el('home-campaign').addEventListener('click', () => { campaign.open(); showScree
 const base = new Base({ onBack: () => { campaign.open(); showScreen('campaign'); } });
 el('campaign-to-base').addEventListener('click', () => { base.open(campaign.campaignState()); showScreen('base'); });
 
+const equip = new Equip({ onBack: () => { campaign.open(); showScreen('campaign'); } });
+el('campaign-to-equip').addEventListener('click', () => { equip.open(campaign.campaignState()); showScreen('equip'); });
+
 const toMenu = () => {
-  if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId);
+  if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId, session.state.units);
   activeCampaignMissionId = null;
   if (returnScreen === 'campaign') { campaign.open(); showScreen('campaign'); }
   else { refreshHome(); showScreen('home'); }

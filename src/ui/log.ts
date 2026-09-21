@@ -1,6 +1,8 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { ITEMS } from '../data/items';
+import { ARMOR } from '../data/armor';
+import { EQUIPMENT } from '../data/equipment';
 import type { GameEvent, GameState, Unit } from '../core/types';
 
 export interface LogLine { text: string; kind: 'player' | 'enemy' | 'system' | 'fog' }
@@ -40,6 +42,12 @@ export function describe(s: GameState, e: GameEvent): LogLine | null {
       return { kind: 'system', text: `${who(e.unit)} lost the objective hold!` };
     case 'door': return { kind: kind(e.unit), text: `${who(e.unit)} ${e.open ? 'opens' : 'closes'} the door at (${e.at.x},${e.at.y})` };
     case 'switch': return { kind: kind(e.unit), text: `${who(e.unit)} throws the switch at (${e.at.x},${e.at.y})${e.linked.length ? ` (${e.linked.length} door${e.linked.length > 1 ? 's' : ''} toggled)` : ''}` };
-    case 'pickup': return { kind: kind(e.unit), text: `${who(e.unit)} picks up ${ITEMS[e.item].name}${e.amount > 1 ? ` (+${e.amount})` : ''}` };
+    case 'pickup': {
+      const specific = e.item === 'armor' && e.itemId ? ARMOR[e.itemId as keyof typeof ARMOR].name
+        : e.item === 'equipment' && e.itemId ? EQUIPMENT[e.itemId as keyof typeof EQUIPMENT].name : null;
+      const label = specific ?? ITEMS[e.item].name;
+      return { kind: kind(e.unit), text: `${who(e.unit)} picks up ${label}${!specific && e.amount > 1 ? ` (+${e.amount})` : ''}` };
+    }
+    case 'chest': return { kind: kind(e.unit), text: `${who(e.unit)} opens a chest at (${e.at.x},${e.at.y})` };
   }
 }

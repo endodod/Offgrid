@@ -4,9 +4,9 @@ Working notes so the next session can pick up exactly where this one left off. D
 ROADMAP.md once it's stale - it's a handoff note, not permanent documentation. See CLAUDE.md for when to
 update this file.
 
-## Milestone: 0a-0f and features 1-6 all done
+## Milestone: 0a-0f and features 1-7 all done
 
-Every feature through **6** in `md_files/ROADMAP.md`'s suggested order is committed and has its own
+Every feature through **7** in `md_files/ROADMAP.md`'s suggested order is committed and has its own
 **Status: done** section there (design notes, resolved open questions, what was deliberately deferred - read
 those before re-deriving anything):
 
@@ -19,42 +19,47 @@ those before re-deriving anything):
 6. **Feature 4**: consumables and an ammo economy (`Unit.reserve`, ammo/medkit/gadget pickups).
 7. **Feature 5**: campaign map & mission generation (district progress, 4 handcrafted Act 1 story missions,
    a generated "supply run" pool). All campaign missions use Training Grounds' layout as a placeholder map.
-8. **Feature 6**: base building (`data/base.ts`, `core/base.ts`, `ui/base.ts`). Three facilities
-   (medstation/workbench/commsRelay, 3 tiers each) spend `CampaignState.currency` and grant meta-progression
-   bonuses (extra medkits/gadget uses, a player-only reserve-ammo multiplier) applied to every mission
-   launched from the campaign screen, via `ui/campaign.ts`'s `applyBase`. No persistent-injury/roster system
-   exists yet, so the medstation grants a resupply bonus rather than "healing between missions" - see the
-   ROADMAP section's Resolved for why.
+8. **Feature 6**: base building (medstation/workbench/commsRelay facilities spending campaign currency for
+   meta-progression bonuses on campaign-launched missions).
+9. **Feature 7**: unit equipment (`data/armor.ts`, `data/equipment.ts`, `data/loot.ts`, `ui/equip.ts`). One
+   armor slot (stacks on class base) + two equipment slots (each counters a specific weather/time-of-day
+   penalty, or gives a flat move bonus) per unit. Acquired via loot only (chests - a new interactable type -
+   and enemy deaths), persisted per **class** (not per named recruit - there's still no persistent roster,
+   see below) in `CampaignState.loadouts`/`unlockedGear`, assignable at the new Equip screen. Buy/craft
+   acquisition routes deferred - no base-screen reason to sell gear yet, no materials concept exists.
 
-All verified with `npx vitest run` (247 tests passing as of the feature-6 commit) and a driven headless
-browser for the full base-building flow (bank currency via supply runs -> spend it on the base screen ->
-currency stays consistent across screens with no reload -> the bonus actually shows up on a unit card in a
-real mission), with no console errors throughout.
+All verified with `npx vitest run` (267 tests passing as of the feature-7 commit), `npm run sim` as a smoke
+check, and a driven headless browser for the full loot -> persist -> equip -> next-mission-applies loop
+(confirmed a unit's unit card correctly showed its found gear's stat bonuses on a *fresh* mission with no
+manual equip step), with no console errors throughout.
 
 ## Nothing uncommitted right now
 
-Working tree should be clean (`git status --short` empty) as of the feature-6 commit. If it isn't, something
+Working tree should be clean (`git status --short` empty) as of the feature-7 commit. If it isn't, something
 changed after this note was written and wasn't captured here - check `git status`/`git diff` directly.
 
 ## Still worth knowing
 
 - **AI doesn't plan around allies** and **AI doesn't open doors** (0c/2's own known scope lines).
-- **Objective types are all player-only for v1** (3), and **no ammo loot-on-death or ally hand-over yet** (4).
-- **Every campaign mission (story and generated) still uses Training Grounds' own map layout as a
-  placeholder** (5) - the single biggest remaining content gap. Swapping in real per-district maps is a pure
-  data change (`StoryMissionDef.map` / the supply-run generator's map constant), not an engineering task -
-  `core/campaign.ts`/`ui/campaign.ts` are already fully generic over whatever `MapDef` a mission points to.
-- **No persistent squad/roster between missions** (5/6's shared scope line): every mission, campaign or not,
-  spawns the same fixed unit list from its own `MapDef.spawns`. There's no "the same five units, carrying
-  HP/injuries/loot, across missions" concept. This is what #7 (equipment) and #8 (leveling) will need to
-  introduce - base building deliberately worked around the gap rather than solving it, since solving it
-  properly belongs with the features that actually need per-unit persistent identity.
-- **Base facility bonuses only apply to campaign-launched missions**, not the standalone "Enter mission"
-  Training Grounds entry on the home screen - that entry point stays the unmodified rules-sandbox (0f's own
-  resolved decision), deliberately untouched by any meta-progression.
-- **`ui/hud.ts`'s medkit/gadget-uses display no longer shows a `/max` denominator** (fixed this session) -
-  neither value has a real fixed cap (pickups from #4 could already exceed the old flat-constant denominator;
-  base bonuses from #6 make it common), so both now just show the current count.
+- **Objective types are all player-only for v1** (3), and **no ammo loot-on-death or ally hand-over yet** (4)
+  - though enemy death now DOES drop armor/equipment loot (7), so "no loot on death" from #4's own Resolved
+    section is now only true for ammo/medkits specifically, not gear.
+- **Every campaign mission still uses Training Grounds' own map layout as a placeholder** (5) - the single
+  biggest remaining content gap, unrelated to any engineering feature landing.
+- **Still no persistent per-instance roster** (5/6/7's shared, repeatedly-flagged scope line): the campaign
+  tracks a squad by *class* (one soldier, one sniper, etc.), not by individually named, persisted unit
+  instances. Equipment loadouts persist per class for exactly this reason. **#8 (leveling) is very likely the
+  feature that finally forces this** - individual XP/level state has nowhere to live under the current
+  per-class model. Worth deciding the roster's real shape carefully when starting #8, since equipment would
+  then migrate from per-class to per-instance too.
+- **A real bug found and fixed this session, worth remembering the shape of**: this codebase has *two*
+  separate "a unit just died" code paths - `core/combat.ts`'s `finalizeDeath` (a finishing shot) and
+  `core/state.ts`'s `tickBleedOut` (bleeding out unrevived). Feature 7's loot-on-death hook was first added
+  to only the former and silently never fired for the latter. Fixed via a shared `core/loot.ts`'s
+  `lootOnDeath`, called from both. **Any future "on enemy death" hook needs to be wired into both paths**,
+  not just `finalizeDeath` - it's the more obviously-named one but not the only one.
+- **`data/loot.ts`'s table is armor/equipment only** - ammo/medkit/gadget pickups keep their own #4
+  hand-authored placement system, deliberately not unified with loot.
 
 ## How to verify UI changes (workflow used throughout)
 
@@ -75,9 +80,14 @@ Windows install - then `taskkill //PID <pid> //F`; `lsof` isn't available in thi
 has `VITE_DEBUG=true` so the debug panel (`window.session` in the console, fog toggle, time/weather/enemy-AI
 selectors, and the map builder itself) is available for setting up test scenarios without playing a full
 mission by hand - `window.session.state.winner = 'player'; window.session.onChange();` forces a mission to
-end without playing out combat, useful for testing anything downstream of a win (campaign/base progression).
+end without playing out combat; directly poking `window.session.state.units[i].armor`/`.equipment` before
+forcing the win is the fastest way to test loot persistence without relying on the RNG to drop the right item.
 
 **Gotchas hit so far:**
+- **`page.on('dialog', d => d.accept())` is required before triggering anything that calls `confirm()`**
+  (e.g. the map builder's "Back" button when there are unsaved changes) - Playwright auto-*dismisses* native
+  dialogs by default, so an unhandled `confirm()` silently returns `false`/cancel and the click that should
+  have navigated away does nothing, with no error - just a button that looks like it didn't work.
 - When clicking a sequence of canvas tiles in a script, don't cache the canvas's `boundingBox()` once up
   front - re-query it before each click, since layout can reflow between clicks.
 - The page has *two* `<canvas>` elements (`#board`, `#bcanvas`) - a bare `page.locator('canvas')` throws a
@@ -86,18 +96,18 @@ end without playing out combat, useful for testing anything downstream of a win 
   something like `#tutorial-skip` that may not have started.
 - The home screen's mission-launch button is labeled "Enter mission", not "Start".
 
-## What's next: feature 7 (unit equipment screen)
+## What's next: feature 8 (unit leveling & perks)
 
-Per `md_files/ROADMAP.md`'s suggested order, everything through **6** is done. Next up:
+Per `md_files/ROADMAP.md`'s suggested order, everything through **7** is done. Next up:
 
-**7. Unit equipment screen** (read ROADMAP.md's `## 7.` section for the full design sketch and open questions
-before starting) - armor + 2 equipment slots, a loot system fed by chests (2's interactables) and enemy
-drops. This is very likely the feature that finally needs a persistent per-unit roster (see "Still worth
-knowing" above) - equipment has to live on *something* that survives between missions, which neither feature
-5 nor 6 needed to build. Worth deciding that roster's shape carefully since #8 (leveling) will need the same
-thing right after.
+**8. Unit leveling & perks** (read ROADMAP.md's `## 8.` section for the full design sketch and open questions
+before starting) - per-class paths, a growing perk pool and slots. This is very likely the feature that
+finally needs a persistent per-*instance* roster (see "Still worth knowing" above) rather than the per-class
+model 5/6/7 have all gotten away with so far - deciding that roster's shape is probably the first real design
+decision of this feature, and equipment (7) would migrate onto it too once it exists.
 
-Then **8. Unit leveling & perks** (pairs with 7), then **9. Visual rehaul** (deliberately last).
+Then **9. Visual rehaul** (deliberately last - presentation over everything else on the list). At that point
+every numbered feature in the roadmap's main sequence is done.
 
 **Also still pending:** real per-district `MapDef`s for the four Act 1 story missions (a content-authoring
-task, not gated on any remaining engineering feature - see "Still worth knowing" above).
+task, not gated on any remaining engineering feature).

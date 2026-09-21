@@ -2,7 +2,7 @@ import { CLASSES } from '../data/units';
 import { AI_PROFILES, type AiProfileDef } from '../data/aiProfiles';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
-import { scaledMove } from './environment';
+import { effectiveMove } from './environment';
 import { cheb, dist, distanceMap, hasLos, idx, reachable } from './grid';
 import { objectiveGoalPositions } from './objectives';
 import { rollPercent } from './rng';
@@ -57,7 +57,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
 
   const profile = AI_PROFILES[u.aiProfile ?? s.aiProfiles[u.team]];
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
-  const move = scaledMove(s, CLASSES[u.cls].move);
+  const move = effectiveMove(s, u);
 
   // Difficulty: a unit that fails its reaction roll doesn't act with full competence this decision - it holds
   // position/overwatch instead of taking its best move or shot. reactionChance 1 (most profiles) never rolls,
@@ -156,7 +156,7 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
   const d = distanceMap(s, goal);
   const here = d[idx(s, u.x, u.y)];
   let best: { pos: Pos; d: number; cost: number } | null = null;
-  for (const [i, r] of reachable(s, u, scaledMove(s, CLASSES[u.cls].move))) {
+  for (const [i, r] of reachable(s, u, effectiveMove(s, u))) {
     if (d[i] < 0) continue;
     if (!best || d[i] < best.d || (d[i] === best.d && r.cost < best.cost)) best = { pos: { x: i % s.width, y: Math.floor(i / s.width) }, d: d[i], cost: r.cost };
   }

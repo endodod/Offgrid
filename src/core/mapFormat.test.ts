@@ -188,3 +188,32 @@ describe('pickups (feature 4)', () => {
     expect(back.pickups![0].amount).toBeUndefined(); // parseMap preserves "omitted"; createGame fills the default
   });
 });
+
+describe('chests and loot pickups (feature 7)', () => {
+  const cloneInteractables = (interactables: unknown[]) => JSON.parse(serializeMap(withEdits(base, base.rows, base.spawns, interactables as never)));
+  const clonePickups = (pickups: unknown[]) => JSON.parse(serializeMap(withEdits(base, base.rows, base.spawns, [], pickups as never)));
+
+  it('a chest interactable round-trips like a door/switch', () => {
+    const chest = { id: 1, type: 'chest' as const, x: 0, y: 0 };
+    const back = parseMap(cloneInteractables([chest]), base);
+    expect(back.interactables).toEqual([chest]);
+  });
+
+  it('an armor pickup requires a valid armor itemId', () => {
+    expect(() => parseMap(clonePickups([{ id: 1, type: 'armor', x: 0, y: 0 }]), base)).toThrow('needs a valid armor "itemId"');
+    expect(() => parseMap(clonePickups([{ id: 1, type: 'armor', x: 0, y: 0, itemId: 'nope' }]), base)).toThrow('needs a valid armor "itemId"');
+    const back = parseMap(clonePickups([{ id: 1, type: 'armor', x: 0, y: 0, itemId: 'lightVest' }]), base);
+    expect(back.pickups![0].itemId).toBe('lightVest');
+  });
+
+  it('an equipment pickup requires a valid equipment itemId', () => {
+    expect(() => parseMap(clonePickups([{ id: 1, type: 'equipment', x: 0, y: 0 }]), base)).toThrow('needs a valid equipment "itemId"');
+    expect(() => parseMap(clonePickups([{ id: 1, type: 'equipment', x: 0, y: 0, itemId: 'lightVest' }]), base)).toThrow('needs a valid equipment "itemId"'); // an armor id in the wrong slot
+    const back = parseMap(clonePickups([{ id: 1, type: 'equipment', x: 0, y: 0, itemId: 'boots' }]), base);
+    expect(back.pickups![0].itemId).toBe('boots');
+  });
+
+  it('ammo/medkit/gadget pickups do not require an itemId', () => {
+    expect(() => parseMap(clonePickups([{ id: 1, type: 'ammo', x: 0, y: 0 }]), base)).not.toThrow();
+  });
+});

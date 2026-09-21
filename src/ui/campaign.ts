@@ -1,7 +1,8 @@
 import { baseGameOptions } from '../core/base';
 import {
-  availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, type CampaignState,
+  availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, recordMissionGear, type CampaignState,
 } from '../core/campaign';
+import type { Unit } from '../core/types';
 import { DISTRICTS, type GeneratedMissionDef, type StoryMissionDef } from '../data/campaign';
 import type { MapDef } from '../data/trainingGrounds';
 import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
@@ -45,14 +46,16 @@ export class Campaign {
     return this.state;
   }
 
-  /** Called once a mission launched from here ends in a player win. */
-  reportWin(missionId: string) {
+  /** Called once a mission launched from here ends in a player win; `finalUnits` persists ending loadouts (7). */
+  reportWin(missionId: string, finalUnits: Unit[]) {
     if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
     else completeStoryMission(this.state, missionId);
+    recordMissionGear(this.state, finalUnits);
     saveCampaign(this.state);
   }
 
-  /** Layers a built base's meta-progression bonuses (6) onto a mission's own map - see core/base.ts. */
+  /** Layers a built base's meta-progression bonuses (6) and the campaign's current per-class loadouts (7) onto
+   *  a mission's own map - see core/base.ts and core/campaign.ts's `CampaignState.loadouts`. */
   private applyBase(map: MapDef): MapDef {
     const bonus = baseGameOptions(this.state.base);
     return {
@@ -60,6 +63,7 @@ export class Campaign {
       playerReserveMult: 1 + bonus.reserveMultBonus,
       ...(bonus.medkitBonus ? { medkitBonus: bonus.medkitBonus } : {}),
       ...(bonus.gadgetUsesBonus ? { gadgetUsesBonus: bonus.gadgetUsesBonus } : {}),
+      startingLoadouts: this.state.loadouts,
     };
   }
 

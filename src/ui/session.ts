@@ -231,7 +231,7 @@ export class Session {
       case 'interact': {
         const targets = this.interactTargets(u);
         if (targets.length) return gate(null, 'Interact', this.mode === 'interact');
-        const reason = this.state.interactables.length && interactBlock(this.state, u) === 'No objective' ? 'Not adjacent to a door or switch' : interactBlock(this.state, u);
+        const reason = this.state.interactables.length && interactBlock(this.state, u) === 'No objective' ? 'Not adjacent to a door, switch, or chest' : interactBlock(this.state, u);
         return gate(reason, 'Interact');
       }
     }
@@ -251,7 +251,7 @@ export class Session {
         const targets = this.interactTargets(u);
         if (targets.length === 1) this.try({ type: 'interact', unit: u.id, target: targets[0] });
         else this.mode = this.mode === 'interact' ? 'move' : 'interact';
-        this.status = this.mode === 'interact' ? 'Pick the objective, a door, or a switch to interact with.' : '';
+        this.status = this.mode === 'interact' ? 'Pick the objective, a door, switch, or chest to interact with.' : '';
         break;
       }
       case 'gadget':
@@ -520,6 +520,7 @@ export class Session {
         const active = !s.fogEnabled || nowVisible ? it.active : s.memory.player.doors[it.id];
         const stale = s.fogEnabled && !nowVisible ? ' (last seen - may have changed)' : '';
         if (it.type === 'door') return [`Door: ${active ? 'open' : 'closed'}${stale}`];
+        if (it.type === 'chest') return [`Chest: ${active ? 'already opened' : 'unopened'}${stale}`];
         const linkCount = it.links?.length ?? 0;
         return [`Switch: ${active ? 'on' : 'off'}${stale}`, `Linked to ${linkCount} door${linkCount === 1 ? '' : 's'}`];
       }

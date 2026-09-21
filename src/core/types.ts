@@ -5,6 +5,8 @@ import type { InteractableType, MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
 import type { ObjectiveDef } from '../data/objectives';
 import type { ItemType } from '../data/items';
+import type { ArmorId } from '../data/armor';
+import type { EquipmentId } from '../data/equipment';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 
@@ -32,6 +34,8 @@ export interface Unit {
   exposed: boolean; // acted from a bush: visible there until its own team's next phase
   moveBonus: number; // extra tiles for this unit's next move (adrenaline); used up by that move, gone at end of turn
   gadget: { id: GadgetId; uses: number; cooldown: number } | null;
+  armor: ArmorId | null; // equipment (7): stacks on top of the class's own base armor - see core/combat.ts's effectiveArmor
+  equipment: [EquipmentId | null, EquipmentId | null]; // equipment (7): two slots
   aiProfile?: AiProfileId; // overrides GameState.aiProfiles[team] for this one unit; set from its spawn (see Spawn)
   // stats for the simulator
   dmgDealt: number;
@@ -65,9 +69,10 @@ export interface Interactable {
 }
 
 /**
- * An ammo/medkit/gadget pickup on the map (4). No fog memory of its own - unlike a door's state, a pickup is
- * only ever "there" or "gone" (removed from `GameState.pickups` the instant anyone collects it), so it's drawn
- * purely from current visibility rather than remembered state (see render/renderer.ts's `drawPickups`).
+ * An ammo/medkit/gadget/armor/equipment pickup on the map (4, 7). No fog memory of its own - unlike a door's
+ * state, a pickup is only ever "there" or "gone" (removed from `GameState.pickups` the instant anyone
+ * collects it), so it's drawn purely from current visibility rather than remembered state (see
+ * render/renderer.ts's `drawPickups`).
  */
 export interface Pickup {
   id: number;
@@ -75,6 +80,7 @@ export interface Pickup {
   x: number;
   y: number;
   amount: number;
+  itemId?: ArmorId | EquipmentId; // set when type is 'armor' or 'equipment' (7) - which specific piece
 }
 
 /** What a team remembers. Never contains information the team has not seen. */
@@ -103,7 +109,8 @@ export type EventBody =
   | { t: 'cover'; at: Pos; from: Cover | null; to: Cover | null }
   | { t: 'door'; unit: number; id: number; at: Pos; open: boolean }
   | { t: 'switch'; unit: number; id: number; at: Pos; on: boolean; linked: number[] }
-  | { t: 'pickup'; unit: number; item: ItemType; amount: number; at: Pos }
+  | { t: 'chest'; unit: number; id: number; at: Pos }
+  | { t: 'pickup'; unit: number; item: ItemType; amount: number; at: Pos; itemId?: ArmorId | EquipmentId }
   | { t: 'objective'; unit: number }
   | { t: 'capture'; unit: number; status: 'start' | 'progress' | 'broken'; roundsLeft: number }
   | { t: 'end'; winner: Team | 'draw' };

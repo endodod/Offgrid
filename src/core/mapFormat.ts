@@ -2,6 +2,8 @@ import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/training
 import { CLASSES, type ClassId } from '../data/units';
 import { AI_PROFILES, type AiProfileId } from '../data/aiProfiles';
 import { ITEM_ORDER } from '../data/items';
+import { ARMOR_ORDER } from '../data/armor';
+import { EQUIPMENT_ORDER } from '../data/equipment';
 
 /** Tile characters a map may contain (see MapDef.rows). */
 export const TILE_CHARS = '.#bl123hO';
@@ -73,7 +75,7 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
       if (typeof id !== 'number' || !Number.isInteger(id)) throw new Error(`Bad interactable id "${String(id)}".`);
       if (ids.has(id)) throw new Error(`Two interactables share id ${id}.`);
       ids.add(id);
-      if (type !== 'door' && type !== 'switch') throw new Error(`Unknown interactable type "${String(type)}" (id ${id}).`);
+      if (type !== 'door' && type !== 'switch' && type !== 'chest') throw new Error(`Unknown interactable type "${String(type)}" (id ${id}).`);
       if (!Number.isInteger(x) || !Number.isInteger(y)) throw new Error(`Bad position for interactable ${id}.`);
       if (!WALKABLE.includes((rows[y as number] as string | undefined)?.[x as number] ?? '#')) throw new Error(`Interactable ${id} at (${x},${y}) is not on an open tile.`);
       if (taken.has(`${x},${y}`)) throw new Error(`Interactable ${id} at (${x},${y}) shares a tile with a unit.`);
@@ -101,7 +103,7 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
     if (!Array.isArray(rawPickups)) throw new Error('"pickups" must be a list.');
     const ids = new Set<number>();
     for (const rawP of rawPickups) {
-      const { id, type, x, y, amount } = rawP as Partial<PickupDef>;
+      const { id, type, x, y, amount, itemId } = rawP as Partial<PickupDef>;
       if (typeof id !== 'number' || !Number.isInteger(id)) throw new Error(`Bad pickup id "${String(id)}".`);
       if (ids.has(id)) throw new Error(`Two pickups share id ${id}.`);
       ids.add(id);
@@ -112,7 +114,9 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
       if (taken.has(key)) throw new Error(`Pickup ${id} at (${x},${y}) shares a tile with something already there.`);
       taken.add(key);
       if (amount !== undefined && (!Number.isInteger(amount) || amount <= 0)) throw new Error(`Bad "amount" for pickup ${id}.`);
-      pickups.push({ id, type, x: x as number, y: y as number, ...(amount !== undefined && { amount }) });
+      if (type === 'armor' && !(ARMOR_ORDER as string[]).includes(itemId as string)) throw new Error(`Pickup ${id} needs a valid armor "itemId".`);
+      if (type === 'equipment' && !(EQUIPMENT_ORDER as string[]).includes(itemId as string)) throw new Error(`Pickup ${id} needs a valid equipment "itemId".`);
+      pickups.push({ id, type, x: x as number, y: y as number, ...(amount !== undefined && { amount }), ...(itemId !== undefined && { itemId }) });
     }
   }
 
