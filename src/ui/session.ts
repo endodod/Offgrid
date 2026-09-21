@@ -63,7 +63,7 @@ export class Session {
     this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];
     this.status = 'Your turn. Click a unit, then a tile to move or an enemy to attack.';
     this.mode = 'move';
-    this.selectedId = this.state.units.find((u) => u.team === 'player')!.id;
+    this.selectedId = null; // no unit pre-selected: the player's first click is a deliberate one
     this.flush();
     this.onChange();
   }

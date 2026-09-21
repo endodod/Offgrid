@@ -24,20 +24,37 @@ those before re-deriving anything). In order:
 All verified with `npx vitest run` (178 tests passing as of the 0f commit) and, for UI-touching ones, a
 driven headless browser before committing (see workflow below).
 
+**Follow-up after 0f, requested directly:** Training Grounds' map/spawns/objective were reworked so the
+guided tutorial is actually completable without a long fog-blind search - player squad now clusters
+bottom-left, one enemy sniper (weakest class) starts close by and already mutually visible at turn 1, the
+objective moved from a walled courtyard to an open central tile at (12,7). `Session.reset()` also no longer
+pre-selects a unit at mission start (the player's first click, including the tutorial's "select" step, is
+now a deliberate one). See `ASSUMPTIONS.md`'s "Map and missions" section for the current layout and its
+tradeoffs (it's now heavily player-favoured, ~99%+ sim win rate - appropriate for onboarding, worth knowing
+if this map gets reused to balance-test something else later).
+
 ## Nothing uncommitted right now
 
-Working tree should be clean (`git status --short` empty) as of the 0f commit. If it isn't, something
-changed after this note was written and wasn't captured here - check `git status`/`git diff` directly.
+Working tree should be clean (`git status --short` empty) as of the Training Grounds rework commit
+(immediately after 0f). If it isn't, something changed after this note was written and wasn't captured here
+- check `git status`/`git diff` directly.
 
-## Known pre-existing issue (not caused by this effort, already documented)
+## Resolved: the old Training Grounds chokepoint-jamming issue
 
-Training Grounds' enemy squad spawns right next to the objective courtyard's single doorway. With 5-unit
-squads, AI units can jam each other there and never reach combat range in elimination mode (`--objective
-none`), and `--objective player|both` is a near-instant, near-deterministic enemy win by capture instead of
-a balanced test. Flagged in `ASSUMPTIONS.md` and `ROADMAP.md`'s #0c section already. When sanity-checking
-anything with `npm run sim` or a scratch script, use a small hand-built skirmish `MapDef` (both squads
-placed within ~5-6 tiles of each other on an open `blank(w,h)` map) instead of `TRAINING_GROUNDS`, or you'll
-see nothing but draws/timeouts and wrongly conclude a feature doesn't work.
+Previously documented here as a known pre-existing issue: the old objective sat in a walled courtyard right
+next to the enemy spawns, so `--objective player|both` was a near-instant enemy win and 5-unit squads could
+jam each other at the courtyard's single doorway badly enough that elimination mode (`--objective none`)
+never reached combat range at all. The map rework above incidentally fixed this - relocating the objective
+away from a single-doorway room and re-spreading the spawns means both sim modes now resolve through real
+combat 100% of the time (verified via `npm run sim`). Recorded here so it isn't rediscovered as broken.
+
+**Still worth knowing:** the *underlying* AI limitation this exposed - units block movement and `core/ai.ts`
+doesn't plan around allies, so it can still jam itself at a genuine single-doorway chokepoint - was never
+fixed, only no longer triggered by Training Grounds' current layout. It could resurface on a future map (the
+campaign's Act 1 missions, once they get map data) with a tighter doorway or a larger squad. If it does, a
+small hand-built skirmish `MapDef` (both squads placed within ~5-6 tiles of each other on an open
+`blank(w,h)` map) isolates AI/combat questions cleanly from any given map's own layout quirks - useful
+generally, not just for this specific issue.
 
 ## How to verify UI changes (workflow used throughout)
 
@@ -57,10 +74,11 @@ session since `lsof` isn't available in this Git Bash), and `npm uninstall playw
 panel (`window.session` in the console, fog toggle, time/weather/enemy-AI selectors) is available for
 setting up test scenarios without playing a full mission by hand.
 
-**A recurring test-script trap hit more than once this session:** Training Grounds auto-selects the first
-player unit on mission load (`Session.reset()`). A scratch script that clicks "the first player unit" to
-select it is actually *deselecting* the already-selected one. Pick a *different* unit (or check
-`window.session.selectedId` first) when a script needs to exercise "select a new unit."
+**No longer an issue, but worth knowing it used to be one:** `Session.reset()` used to auto-select the first
+player unit at mission start, which made "click the first player unit" scratch-script steps accidentally
+*deselect* it instead of selecting something new. As of the Training Grounds rework above, no unit is
+pre-selected at mission start at all (`selectedId` starts `null`), so this trap is gone - any first click on
+a unit is now a genuine new selection.
 
 ## What's next: feature 2 (doors and interactive map parts)
 

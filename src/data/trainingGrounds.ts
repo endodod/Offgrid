@@ -26,7 +26,11 @@ export interface MapDef {
 }
 
 // Laid out in the debug map builder (see README) and pasted back from its JSON export.
-// Friendly squad starts on the left side, the enemy on the right; the objective terminal is at (22,11).
+// Friendly squad starts clustered bottom-left; the objective terminal is central at (12,7), open on two sides
+// rather than behind a single doorway. One enemy (a sniper - the weakest class) starts close by and already
+// mutually visible at turn 1, so every guided-tutorial step (0f) is reachable within the first turn or two
+// without a long, fog-blind search; the other four enemies stay spread out on the right for the rest of the
+// mission once the tutorial's done. See ROADMAP.md's #0c "sim finding" for what this replaced.
 export const TRAINING_GROUNDS: MapDef = {
   name: 'Training Grounds',
   rows: [
@@ -37,22 +41,22 @@ export const TRAINING_GROUNDS: MapDef = {
     '..........2.h..#.3......',
     '........##....##........',
     '..lh.hl....3...b###b.h.#',
-    '.......h...h...bbbbb.1..',
+    '.......h...hO..bbbbb.1..',
     '...bb..1..............h.',
     '.........#.....#####....',
     '.ll..hh....3.......#.22.',
-    '............h.....b#..O.',
+    '............h.....b#....',
     '.........#.....#.bb#....',
     '.........##..#######...h',
     '..................h.....',
     '..........l....h........',
   ],
   spawns: {
-    player: [['soldier', 2, 1], ['assault', 3, 2], ['medic', 2, 8], ['tank', 1, 14], ['sniper', 2, 12]],
-    enemy: [['sniper', 23, 15], ['medic', 22, 14], ['assault', 20, 3], ['assault', 18, 2], ['medic', 22, 1]],
+    player: [['soldier', 2, 11], ['assault', 3, 11], ['medic', 2, 12], ['tank', 1, 13], ['sniper', 3, 13]],
+    enemy: [['sniper', 9, 10], ['medic', 22, 14], ['assault', 20, 3], ['assault', 18, 2], ['medic', 22, 1]],
   },
   searchPoints: {
-    player: [[12, 7], [11, 3], [3, 5], [17, 11]],
-    enemy: [[12, 7], [11, 3], [17, 11], [3, 5]],
+    player: [[11, 3], [3, 5], [17, 11]],
+    enemy: [[11, 3], [17, 11], [3, 5]],
   },
 };

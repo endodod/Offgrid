@@ -102,14 +102,13 @@ describe('Training Grounds map data', () => {
     const spots = new Set(s.units.map((u) => `${u.x},${u.y}`));
     expect(spots.size).toBe(10);
   });
-  it('spawns left (player) and right (enemy)', () => {
-    for (const u of s.units) {
-      if (u.team === 'player') expect(u.x).toBeLessThan(8);
-      else expect(u.x).toBeGreaterThan(15);
-    }
+  it('player spawns cluster bottom-left; every enemy starts strictly further right (one close practice target, the rest spread out)', () => {
+    const playerXs = s.units.filter((u) => u.team === 'player').map((u) => u.x);
+    const enemyXs = s.units.filter((u) => u.team === 'enemy').map((u) => u.x);
+    expect(Math.max(...playerXs)).toBeLessThan(Math.min(...enemyXs));
   });
   it('has one objective reachable from both spawns', () => {
-    expect(s.objective).toEqual({ x: 22, y: 11 });
+    expect(s.objective).toEqual({ x: 12, y: 7 });
     const d = distanceMap(s, s.objective!);
     for (const u of s.units) expect(d[idx(s, u.x, u.y)]).toBeGreaterThan(0);
   });
