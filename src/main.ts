@@ -10,6 +10,10 @@ import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
 import { initSettings } from './ui/settings';
 import { Session } from './ui/session';
+import { Tutorial, tutorialDismissed } from './ui/tutorial';
+
+/** The only mission the guided walkthrough covers so far (see ROADMAP.md #0f). */
+const TUTORIAL_MISSION_ID = 'training-grounds';
 
 const el = (id: string) => document.getElementById(id)!;
 
@@ -26,6 +30,8 @@ const ctx = canvas.getContext('2d')!;
 const session = new Session(resolve(MISSIONS[0]));
 const hud = new Hud(session);
 bindInput(canvas, session, hud);
+const tutorial = new Tutorial(session, () => hud.update());
+hud.tutorial = tutorial;
 
 let queued = false;
 function frame() {
@@ -38,15 +44,20 @@ function frame() {
 function request() {
   if (!queued) { queued = true; requestAnimationFrame(frame); }
 }
-session.onChange = () => { hud.update(); request(); };
+// tutorial before hud: a step it advances this change should already be reflected in this same render.
+session.onChange = () => { tutorial.onSessionChange(); hud.update(); request(); };
 
 // ---------- screens ----------
-const startGame = (map: MapDef, fromBuilder: boolean) => {
+const startGame = (map: MapDef, fromBuilder: boolean, missionId?: string) => {
   (el('dbg-fog') as HTMLInputElement).checked = true;
   el('to-builder').hidden = !fromBuilder;
   session.load(map);
   showScreen('game');
   request();
+  const isTutorialMission = missionId === TUTORIAL_MISSION_ID;
+  el('tutorial-replay').hidden = !isTutorialMission;
+  if (isTutorialMission && !tutorialDismissed()) tutorial.start();
+  else tutorial.hide();
 };
 
 let builder: Builder | null = null;
@@ -64,9 +75,10 @@ refreshHome = initHome(MISSIONS, {
   resolve,
   isCustom: (m) => custom(m) !== null,
   debug: DEBUG,
-  onEnter: (m) => startGame(resolve(m), false),
+  onEnter: (m) => startGame(resolve(m), false, m.id),
   onEdit: (m) => { builder!.open(m, resolve(m)); showScreen('builder'); },
 });
+el('tutorial-replay').addEventListener('click', () => tutorial.start());
 const toMenu = () => { refreshHome(); showScreen('home'); };
 el('menu').addEventListener('click', toMenu);
 el('banner-menu').addEventListener('click', toMenu);

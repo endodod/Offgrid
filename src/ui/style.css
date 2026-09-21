@@ -64,6 +64,14 @@ kbd { margin-left: 6px; font-size: 10px; color: var(--dim); }
 #banner .btns { display: flex; gap: 10px; }
 #home[hidden], #game[hidden] { display: none; }
 
+/* 0f: guided tutorial */
+#tutorial-box { margin: 6px 0; padding: 8px 10px; background: var(--panel); border: 1px solid var(--accent); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#tutorial-progress { color: var(--dim); font-size: 11px; white-space: nowrap; }
+#tutorial-text { flex: 1 1 260px; }
+#tutorial-box .btns { display: flex; gap: 6px; }
+.tutorial-highlight { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent); animation: tutorial-pulse 1.4s ease-in-out infinite; }
+@keyframes tutorial-pulse { 0%, 100% { box-shadow: 0 0 0 1px var(--accent); } 50% { box-shadow: 0 0 0 3px var(--accent); } }
+
 /* home screen */
 #home, #settings { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .home-inner { width: min(720px, 100%); }

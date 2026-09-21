@@ -35,6 +35,7 @@ export class Session {
   autoRun = false; // player phase is played by the 'friendly' AI instead of manual input (0d)
   coverRot = 0; // rotation the tank gives the cover it places (Q / wheel)
   showOverwatch = false; // overwatch view: coverage of units on overwatch
+  lastAction: Action | null = null; // most recent manually-performed action (0f's tutorial reacts to this)
   onChange: () => void = () => {};
   private runId = 0;
 
@@ -55,6 +56,7 @@ export class Session {
     this.state = createGame(this.map, seed);
     this.busy = false;
     this.autoRun = false;
+    this.lastAction = null;
     this.floaters = [];
     this.coverRot = 0;
     this.showOverwatch = false;
@@ -317,6 +319,7 @@ export class Session {
     const r = perform(this.state, a);
     this.flush();
     this.status = r.ok ? '' : r.error;
+    if (r.ok) this.lastAction = a; // a manually-performed action, for 0f's tutorial to react to - never set by AI turns
     return r.ok;
   }
 

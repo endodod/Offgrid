@@ -71,10 +71,19 @@
           <button id="ow-toggle" title="Show the range of active friendly and enemy overwatch (V)">Overwatch view<kbd>V</kbd></button>
           <button id="auto-run-toggle" title="Let the squad play its own phase automatically, and yours (P)">Auto-run<kbd>P</kbd></button>
           <button id="to-builder" hidden>Back to builder</button>
+          <button id="tutorial-replay" hidden title="Replay the guided walkthrough for this mission">Tutorial</button>
           <button id="game-settings">Settings</button>
           <button id="menu">Main menu</button>
         </div>
         <div id="objective"></div>
+        <div id="tutorial-box" hidden>
+          <span id="tutorial-progress"></span>
+          <span id="tutorial-text"></span>
+          <div class="btns">
+            <button id="tutorial-next">Next</button>
+            <button id="tutorial-skip">Skip tutorial</button>
+          </div>
+        </div>
         <div class="canvas-wrap">
           <canvas id="board" width="864" height="576"></canvas>
           <div id="tip" hidden></div>

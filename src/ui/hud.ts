@@ -36,6 +36,9 @@ export class Hud {
   // Tracked by id, not DOM element: the actionbar's buttons are rebuilt on every update(), which would
   // otherwise leave a hovered/focused reference pointing at a detached node.
   private hoveredButtonId: ButtonId | null = null;
+  /** Set once by main.ts after both are constructed (0f); read fresh on every actionbar render for the same
+   *  detached-node reason as hoveredButtonId above. */
+  tutorial: { currentHighlight: string | null } | null = null;
 
   constructor(private session: Session) {
     const actionbar = $('actionbar');
@@ -143,7 +146,8 @@ export class Hud {
     // Session.press() already no-ops when the button isn't enabled, so this is safe to still click.
     $('actionbar').innerHTML = BUTTON_ORDER.map((id) => {
       const st = this.session.buttonState(id);
-      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${st.active ? 'active' : ''} ${st.enabled ? '' : 'disabled'}">${st.label}<kbd>${displayKey(keyFor(id))}</kbd></button>`;
+      const cls = [st.active ? 'active' : '', st.enabled ? '' : 'disabled', this.tutorial?.currentHighlight === id ? 'tutorial-highlight' : ''].join(' ');
+      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${cls}">${st.label}<kbd>${displayKey(keyFor(id))}</kbd></button>`;
     }).join('');
 
     $('roster').innerHTML = s.units.filter((u) => u.team === 'player').map((u, n) => {
