@@ -20,8 +20,8 @@ canvas { width: 100%; height: auto; image-rendering: pixelated; border: 1px soli
 
 #actionbar { display: flex; gap: 6px; flex-wrap: wrap; }
 button { font: inherit; color: var(--text); background: #232a1d; border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
-button:hover:not(:disabled) { background: #2d3625; border-color: #4a5a3d; }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:hover:not(:disabled):not(.disabled) { background: #2d3625; border-color: #4a5a3d; }
+button:disabled, button.disabled { opacity: 0.4; cursor: not-allowed; }
 button.active { border-color: var(--player); box-shadow: inset 0 0 0 1px var(--player); }
 kbd { margin-left: 6px; font-size: 10px; color: var(--dim); }
 
@@ -46,7 +46,8 @@ kbd { margin-left: 6px; font-size: 10px; color: var(--dim); }
 #debug label { display: block; margin: 2px 0; }
 #debug .btns { display: flex; gap: 6px; margin: 6px 0; }
 
-#tip { position: absolute; z-index: 5; pointer-events: none; line-height: 1.35; background: rgba(10, 12, 8, 0.94); border: 1px solid #55603f; padding: 5px 8px; white-space: nowrap; }
+/* fixed (not absolute-in-wrap): reused for both canvas tile hover and action-bar button hover/focus */
+#tip { position: fixed; z-index: 20; pointer-events: none; line-height: 1.35; background: rgba(10, 12, 8, 0.94); border: 1px solid #55603f; padding: 5px 8px; max-width: 260px; white-space: normal; }
 #banner { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; background: rgba(8, 10, 6, 0.72); line-height: 1.2; }
 #banner[hidden], #tip[hidden] { display: none; }
 #banner-text { font-size: 40px; font-weight: bold; letter-spacing: 0.15em; color: #9cc9a4; }

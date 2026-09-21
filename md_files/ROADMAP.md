@@ -43,9 +43,11 @@ These are what keep the project healthy as it grows. Each feature should meet al
 
 ## 0a. UI/UX clarity pass: hover info and redesign
 
+**Status: done** (hover/tooltip layer only — see the resolved open questions below for what was deliberately deferred).
+
 **Goal:** a player can tell what will happen before committing to an action, everywhere in the game, without reading the code or guessing. This is a prerequisite for every feature above: new hazards, objective types and pickups all add more state the player has to read correctly.
 
-**Where we are:** `ui/session.ts` already has a `hover` position and a `hoverInfo()` that returns tooltip lines for a hovered tile (hit chance, damage, cover, currently keyed off the selected unit and an enemy target). Movement has no equivalent — hovering a reachable tile does not explain path cost, remaining action points after the move, or danger (overwatch, visible enemies) at the destination. Action buttons (interact, reload, gadgets, overwatch) have no hover explanation of what they cost or do beyond their label.
+**Where we are:** `Session.hoverInfo()` now branches by mode. Move mode shows path cost, AP remaining and a fog-fair danger flag (`moveHoverInfo`/`dangerAt` in `ui/session.ts`) drawn on `seenUnits`/`visible` only, never hidden state; the move itself is also drawn as a breadcrumb arrow from the unit to the hovered tile (`View.path`, `render/renderer.ts`'s `drawMovePath`). Gadget mode (`gadgetHoverInfo`) previews each gadget's effect at the hovered tile: grenade blast damage and who (visible) it would catch, cover placement result, medkit heal amount, scan reveal radius, and a clear "Cannot target: &lt;reason&gt;" when blocked. The existing enemy-hover tooltip (hit chance, armor, HP, cover, blocked-shot reason) is unchanged and already covered every attack-capable action since it isn't gated by mode. Every action bar button now gets a hover/focus tooltip (`Hud.buttonTip`, using `aria-disabled` instead of the native `disabled` attribute so a disabled button can still be hovered/focused) showing a one-line description, its cost, and why it's disabled when it is. The `#tip` element is `position: fixed` and reused for both canvas-tile and button tooltips, rendered through one `Hud.renderTip()` path kept deliberately separate from the full `Hud.update()` (which rebuilds the action bar's `innerHTML` — calling that from a hover/focus listener detaches the very button being hovered, breaking both real hover stability and any automated UI check).
 
 **Design sketch**
 - **Movement hover:** hovering a reachable tile shows path length/AP cost, AP remaining after the move, and whether the destination is inside known enemy overwatch or visible to any seen enemy (a "danger" flag drawing on `visible`/`memory`, never on hidden information).
@@ -56,12 +58,12 @@ These are what keep the project healthy as it grows. Each feature should meet al
 
 **Touches:** `ui/session.ts` (`hoverInfo` and a new move/action-hover equivalent), `ui/hud.ts`, `ui/style.css`, `render/renderer.ts` (danger/path highlighting), no changes expected to `core/` (this is presentation over existing state, using only `visible`/`seenUnits`/`memory` like everything else fog-related).
 
-**Open questions**
-- Does danger highlighting need a new derived field in `core`, or can it be computed entirely in the UI layer from existing `visible`/`memory`? Prefer the latter to keep `core` pure per the ground rules.
-- How much detail before the tooltip becomes clutter — always show full numbers, or a short summary with a "hold for detail" expansion?
-- Does this pass include a redesigned action bar/HUD layout, or only the hover/tooltip layer with layout deferred? Worth deciding before starting so scope doesn't creep into a full visual redesign.
+**Resolved**
+- Danger highlighting is computed entirely in the UI layer (`Session.dangerAt`) from `seenUnits`/`visible`/unit state already on `GameState` — no new `core` field needed, `core` stays untouched by this feature as planned.
+- Went with full numbers, not a summary/expansion: each tooltip is already short (2-4 lines) since it's scoped to one mode's relevant facts, so a "hold for detail" step would add a click without reducing clutter.
+- Layout deferred: this pass is the hover/tooltip layer only. HUD/action-bar layout, button grouping and iconography are unchanged and remain open for a future pass if the need shows up once more features (doors, objectives, pickups) have added their own lines to these same tooltips.
 
-**Tests:** where logic moves out of ad hoc UI strings into shared helpers, cover them with unit tests (e.g. a path-cost/AP-remaining calculator, a danger-at-tile check); otherwise this is largely manual/visual QA since it is presentation, not core rules.
+**Tests:** `src/ui/session.test.ts` (new) covers the new logic directly — `Session` has no DOM dependency, only `Hud` does — path cost/actions-remaining for a reachable tile, null fallback when unreachable, the danger flag firing only for a *seen* overwatching enemy and never leaking for an unseen one, and gadget-hover previews (grenade catch list, blocked-target reasons). The button-tooltip and move-path-arrow rendering were checked manually via a driven headless browser (hover/focus every action button including a disabled one, move/gadget/attack hover, screenshots) rather than added as automated tests, consistent with this being presentation over already-tested rules.
 
 ---
 

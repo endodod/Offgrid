@@ -240,7 +240,7 @@ export class Builder {
     const s = this.state();
     if (this.canvas.width !== s.width * TILE) { this.canvas.width = s.width * TILE; this.canvas.height = s.height * TILE; }
     draw(this.ctx, {
-      s, selected: null, hover: this.hover, mode: 'move', reach: null, ringed: new Set(), aimTiles: new Set(),
+      s, selected: null, hover: this.hover, mode: 'move', reach: null, path: null, ringed: new Set(), aimTiles: new Set(),
       coverRot: this.rot, overwatchView: false, floaters: [], now: 0,
     });
   }

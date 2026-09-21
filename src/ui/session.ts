@@ -5,9 +5,9 @@ import type { WeatherId } from '../data/weather';
 import type { MapDef } from '../data/trainingGrounds';
 import { aidBlock, gadgetBlock, gadgetTargetBlock, interactBlock, moveRange, perform, validate, type Action } from '../core/actions';
 import { aiTurn } from '../core/ai';
-import { coverAgainst, damageAgainst, hitChance, targetBlock } from '../core/combat';
+import { coverAgainst, coverAt, damageAgainst, hitChance, targetBlock } from '../core/combat';
 import { envMods } from '../core/environment';
-import { idx, inBounds, reachable } from '../core/grid';
+import { cheb, dist, findPath, hasLos, idx, inBounds, reachable } from '../core/grid';
 import { createGame, reseed } from '../core/state';
 import { refreshVision } from '../core/vision';
 import type { GameEvent, GameState, Pos, Unit } from '../core/types';
@@ -286,10 +286,12 @@ export class Session {
     const s = this.state;
     const u = this.selected();
     this.floaters = this.floaters.filter((f) => now - f.born < 1400);
-    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now };
+    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, path: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now };
     if (!u || !this.ready) return view;
     if (this.mode === 'move' && u.actions > 0) {
-      view.reach = new Set([...reachable(s, u, moveRange(s, u)).keys()].filter((i) => i !== idx(s, u.x, u.y)));
+      const reach = reachable(s, u, moveRange(s, u));
+      view.reach = new Set([...reach.keys()].filter((i) => i !== idx(s, u.x, u.y)));
+      if (this.hover && reach.has(idx(s, this.hover.x, this.hover.y))) view.path = findPath(s, u, this.hover, moveRange(s, u));
     }
     if (this.mode === 'attack') for (const t of s.units) if (t.team === 'enemy' && validate(s, { type: 'attack', unit: u.id, target: t.id }) === null) view.ringed.add(t.id);
     if (this.mode === 'aid') for (const t of s.units) if (aidBlock(u, t) === null) view.ringed.add(t.id);
@@ -302,6 +304,53 @@ export class Session {
     return view;
   }
 
+  /** Known enemy on overwatch that could react if a unit ends up on `p` - fog-fair: only units the player has seen. */
+  private dangerAt(p: Pos): string | null {
+    const s = this.state;
+    for (const e of s.units) {
+      if (!e.alive || e.team === 'player' || !e.overwatch || !s.seenUnits.player.has(e.id)) continue;
+      if (dist(e, p) <= CLASSES[e.cls].weapon.range && hasLos(s, e, p)) return 'Danger: known enemy overwatch covers this tile';
+    }
+    return null;
+  }
+
+  /** Move-mode hover: path cost, actions left after the move, and whether the destination is watched. */
+  private moveHoverInfo(sel: Unit, p: Pos): string[] | null {
+    const s = this.state;
+    const r = reachable(s, sel, moveRange(s, sel)).get(idx(s, p.x, p.y));
+    if (!r || r.cost === 0) return null; // unreachable, occupied, or the unit's own tile
+    const lines = [`Move here: ${r.cost} tile${r.cost > 1 ? 's' : ''} (of ${moveRange(s, sel)} max)`, `Actions after move: ${sel.actions - 1}`];
+    const danger = this.dangerAt(p);
+    if (danger) lines.push(danger);
+    return lines;
+  }
+
+  /** Gadget-mode hover: what the gadget would do if used on `p` (or why it can't be targeted there). */
+  private gadgetHoverInfo(sel: Unit, p: Pos): string[] | null {
+    const s = this.state;
+    const g = sel.gadget;
+    if (!g) return null;
+    const def = GADGETS[g.id];
+    if (def.target === 'none') return null;
+    const blocked = gadgetTargetBlock(s, sel, p);
+    if (blocked) return [def.name, `Cannot target: ${blocked}`];
+    if (g.id === 'grenade') {
+      const hit = s.units.filter((u) => u.alive && cheb(p, u) <= def.radius! && (u.team === 'player' || s.seenUnits.player.has(u.id)));
+      const names = hit.length ? hit.map((u) => nameOf(u)).join(', ') : 'nobody visible';
+      return [`Grenade: ${def.damage} dmg (ignores armor) to everyone in the 3x3 blast`, `Catches: ${names}`, 'Cover in the blast: high -> low, low -> destroyed'];
+    }
+    if (g.id === 'cover') {
+      const c = coverAt(s, p.x, p.y);
+      return [c === 'low' ? 'Cover: low -> high here' : 'Cover: places low cover here'];
+    }
+    if (g.id === 'medkit') {
+      const t = this.visibleUnitAt(p)!;
+      return [`Medkit: heals ${nameOf(t)} for ${CLASSES[t.cls].hp - t.hp} HP (to full)`];
+    }
+    if (g.id === 'scan') return [`Scan: reveals fog and hidden units within ${def.radius} tiles here for ${def.durationTurns} turns`];
+    return null;
+  }
+
   /** Tooltip lines for the hovered tile (enemy: hit chance, damage, cover state relative to the selected unit). */
   hoverInfo(): string[] | null {
     const p = this.hover;
@@ -309,6 +358,14 @@ export class Session {
     const s = this.state;
     const at = this.visibleUnitAt(p);
     const sel = this.selected();
+    if (sel && this.mode === 'move' && sel.actions > 0) {
+      const info = this.moveHoverInfo(sel, p);
+      if (info) return info;
+    }
+    if (sel && this.mode === 'gadget') {
+      const info = this.gadgetHoverInfo(sel, p);
+      if (info) return info;
+    }
     if (at?.team === 'enemy') {
       const def = CLASSES[at.cls];
       const lines = [`${nameOf(at)}  HP ${at.hp}/${def.hp}  Armor ${def.armor}`];

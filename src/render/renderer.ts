@@ -15,6 +15,7 @@ export interface View {
   hover: Pos | null;
   mode: 'move' | 'attack' | 'gadget' | 'aid';
   reach: Set<number> | null; // tiles the selected unit can walk to (move mode)
+  path: Pos[] | null; // walk path from the selected unit to the hovered tile, if reachable (move mode)
   ringed: Set<number>; // unit ids to ring (valid attack / aid targets)
   aimTiles: Set<number>; // valid gadget target tiles
   coverRot: number; // rotation the tank will give the cover piece it places
@@ -60,6 +61,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   drawObjective(ctx, v);
   drawGhosts(ctx, v);
   for (const u of s.units) if (u.alive && (u.team === 'player' || s.seenUnits.player.has(u.id))) drawUnit(ctx, v, u);
+  drawMovePath(ctx, v);
   drawPreview(ctx, v);
   drawFloaters(ctx, v);
 }
@@ -330,6 +332,35 @@ function eye(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
   ctx.beginPath(); ctx.ellipse(cx, cy, 7, 4, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = C.overwatch;
   ctx.beginPath(); ctx.arc(cx, cy, 2.4, 0, Math.PI * 2); ctx.fill();
+}
+
+/** Move mode: a breadcrumb line + arrowhead from the selected unit to the hovered (reachable) tile. */
+function drawMovePath(ctx: CanvasRenderingContext2D, v: View) {
+  if (!v.selected || !v.path || v.path.length === 0) return;
+  const pts = [{ x: v.selected.x, y: v.selected.y }, ...v.path];
+  const center = (p: Pos) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 });
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232,216,130,0.9)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  const c0 = center(pts[0]);
+  ctx.moveTo(c0.x, c0.y);
+  for (let i = 1; i < pts.length; i++) { const c = center(pts[i]); ctx.lineTo(c.x, c.y); }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const end = center(pts[pts.length - 1]), prev = center(pts[pts.length - 2]);
+  const angle = Math.atan2(end.y - prev.y, end.x - prev.x);
+  const size = 7;
+  ctx.fillStyle = 'rgba(232,216,130,0.95)';
+  ctx.beginPath();
+  ctx.moveTo(end.x, end.y);
+  ctx.lineTo(end.x - size * Math.cos(angle - Math.PI / 6), end.y - size * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(end.x - size * Math.cos(angle + Math.PI / 6), end.y - size * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 /** Hover feedback: tile outline plus gadget area previews. */

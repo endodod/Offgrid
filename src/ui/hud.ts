@@ -13,6 +13,18 @@ const BUTTONS: { id: ButtonId; key: string }[] = [
   { id: 'overwatch', key: 'O' }, { id: 'aid', key: 'F' }, { id: 'interact', key: 'I' }, { id: 'endTurn', key: 'E' },
 ];
 
+/** One-line description and AP/resource cost shown in the button tooltip; every action costs 1 action unless noted. */
+const BUTTON_INFO: Record<ButtonId, { desc: string; cost: string }> = {
+  move: { desc: 'Move up to your Move stat in tiles toward the clicked destination.', cost: '1 action' },
+  attack: { desc: 'Fire your weapon at a visible enemy in range and line of sight.', cost: '1 action, 1 ammo' },
+  reload: { desc: 'Refill your magazine from reserve ammo.', cost: '1 action' },
+  gadget: { desc: 'Use your class gadget.', cost: '1 action, 1 use' },
+  overwatch: { desc: 'Reserve your weapon to react to the first enemy that moves or acts in your range and sight.', cost: '1 action, needs ammo' },
+  aid: { desc: 'First aid: heal an adjacent ally (or yourself) for a fixed amount from your personal medkits.', cost: '1 action, 1 medkit' },
+  interact: { desc: 'Interact with the objective terminal, then hold position to capture it.', cost: '1 action' },
+  endTurn: { desc: 'End your phase; the enemy acts next.', cost: 'no action cost' },
+};
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const pips = (n: number, max: number) => '●'.repeat(Math.max(0, n)) + '○'.repeat(Math.max(0, max - n));
 
@@ -20,12 +32,30 @@ const pips = (n: number, max: number) => '●'.repeat(Math.max(0, n)) + '○'.re
 export class Hud {
   private logShown = 0;
   private mouse = { x: 0, y: 0 };
+  // Tracked by id, not DOM element: the actionbar's buttons are rebuilt on every update(), which would
+  // otherwise leave a hovered/focused reference pointing at a detached node.
+  private hoveredButtonId: ButtonId | null = null;
 
   constructor(private session: Session) {
-    $('actionbar').addEventListener('click', (e) => {
+    const actionbar = $('actionbar');
+    actionbar.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-b]');
       if (b) session.press(b.dataset.b as ButtonId);
     });
+    const showButtonTip = (e: Event) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-b]');
+      if (b) { this.hoveredButtonId = b.dataset.b as ButtonId; this.renderTip(); }
+    };
+    const hideButtonTip = (e: Event) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-b]');
+      if (b && b.dataset.b === this.hoveredButtonId) { this.hoveredButtonId = null; this.renderTip(); }
+    };
+    // mouseover/mouseout and focusin/focusout bubble (unlike mouseenter/leave and focus/blur), so one listener
+    // on the container covers every button - and focusin makes the tooltip keyboard/gamepad-reachable too.
+    actionbar.addEventListener('mouseover', showButtonTip);
+    actionbar.addEventListener('mouseout', hideButtonTip);
+    actionbar.addEventListener('focusin', showButtonTip);
+    actionbar.addEventListener('focusout', hideButtonTip);
     $('roster').addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-unit]');
       if (b) session.toggleSelect(Number(b.dataset.unit));
@@ -78,6 +108,15 @@ export class Hud {
     this.mouse = { x, y };
   }
 
+  /** Tooltip lines for an action-bar button: what it does, what it costs, and why it's disabled right now. */
+  private buttonTip(b: ButtonId): string[] {
+    const st = this.session.buttonState(b);
+    const g = this.session.selected()?.gadget;
+    // the gadget button's own description depends on which gadget the selected unit actually carries
+    const info = b === 'gadget' && g ? { desc: GADGETS[g.id].blurb, cost: '1 action, 1 use' } : BUTTON_INFO[b];
+    return [info.desc, `Cost: ${info.cost}`, ...(st.reason ? [`Disabled: ${st.reason}`] : [])];
+  }
+
   update() {
     const s = this.session.state;
     const sel = this.session.selected();
@@ -92,9 +131,12 @@ export class Hud {
     $('ow-toggle').classList.toggle('active', this.session.showOverwatch);
     $('ow-legend').hidden = !this.session.showOverwatch;
 
+    // aria-disabled + a class, not the disabled attribute: a truly disabled button can't be hovered or
+    // focused in most browsers, which would make it impossible to show the tooltip explaining *why*.
+    // Session.press() already no-ops when the button isn't enabled, so this is safe to still click.
     $('actionbar').innerHTML = BUTTONS.map(({ id, key }) => {
       const st = this.session.buttonState(id);
-      return `<button data-b="${id}" ${st.enabled ? '' : 'disabled'} class="${st.active ? 'active' : ''}" title="${st.reason ?? ''}">${st.label}<kbd>${key}</kbd></button>`;
+      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${st.active ? 'active' : ''} ${st.enabled ? '' : 'disabled'}">${st.label}<kbd>${key}</kbd></button>`;
     }).join('');
 
     $('roster').innerHTML = s.units.filter((u) => u.team === 'player').map((u, n) => {
@@ -145,14 +187,30 @@ export class Hud {
       $('banner-text').textContent = s.winner === 'player' ? 'MISSION COMPLETE' : s.winner === 'enemy' ? 'SQUAD LOST' : 'DRAW';
     }
 
+    this.renderTip();
+  }
+
+  /**
+   * Renders only the #tip element: hover/focus on an action button, or (failing that) the canvas tile under the
+   * mouse. Deliberately separate from update() - hover/focus fire far more often than real state changes, and
+   * update() rebuilds the whole action bar's innerHTML, which would detach the very button being hovered.
+   */
+  private renderTip() {
     const tip = $('tip');
-    const lines = this.session.hoverInfo();
+    const btnEl = this.hoveredButtonId ? document.querySelector<HTMLElement>(`[data-b="${this.hoveredButtonId}"]`) : null;
+    const lines = btnEl ? this.buttonTip(this.hoveredButtonId!) : this.session.hoverInfo();
     tip.hidden = !lines;
     if (lines) {
       tip.innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
-      const wrap = tip.parentElement!.getBoundingClientRect();
-      tip.style.left = `${Math.min(this.mouse.x - wrap.left + 14, wrap.width - tip.offsetWidth - 4)}px`;
-      tip.style.top = `${Math.max(4, this.mouse.y - wrap.top - tip.offsetHeight - 10)}px`;
+      if (btnEl) {
+        // above the button, clamped to the viewport
+        const r = btnEl.getBoundingClientRect();
+        tip.style.left = `${Math.max(4, Math.min(r.left, window.innerWidth - tip.offsetWidth - 4))}px`;
+        tip.style.top = `${Math.max(4, r.top - tip.offsetHeight - 8)}px`;
+      } else {
+        tip.style.left = `${Math.min(this.mouse.x + 14, window.innerWidth - tip.offsetWidth - 4)}px`;
+        tip.style.top = `${Math.max(4, this.mouse.y - tip.offsetHeight - 10)}px`;
+      }
     }
   }
 }
