@@ -3,11 +3,11 @@ import type { MapDef } from '../data/trainingGrounds';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign';
+export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base';
 
 /** Show exactly one screen. */
 export function showScreen(screen: Screen) {
-  for (const s of ['home', 'game', 'builder', 'settings', 'campaign'] as Screen[]) $(s).hidden = s !== screen;
+  for (const s of ['home', 'game', 'builder', 'settings', 'campaign', 'base'] as Screen[]) $(s).hidden = s !== screen;
 }
 
 export const isGameVisible = () => !$('game').hidden;

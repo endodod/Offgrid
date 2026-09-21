@@ -115,6 +115,9 @@ export interface GameOptions {
   enemyProfile?: AiProfileId; // default 'standard' (or the map's own default)
   playerProfile?: AiProfileId; // only matters when the player team is AI-driven (the simulator, or 0d's auto-run)
   reserveMult?: number; // ammo (4): scales every unit's starting reserve; default 1 (or the map's own default)
+  playerReserveMult?: number; // base building (6): a *player-only* reserve multiplier, from a built workbench
+  medkitBonus?: number; // base building (6): extra medkits per unit, from a built medstation
+  gadgetUsesBonus?: number; // base building (6): extra gadget uses per unit, from a built comms relay
 }
 
 export interface GameState {

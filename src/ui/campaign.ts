@@ -1,3 +1,4 @@
+import { baseGameOptions } from '../core/base';
 import {
   availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign, type CampaignState,
 } from '../core/campaign';
@@ -39,11 +40,27 @@ export class Campaign {
     this.render();
   }
 
+  /** The live CampaignState, for main.ts to hand to the base screen (6) - mutated in place, not copied. */
+  campaignState(): CampaignState {
+    return this.state;
+  }
+
   /** Called once a mission launched from here ends in a player win. */
   reportWin(missionId: string) {
     if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
     else completeStoryMission(this.state, missionId);
     saveCampaign(this.state);
+  }
+
+  /** Layers a built base's meta-progression bonuses (6) onto a mission's own map - see core/base.ts. */
+  private applyBase(map: MapDef): MapDef {
+    const bonus = baseGameOptions(this.state.base);
+    return {
+      ...map,
+      playerReserveMult: 1 + bonus.reserveMultBonus,
+      ...(bonus.medkitBonus ? { medkitBonus: bonus.medkitBonus } : {}),
+      ...(bonus.gadgetUsesBonus ? { gadgetUsesBonus: bonus.gadgetUsesBonus } : {}),
+    };
   }
 
   private onPlayClick(e: Event, kind: 'story' | 'supply') {
@@ -52,10 +69,10 @@ export class Campaign {
     const id = btn.dataset.play!;
     if (kind === 'story') {
       const m = availableStoryMissions(this.state).find((x) => x.id === id);
-      if (m) this.hooks.onPlay(m.map, m.id);
+      if (m) this.hooks.onPlay(this.applyBase(m.map), m.id);
     } else {
       const m = this.state.supplyRunPool.find((x) => x.id === id);
-      if (m) this.hooks.onPlay({ ...m.map, enemyProfile: m.enemyProfile }, m.id);
+      if (m) this.hooks.onPlay(this.applyBase({ ...m.map, enemyProfile: m.enemyProfile }), m.id);
     }
   }
 

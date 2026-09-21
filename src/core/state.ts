@@ -28,16 +28,24 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
   });
   const objectiveDef = map.objective ?? (objective ? { type: 'hold' as const } : null);
 
-  const reserveMult = options.reserveMult ?? map.reserveMult ?? 1;
+  const reserveMult = options.reserveMult ?? map.reserveMult ?? 1; // symmetric map scarcity (4): both teams
+  // Base-building bonuses (6) are the player's own home-base upgrades, so - unlike reserveMult above - these
+  // apply to the player's squad only, never the enemy's.
+  const playerReserveMult = options.playerReserveMult ?? map.playerReserveMult ?? 1;
+  const medkitBonus = options.medkitBonus ?? map.medkitBonus ?? 0;
+  const gadgetUsesBonus = options.gadgetUsesBonus ?? map.gadgetUsesBonus ?? 0;
   const units: Unit[] = [];
   for (const team of TEAMS) {
+    const forPlayer = team === 'player';
     for (const [cls, x, y, aiProfile] of map.spawns[team]) {
       const def = CLASSES[cls];
       units.push({
         id: units.length, team, cls, x, y,
-        hp: def.hp, ammo: def.weapon.magazine, reserve: Math.round(def.reserve * reserveMult), medkits: RULES.medkitsPerUnit,
+        hp: def.hp, ammo: def.weapon.magazine,
+        reserve: Math.round(def.reserve * reserveMult * (forPlayer ? playerReserveMult : 1)),
+        medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0),
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
-        gadget: team === 'player' ? { id: def.gadget, uses: RULES.gadgetUsesPerMission, cooldown: 0 } : null,
+        gadget: forPlayer ? { id: def.gadget, uses: RULES.gadgetUsesPerMission + gadgetUsesBonus, cooldown: 0 } : null,
         dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, aiProfile,
       });
     }

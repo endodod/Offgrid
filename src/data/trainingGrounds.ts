@@ -54,6 +54,13 @@ export interface MapDef {
   /** Scales every unit's starting reserve ammo (4), e.g. 0.5 for a scarcer mission; undefined falls back to
    *  createGame's default (1 - each class's own `reserve` from data/units.ts, unscaled). */
   reserveMult?: number;
+  /** Base-building bonuses (6): usually set programmatically at mission-launch time from a built base's
+   *  facilities (see ui/campaign.ts's `applyBase`) rather than hand-authored, but they're plain MapDef fields -
+   *  like `reserveMult` above - so applying them needs no changes to Session's own API. Unlike `reserveMult`
+   *  (symmetric, both teams), `playerReserveMult` only ever affects the player's own squad. */
+  playerReserveMult?: number;
+  medkitBonus?: number;
+  gadgetUsesBonus?: number;
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;

@@ -1,3 +1,4 @@
+import { newBaseState } from '../core/base';
 import type { CampaignState } from '../core/campaign';
 
 const KEY = 'offgrid.campaign';
@@ -17,7 +18,11 @@ export function loadCampaign(): CampaignState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return isCampaignState(parsed) ? parsed : null;
+    if (!isCampaignState(parsed)) return null;
+    // Repair rather than reject a save from before base building (6) added `base` - a fresh, unbuilt base is
+    // a safe default and losing an otherwise-valid campaign save over one missing field would be needlessly harsh.
+    if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState();
+    return parsed;
   } catch {
     return null;
   }

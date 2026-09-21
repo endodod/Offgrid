@@ -2,6 +2,8 @@ import {
   DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_MAP, SUPPLY_RUN_NAMES, SUPPLY_RUN_PROFILE_TIERS,
   type GeneratedMissionDef, type StoryMissionDef,
 } from '../data/campaign';
+import type { FacilityId } from '../data/base';
+import { buildLevel, newBaseState, upgradeCost, type BaseState } from './base';
 import { nextRandom } from './rng';
 
 /** Persistent progress between missions (5), independent of any single mission's GameState. Mutated in place,
@@ -12,21 +14,32 @@ export interface CampaignState {
   unlockedDistricts: string[]; // District ids
   completedStoryMissions: string[]; // StoryMissionDef ids
   completedSupplyRuns: number; // also drives the difficulty/reward tier of newly generated missions
-  currency: number; // banked reward; nothing spends it yet - see #6 (base building)
+  currency: number; // banked reward; spent on base facilities (6)
   nextSupplyRunSeq: number; // monotonic, so regenerated pool slots never reuse an id within a campaign
   supplyRunPool: GeneratedMissionDef[];
+  base: BaseState; // home-base facilities (6)
 }
 
 const POOL_SIZE = 3;
 
-/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately. */
+/** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities built. */
 export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], completedStoryMissions: [],
-    completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [],
+    completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
   };
   fillPool(cs);
   return cs;
+}
+
+/** Spends currency to build/upgrade a facility one level, or returns why it can't (nothing is charged then). */
+export function upgradeFacility(cs: CampaignState, id: FacilityId): string | null {
+  const cost = upgradeCost(cs.base, id);
+  if (cost === null) return 'Already at max level';
+  if (cs.currency < cost) return 'Not enough currency';
+  cs.currency -= cost;
+  buildLevel(cs.base, id);
+  return null;
 }
 
 /** Which difficulty tier newly generated missions draw from - one step harder every 3 completed supply runs. */

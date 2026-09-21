@@ -97,6 +97,9 @@ button.enter:hover:not(:disabled) { background: #3a5c45; }
 .district.completed { border-color: #c0a052; color: #c0a052; }
 .district.locked { color: var(--dim); opacity: 0.6; }
 
+/* base building (6): a facility's already-reached tiers stand out from ones still to come */
+.chips span.ok { border-color: var(--player); color: #9fd6c2; }
+
 /* debug-only widgets and the map builder */
 [hidden] { display: none !important; }
 .mission .btns { display: flex; gap: 8px; flex-wrap: wrap; }

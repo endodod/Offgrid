@@ -3,6 +3,7 @@ import { DEBUG } from './debug';
 import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
 import { draw, TILE } from './render/renderer';
+import { Base } from './ui/base';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
 import { initHome, showScreen, type Screen } from './ui/home';
@@ -91,6 +92,9 @@ const campaign = new Campaign({
   onBack: () => showScreen('home'),
 });
 el('home-campaign').addEventListener('click', () => { campaign.open(); showScreen('campaign'); });
+
+const base = new Base({ onBack: () => { campaign.open(); showScreen('campaign'); } });
+el('campaign-to-base').addEventListener('click', () => { base.open(campaign.campaignState()); showScreen('base'); });
 
 const toMenu = () => {
   if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId);
