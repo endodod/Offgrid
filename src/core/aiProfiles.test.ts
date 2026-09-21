@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { AI_PROFILES } from '../data/aiProfiles';
 import { planAction, runAiTurn } from './ai';
 import { act, blank, makeGame, rolls, unit } from './testkit';
 
@@ -150,6 +151,41 @@ describe('AI profiles (0c)', () => {
       e.hp = 1;
       const a = planAction(s, e);
       expect(a?.type).toBe('attack'); // held in place and fought rather than fleeing
+    });
+  });
+
+  describe('friendly profile (0d: auto-run)', () => {
+    it('is patrol habitat, prioritizes a seen objective, and retreats sooner than hard', () => {
+      expect(AI_PROFILES.friendly.habitat).toBe('patrol');
+      expect(AI_PROFILES.friendly.prioritizeObjective).toBe(true);
+      expect(AI_PROFILES.friendly.retreatBelowHp).toBeGreaterThan(AI_PROFILES.hard.retreatBelowHp!);
+    });
+
+    it('heads for a seen objective ahead of chasing a spotted ghost', () => {
+      const s = makeGame(blank(20, 5), { player: { soldier: [1, 2] } }, { playerProfile: 'friendly' });
+      s.objective = { x: 15, y: 2 };
+      s.memory.player.objectiveSeen = true;
+      s.memory.player.lastSeen[999] = { x: 1, y: 4, hidden: false }; // a ghost in the opposite direction
+      runAiTurn(s, 'player');
+      expect(unit(s, 'player', 'soldier').x).toBeGreaterThan(1); // headed toward the objective (east), not the ghost
+    });
+
+    it('a friendly-controlled player unit never reacts to an enemy it has not seen (fog-fair)', () => {
+      // mirrors ai.test.ts's equivalent check for the enemy team - the exact same planAction, just team='player'
+      const s = makeGame(blank(16, 5, [[4, 1, '#'], [4, 2, '#'], [4, 3, '#']]),
+        { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } }, { playerProfile: 'friendly' });
+      expect(s.seenUnits.player.size).toBe(0); // walled off, sanity check
+      runAiTurn(s, 'player');
+      expect(s.events.some((e) => e.t === 'shot')).toBe(false);
+      expect(unit(s, 'player', 'soldier').x).toBeLessThan(4); // did not walk toward/through the hidden enemy
+    });
+
+    it('resolves deterministically for a given seed', () => {
+      const setup = () => makeGame(blank(16, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [7, 2] } }, { playerProfile: 'friendly' });
+      const run = () => { const s = setup(); runAiTurn(s, 'player'); return { units: s.units, rng: s.rng, shots: s.events.filter((e) => e.t === 'shot').length }; };
+      const a = run();
+      expect(a.shots).toBeGreaterThan(0); // exercises real RNG draws, not a vacuous no-op comparison
+      expect(a).toEqual(run());
     });
   });
 });

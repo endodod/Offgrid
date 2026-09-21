@@ -30,8 +30,9 @@ export class Session {
   floaters: Floater[] = [];
   log: LogLine[] = [];
   status = '';
-  busy = false; // true while the enemy phase is playing out
+  busy = false; // true while the enemy phase (or a player auto-run phase) is playing out
   skipEnemyPhase = false; // debug
+  autoRun = false; // player phase is played by the 'friendly' AI instead of manual input (0d)
   coverRot = 0; // rotation the tank gives the cover it places (Q / wheel)
   showOverwatch = false; // overwatch view: coverage of units on overwatch
   onChange: () => void = () => {};
@@ -53,6 +54,7 @@ export class Session {
     this.seed = seed;
     this.state = createGame(this.map, seed);
     this.busy = false;
+    this.autoRun = false;
     this.floaters = [];
     this.coverRot = 0;
     this.showOverwatch = false;
@@ -131,6 +133,22 @@ export class Session {
   toggleOverwatchView() {
     this.showOverwatch = !this.showOverwatch;
     this.onChange();
+  }
+
+  /**
+   * 0d: hand the player phase to the 'friendly' AI instead of manual input. Toggling off mid-phase lets the
+   * phase currently in progress finish (it can't cleanly abort mid-unit-turn) but stops it chaining into
+   * another one; toggling on while it's not the player's turn just arms it for when that phase starts.
+   */
+  toggleAutoRun() {
+    this.autoRun = !this.autoRun;
+    this.state.aiProfiles.player = this.autoRun ? 'friendly' : 'standard';
+    if (this.autoRun && this.ready) this.runPlayerAuto();
+    this.onChange();
+  }
+
+  private alivePlayerCount() {
+    return this.state.units.filter((u) => u.team === 'player' && u.alive && !u.downed).length;
   }
 
   /** Rotate the cover piece the tank is about to place. */
@@ -260,6 +278,38 @@ export class Session {
     this.busy = false; // selection is left alone: nothing selected stays nothing selected
     this.status = this.state.winner ? '' : 'Your turn.';
     this.onChange();
+    if (!this.state.winner && this.autoRun) this.runPlayerAuto();
+  }
+
+  /** 0d: play the player's own phase with the 'friendly' AI, mirroring endTurn()'s stepped enemy-phase loop. */
+  private runPlayerAuto() {
+    this.mode = 'move';
+    this.selectedId = null; // nothing to manually control while it's driving
+    this.busy = true;
+    const runId = ++this.runId;
+    const before = this.alivePlayerCount();
+    const gen = aiTurn(this.state, 'player');
+    const step = () => {
+      if (runId !== this.runId) return;
+      const r = gen.next();
+      this.flush();
+      if (this.autoRun && this.alivePlayerCount() < before) { // hand control back on a casualty
+        this.autoRun = false;
+        this.state.aiProfiles.player = 'standard';
+        this.say('Auto-run stopped: a unit went down.', 'system');
+      }
+      this.onChange();
+      if (r.done || this.state.winner) {
+        this.busy = false;
+        this.status = this.state.winner ? '' : this.autoRun ? 'Auto-run...' : 'Your turn.';
+        this.onChange();
+        if (!this.state.winner && this.autoRun) this.endTurn(); // chain into the enemy phase, then loop back here
+        return;
+      }
+      setTimeout(step, 220);
+    };
+    this.status = 'Auto-run...';
+    setTimeout(step, 200);
   }
 
   // ---------- helpers ----------

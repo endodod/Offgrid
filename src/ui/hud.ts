@@ -77,6 +77,7 @@ export class Hud {
     $('dbg-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
+    $('auto-run-toggle').addEventListener('click', () => session.toggleAutoRun());
     $('banner-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
   }
 
@@ -137,6 +138,7 @@ export class Hud {
     $('objective').className = s.capture ? 'securing' : '';
     $('ow-toggle').classList.toggle('active', this.session.showOverwatch);
     $('ow-legend').hidden = !this.session.showOverwatch;
+    $('auto-run-toggle').classList.toggle('active', this.session.autoRun);
 
     // aria-disabled + a class, not the disabled attribute: a truly disabled button can't be hovered or
     // focused in most browsers, which would make it impossible to show the tooltip explaining *why*.

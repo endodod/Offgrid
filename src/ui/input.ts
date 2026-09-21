@@ -28,6 +28,7 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud)
     if (!isGameVisible() || ev.ctrlKey || ev.metaKey || ev.altKey || (ev.target as HTMLElement).tagName === 'INPUT') return;
     if (ev.key === 'Escape') return session.cancel();
     if (ev.key.toLowerCase() === 'v') return session.toggleOverwatchView();
+    if (ev.key.toLowerCase() === 'p') return session.toggleAutoRun();
     if (ev.key.toLowerCase() === 'q') return session.rotateCover(ev.shiftKey ? -1 : 1);
     if (ev.key >= '1' && ev.key <= '5') {
       const mine = session.state.units.filter((u) => u.team === 'player');
