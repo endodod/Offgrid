@@ -35,7 +35,10 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
       if (ch === 'O') objectives++;
     });
   });
-  if (objectives > 1) throw new Error('At most one objective tile is allowed.');
+  // A 'reach' objective (3) marks a multi-tile extraction zone with 'O'; every other type (including the
+  // legacy hold-a-terminal default) still means at most one.
+  if (base.objective?.type === 'reach') { if (objectives < 1) throw new Error('A reach objective needs at least one objective tile.'); }
+  else if (objectives > 1) throw new Error('At most one objective tile is allowed.');
 
   const taken = new Set<string>();
   const parseTeam = (team: 'player' | 'enemy'): Spawn[] => {

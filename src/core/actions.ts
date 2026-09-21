@@ -52,7 +52,7 @@ export function gadgetTargetBlock(s: GameState, u: Unit, target?: Pos): string |
     const i = idx(s, target.x, target.y);
     if (s.terrain[i] === 'wall') return 'Cannot build on a wall';
     if (unitAt(s, target.x, target.y)) return 'Tile occupied';
-    if (s.objective && s.objective.x === target.x && s.objective.y === target.y) return 'Tile occupied';
+    if (s.objectiveDef?.type === 'hold' && s.objective && s.objective.x === target.x && s.objective.y === target.y) return 'Tile occupied';
     if (s.cover[i] === 'high') return 'Already high cover';
   }
   return null;
@@ -81,7 +81,7 @@ export function reviveBlock(u: Unit, target?: Unit): string | null {
 
 export function interactBlock(s: GameState, u: Unit): string | null {
   if (hasActions(u)) return hasActions(u);
-  if (!s.objective) return 'No objective';
+  if (s.objectiveDef?.type !== 'hold' || !s.objective) return 'No objective';
   if (cheb(u, s.objective) > 1) return 'Objective not adjacent';
   if (s.capture) return s.capture.unit === u.id ? 'Already securing the objective' : 'Objective is already being secured';
   const capture = s.options.objectiveCapture;

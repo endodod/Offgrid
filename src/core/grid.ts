@@ -11,11 +11,16 @@ export function closedDoorAt(s: GameState, x: number, y: number) {
   return s.interactables.find((it) => it.type === 'door' && !it.active && it.x === x && it.y === y);
 }
 
-/** Static obstacles: walls, cover objects, the objective terminal, and a closed door (2). */
+/**
+ * Static obstacles: walls, cover objects, a closed door (2), and - only for a 'hold' objective (3) - the
+ * terminal tile itself, which is a physical console a unit stands *next to*, not on. Other objective types
+ * (e.g. 'reach') put units on their 'O' tile(s) on purpose, so those stay open floor.
+ */
 export function blocksMove(s: GameState, x: number, y: number): boolean {
   if (!inBounds(s, x, y)) return true;
   const i = idx(s, x, y);
-  return s.terrain[i] === 'wall' || s.cover[i] !== null || (s.objective?.x === x && s.objective.y === y) || !!closedDoorAt(s, x, y);
+  const onTerminal = s.objectiveDef?.type === 'hold' && s.objective?.x === x && s.objective.y === y;
+  return s.terrain[i] === 'wall' || s.cover[i] !== null || onTerminal || !!closedDoorAt(s, x, y);
 }
 
 /** Walls and a closed door (2) block sight. High cover does only if RULES.highCoverBlocksLos is set; low cover and bushes never do. */

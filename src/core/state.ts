@@ -3,6 +3,7 @@ import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
 import { GADGETS } from '../data/gadgets';
 import { refreshVision } from './vision';
+import { holdRounds, objectiveComplete } from './objectives';
 import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pos, Team, Terrain, Unit } from './types';
 
 const TEAMS: Team[] = ['player', 'enemy'];
@@ -14,15 +15,17 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
   const cover: (Cover | null)[] = [];
   const coverRot: number[] = [];
   let objective: Pos | null = null;
+  const objectiveZone: Pos[] = [];
   map.rows.forEach((row, y) => {
     if (row.length !== width) throw new Error(`Map row ${y} has width ${row.length}, expected ${width}`);
     [...row].forEach((ch, x) => {
       terrain.push(ch === '#' ? 'wall' : ch === 'b' ? 'bush' : 'floor');
       cover.push(ch === 'h' ? 'high' : 'l123'.includes(ch) ? 'low' : null);
       coverRot.push('123'.includes(ch) ? Number(ch) : 0);
-      if (ch === 'O') objective = { x, y };
+      if (ch === 'O') { if (!objective) objective = { x, y }; objectiveZone.push({ x, y }); }
     });
   });
+  const objectiveDef = map.objective ?? (objective ? { type: 'hold' as const } : null);
 
   const units: Unit[] = [];
   for (const team of TEAMS) {
@@ -42,7 +45,7 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
 
   const emptyMemory = () => ({ lastSeen: {}, objectiveSeen: false, searchIndex: 0, doors: {} });
   const s: GameState = {
-    map, width, height, terrain, cover, coverRot, capture: null, objective, interactables, units,
+    map, width, height, terrain, cover, coverRot, capture: null, objective, objectiveZone, objectiveDef, interactables, units,
     phase: 'player', turn: 1, scans: [], seed, rng: seed, winner: null, fogEnabled: true,
     timeOfDay: options.timeOfDay ?? map.startTimeOfDay ?? 'midday',
     weather: options.weather ?? map.startWeather ?? 'clear',
@@ -103,12 +106,15 @@ export function checkWin(s: GameState) {
   if (!alive('player') && !alive('enemy')) declareWinner(s, 'draw');
   else if (!alive('player')) declareWinner(s, 'enemy');
   else if (!alive('enemy')) declareWinner(s, 'player');
+  // The other objective types (3) resolve here; 'hold' wins through tickCapture below instead, once its own
+  // round counter runs out - so objectiveComplete() deliberately never reports 'hold' as complete.
+  else if (objectiveComplete(s)) declareWinner(s, 'player');
 }
 
 // ---------- objective: interact, then hold ----------
 
 export function beginCapture(s: GameState, u: Unit) {
-  s.capture = { team: u.team, unit: u.id, at: { x: u.x, y: u.y }, roundsLeft: RULES.objectiveHoldRounds };
+  s.capture = { team: u.team, unit: u.id, at: { x: u.x, y: u.y }, roundsLeft: holdRounds(s) };
   emit(s, { t: 'capture', unit: u.id, status: 'start', roundsLeft: s.capture.roundsLeft }, true);
 }
 

@@ -5,6 +5,7 @@ import { AI_PROFILES, PROFILE_ORDER } from '../data/aiProfiles';
 import { TIME_ORDER, TIMES_OF_DAY } from '../data/timeOfDay';
 import { WEATHER_ORDER, WEATHERS } from '../data/weather';
 import { envMods, scaledMove, scaledVision } from '../core/environment';
+import { describeObjective } from '../core/objectives';
 import type { GameState } from '../core/types';
 import { keyFor } from './input';
 import { displayKey } from './keybindings';
@@ -82,19 +83,15 @@ export class Hud {
     $('banner-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
   }
 
-  /** One line telling the player what to do about the objective right now. */
+  /** One line telling the player what to do about the objective right now (3: type-generic, see core/objectives.ts). */
   private objectiveText(): string {
     const s = this.session.state;
-    const hold = RULES.objectiveHoldRounds;
     if (s.capture) {
       const u = s.units[s.capture.unit];
       const rounds = s.capture.roundsLeft;
       return `SECURING: hold ${rounds} more round${rounds > 1 ? 's' : ''} - ${nameOf(u)} must stay where it is and stay alive.`;
     }
-    const known = s.memory.player.objectiveSeen || !s.fogEnabled;
-    return known
-      ? `Objective: interact with the terminal, then keep that unit in place for ${hold} rounds. Or eliminate all enemies.`
-      : 'Objective: find the terminal (not yet spotted). Or eliminate all enemies.';
+    return describeObjective(s);
   }
 
   /** Mission panel: current map, time of day and weather, and their combined effect on move/vision/accuracy. */

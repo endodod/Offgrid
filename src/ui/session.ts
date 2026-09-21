@@ -230,7 +230,7 @@ export class Session {
       case 'interact': {
         const targets = this.interactTargets(u);
         if (targets.length) return gate(null, 'Interact', this.mode === 'interact');
-        const reason = this.state.interactables.length && !this.state.objective ? 'Not adjacent to a door or switch' : interactBlock(this.state, u);
+        const reason = this.state.interactables.length && interactBlock(this.state, u) === 'No objective' ? 'Not adjacent to a door or switch' : interactBlock(this.state, u);
         return gate(reason, 'Interact');
       }
     }

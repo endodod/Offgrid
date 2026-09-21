@@ -3,6 +3,7 @@ import type { GadgetId } from '../data/gadgets';
 import type { AiProfileId } from '../data/aiProfiles';
 import type { InteractableType, MapDef } from '../data/trainingGrounds';
 import type { ObjectiveCapture } from '../data/rules';
+import type { ObjectiveDef } from '../data/objectives';
 import type { TimeOfDayId } from '../data/timeOfDay';
 import type { WeatherId } from '../data/weather';
 
@@ -105,7 +106,9 @@ export interface GameState {
   cover: (Cover | null)[];
   coverRot: number[]; // 0..3 quarter turns; purely visual
   capture: Capture | null;
-  objective: Pos | null;
+  objective: Pos | null; // first 'O' tile, if any - the hold-type terminal's own position
+  objectiveZone: Pos[]; // every 'O' tile (3); for 'hold' this is just [objective], 'reach' can have several
+  objectiveDef: ObjectiveDef | null; // this mission's primary objective (3), resolved from MapDef.objective
   interactables: Interactable[]; // doors and switches (2); runtime copies, mutated in place
   units: Unit[];
   phase: Team;

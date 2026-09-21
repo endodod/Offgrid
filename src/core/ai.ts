@@ -4,6 +4,7 @@ import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
 import { scaledMove } from './environment';
 import { cheb, dist, distanceMap, hasLos, idx, reachable } from './grid';
+import { objectiveGoalPositions } from './objectives';
 import { rollPercent } from './rng';
 import type { GameState, Pos, Team, Unit } from './types';
 
@@ -152,22 +153,26 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
   return { type: 'move', unit: u.id, to: best.pos };
 }
 
+const nearestOf = (u: Unit, points: Pos[]): Pos | null => (points.length ? points.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b)) : null);
+
 /**
  * No target in sight: habitat decides how (or whether) the unit looks for one.
- * - patrol: chase the nearest ghost, else the objective if it has been seen, else a search waypoint (default).
- * - camper: holds a position once it has one - defends the objective if it has been seen, otherwise stays put.
+ * - patrol: chase the nearest ghost, else a seen objective goal (3), else a search waypoint (default).
+ * - camper: holds a position once it has one - defends a seen objective goal, otherwise stays put.
  * - ambush: stays completely still and hidden until it has a visible target; then it fights like a patrol.
- * prioritizeObjective (patrol only) swaps the first two: heading for a seen objective beats chasing a ghost -
- * finishing the mission over finishing a fight it doesn't have to (the 'friendly' auto-run profile).
+ * prioritizeObjective (patrol only) swaps the first two: heading for a seen objective goal beats chasing a
+ * ghost - finishing the mission over finishing a fight it doesn't have to (the 'friendly' auto-run profile).
  */
 function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
   if (profile.habitat === 'ambush') return null;
   const mem = s.memory[u.team];
-  if (profile.habitat === 'camper') return mem.objectiveSeen && s.objective ? s.objective : null;
-  if (profile.prioritizeObjective && mem.objectiveSeen && s.objective) return s.objective;
+  const goal = () => nearestOf(u, objectiveGoalPositions(s, u.team));
+  if (profile.habitat === 'camper') return goal();
+  if (profile.prioritizeObjective) { const g = goal(); if (g) return g; }
   const ghosts = Object.values(mem.lastSeen);
   if (ghosts.length) return ghosts.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
-  if (mem.objectiveSeen && s.objective) return s.objective;
+  const g = goal();
+  if (g) return g;
   const points = s.map.searchPoints[u.team];
   if (!points.length) return null;
   const rank = s.units.filter((x) => x.team === u.team && x.alive).indexOf(u);

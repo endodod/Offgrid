@@ -2,6 +2,7 @@ import type { ClassId } from './units';
 import type { AiProfileId } from './aiProfiles';
 import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
+import type { ObjectiveDef } from './objectives';
 
 /** [class, x, y, aiProfile?]. A team can field several units of one class. aiProfile overrides the team/mission
  *  default (MapDef.enemyProfile / GameOptions) for this one unit - most useful to mix habitats in one squad
@@ -37,6 +38,9 @@ export interface MapDef {
   enemyProfile?: AiProfileId;
   /** Doors and switches (2); undefined/omitted is the same as an empty list. */
   interactables?: InteractableDef[];
+  /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
+   *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
+  objective?: ObjectiveDef;
 }
 
 // Laid out in the debug map builder (see README) and pasted back from its JSON export.

@@ -214,22 +214,18 @@ function tilesWithin(s: GameState, c: Pos, r: number): number[] {
   return out;
 }
 
+/**
+ * The objective marker (3): drawn once per zone tile (`objectiveZone` - a single tile for 'hold', potentially
+ * several for 'reach'; empty for 'eliminateTarget'/'sabotage', which have no tile of their own to mark - a
+ * distinct sprite per type is deferred to the visual rehaul, #9).
+ */
 function drawObjective(ctx: CanvasRenderingContext2D, v: View) {
   const { s } = v;
-  if (!s.objective || !(s.memory.player.objectiveSeen || !s.fogEnabled)) return; // once seen, it stays marked
-  const seen = isVisible(s, s.objective.x, s.objective.y);
-  const px = s.objective.x * TILE, py = s.objective.y * TILE;
-  ctx.fillStyle = seen ? C.objective : grey(C.objective);
-  ctx.fillRect(px + 8, py + 6, TILE - 16, TILE - 12);
-  ctx.fillStyle = C.ink;
-  ctx.fillRect(px + 11, py + 9, TILE - 22, 8);
-  ctx.fillStyle = seen ? '#cfe8dd' : '#888';
-  ctx.fillRect(px + 13, py + 11, TILE - 26, 4);
-  ctx.strokeStyle = seen ? C.objective : '#777';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(px + 3, py + 3, TILE - 6, TILE - 6);
-  if (s.capture) { // hold in progress: rounds left, and a link to the unit that has to stay put
+  if (!s.objectiveZone.length || !(s.memory.player.objectiveSeen || !s.fogEnabled)) return; // once seen, it stays marked
+  for (const pos of s.objectiveZone) drawObjectiveMarker(ctx, s, pos);
+  if (s.capture && s.objective) { // hold in progress: rounds left, and a link from the terminal to the unit holding it
     const u = s.units[s.capture.unit];
+    const px = s.objective.x * TILE, py = s.objective.y * TILE;
     ctx.strokeStyle = C.objective;
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
@@ -245,6 +241,20 @@ function drawObjective(ctx: CanvasRenderingContext2D, v: View) {
     ctx.fillStyle = C.objective;
     ctx.fillText(`HOLD ${s.capture.roundsLeft}`, px + TILE / 2, py - 4);
   }
+}
+
+function drawObjectiveMarker(ctx: CanvasRenderingContext2D, s: GameState, pos: Pos) {
+  const seen = isVisible(s, pos.x, pos.y);
+  const px = pos.x * TILE, py = pos.y * TILE;
+  ctx.fillStyle = seen ? C.objective : grey(C.objective);
+  ctx.fillRect(px + 8, py + 6, TILE - 16, TILE - 12);
+  ctx.fillStyle = C.ink;
+  ctx.fillRect(px + 11, py + 9, TILE - 22, 8);
+  ctx.fillStyle = seen ? '#cfe8dd' : '#888';
+  ctx.fillRect(px + 13, py + 11, TILE - 26, 4);
+  ctx.strokeStyle = seen ? C.objective : '#777';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px + 3, py + 3, TILE - 6, TILE - 6);
 }
 
 /**

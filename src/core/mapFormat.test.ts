@@ -66,6 +66,28 @@ describe('map format', () => {
   });
 });
 
+describe('objective tile count (feature 3): a reach objective relaxes the "at most one" rule', () => {
+  const reachBase = { ...base, objective: { type: 'reach' as const, unitsRequired: 1 } };
+
+  it('a reach mission requires at least one objective tile', () => {
+    const m = clone();
+    setTile(m.rows, 12, 7, '.'); // remove Training Grounds' one 'O'
+    expect(() => parseMap(m, reachBase)).toThrow('at least one objective tile');
+  });
+
+  it('a reach mission allows more than one objective tile', () => {
+    const m = clone();
+    setTile(m.rows, 0, 0, 'O'); // a second 'O', alongside the existing one at (12,7)
+    expect(parseMap(m, reachBase).rows).toEqual(m.rows);
+  });
+
+  it('every other objective type (including the undefined/legacy default) still allows at most one', () => {
+    const m = clone();
+    setTile(m.rows, 0, 0, 'O');
+    expect(() => parseMap(m, base)).toThrow('At most one objective');
+  });
+});
+
 describe('interactables (doors/switches, feature 2)', () => {
   // (0,0) and (0,15) are both open floor, unoccupied by any spawn or the objective.
   const door = { id: 1, type: 'door' as const, x: 0, y: 0 };

@@ -6,6 +6,13 @@ import { act, blank, makeGame, rolls, unit } from './testkit';
 /** Ends the player's phase (so the enemy is up) and plays out the enemy's whole turn. */
 const runEnemyTurn = (s: ReturnType<typeof makeGame>) => { act(s, { type: 'endTurn' }); runAiTurn(s, 'enemy'); };
 
+/** Pokes a hold-type objective directly onto an already-built state, for maps with no 'O' tile of their own. */
+const setObjective = (s: ReturnType<typeof makeGame>, x: number, y: number) => {
+  s.objective = { x, y };
+  s.objectiveZone = [{ x, y }];
+  s.objectiveDef = { type: 'hold' };
+};
+
 describe('AI profiles (0c)', () => {
   it('defaults to "standard" for both teams', () => {
     const s = makeGame(blank(10, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [8, 2] } });
@@ -21,7 +28,7 @@ describe('AI profiles (0c)', () => {
     // team default is 'ambush' (never moves, not even toward a seen objective); this one unit is overridden to
     // 'camper', which does advance toward a seen objective - so the override is provably in effect, not just stored.
     const s = makeGame(blank(30, 5), { player: { soldier: [1, 2] }, enemy: { tank: [28, 2, 'camper'] } }, { enemyProfile: 'ambush' });
-    s.objective = { x: 10, y: 2 };
+    setObjective(s, 10, 2);
     s.memory.enemy.objectiveSeen = true;
     const t = unit(s, 'enemy', 'tank');
     expect(t.aiProfile).toBe('camper');
@@ -49,7 +56,7 @@ describe('AI profiles (0c)', () => {
 
     it('camper still advances toward a seen-but-unreachable objective', () => {
       const s = makeGame(blank(30, 5), { player: { soldier: [1, 2] }, enemy: { tank: [28, 2] } }, { enemyProfile: 'camper' });
-      s.objective = { x: 10, y: 2 };
+      setObjective(s, 10, 2);
       s.memory.enemy.objectiveSeen = true;
       runEnemyTurn(s);
       expect(unit(s, 'enemy', 'tank').x).toBeLessThan(28);
@@ -163,7 +170,7 @@ describe('AI profiles (0c)', () => {
 
     it('heads for a seen objective ahead of chasing a spotted ghost', () => {
       const s = makeGame(blank(20, 5), { player: { soldier: [1, 2] } }, { playerProfile: 'friendly' });
-      s.objective = { x: 15, y: 2 };
+      setObjective(s, 15, 2);
       s.memory.player.objectiveSeen = true;
       s.memory.player.lastSeen[999] = { x: 1, y: 4, hidden: false }; // a ghost in the opposite direction
       runAiTurn(s, 'player');
