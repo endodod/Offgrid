@@ -5,8 +5,8 @@ import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import {
   applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
-  addGear, equipFromInventory, migrateCampaign, moveEquipped, perkSlots, progressFor, recordMissionGear,
-  resolveSupplyRun, setPerkSlot, stockOf, togglePerk, unequipToInventory,
+  addGear, equipFromInventory, markIntroSeen, migrateCampaign, moveEquipped, perkSlots, progressFor,
+  recordMissionGear, resolveSupplyRun, setPerkSlot, stockOf, togglePerk, unequipToInventory, unseenIntros,
 } from './campaign';
 
 /** A minimal EndedUnit for recordMissionGear/applyMissionXp tests - fills in stat defaults not under test. */
@@ -51,18 +51,37 @@ describe('campaign (feature 5)', () => {
   it('only lists available story missions (unlocked district, not yet completed)', () => {
     const cs = newCampaign(1);
     const ids = availableStoryMissions(cs).map((m) => m.id);
-    expect(ids).toEqual(['lights-out', 'signal-fire']); // both riverside missions; market-row is still locked
+    const riverside = STORY_MISSIONS.filter((m) => m.district === 'riverside').map((m) => m.id);
+    expect(ids).toEqual(riverside); // every riverside mission; market-row is still locked
+    expect(ids).toHaveLength(5);
   });
 
   it('completing every story mission in a district unlocks the next one', () => {
     const cs = newCampaign(1);
-    completeStoryMission(cs, 'lights-out');
-    expect(districtStatus(cs, 'riverside')).toBe('available'); // one of two done, not yet completed
+    const riverside = STORY_MISSIONS.filter((m) => m.district === 'riverside');
+    for (const m of riverside.slice(0, -1)) completeStoryMission(cs, m.id);
+    expect(districtStatus(cs, 'riverside')).toBe('available'); // four of five done, not yet completed
     expect(cs.unlockedDistricts).not.toContain('market-row');
-    completeStoryMission(cs, 'signal-fire');
+    completeStoryMission(cs, riverside[riverside.length - 1].id);
     expect(districtStatus(cs, 'riverside')).toBe('completed');
     expect(cs.unlockedDistricts).toContain('market-row');
-    expect(availableStoryMissions(cs).map((m) => m.id)).toEqual(['supply-run-market-row', 'jackals-den']);
+    expect(availableStoryMissions(cs).map((m) => m.id))
+      .toEqual(STORY_MISSIONS.filter((m) => m.district === 'market-row').map((m) => m.id));
+  });
+
+  it('gives every district that has missions at all exactly five of them', () => {
+    for (const district of new Set(STORY_MISSIONS.map((m) => m.district))) {
+      expect.soft(STORY_MISSIONS.filter((m) => m.district === district), district).toHaveLength(5);
+    }
+  });
+
+  it('shows a briefing once per district, when it unlocks', () => {
+    const cs = newCampaign(1);
+    expect(unseenIntros(cs)).toEqual(['riverside']); // only the starting district is unlocked
+    markIntroSeen(cs, 'riverside');
+    expect(unseenIntros(cs)).toEqual([]);
+    for (const m of STORY_MISSIONS.filter((x) => x.district === 'riverside')) completeStoryMission(cs, m.id);
+    expect(unseenIntros(cs)).toEqual(['market-row']); // the new district's briefing is now pending
   });
 
   it('completing every written story mission unlocks the next district in the order and does not crash beyond it', () => {

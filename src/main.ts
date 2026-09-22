@@ -82,6 +82,11 @@ const startGame = (map: MapDef, fromBuilder: boolean, missionId?: string) => {
   session.load(map);
   showScreen('game');
   request();
+  // after the screen is visible (so the scroll box has a size) and the canvas has been resized for this map
+  requestAnimationFrame(() => {
+    const start = session.focusTile();
+    if (start) viewport.center(start.x, start.y);
+  });
   const isTutorialMission = missionId === TUTORIAL_MISSION_ID;
   el('tutorial-replay').hidden = !isTutorialMission;
   if (isTutorialMission && !tutorialDismissed()) tutorial.start();

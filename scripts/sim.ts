@@ -5,14 +5,14 @@
 //                  [--reserve-mult 1] (ammo economy, 4 - e.g. 0.5 for a scarcer mission)
 //                  [--player-level 1] (leveling, 8 - every player class starts at this level with its
 //                  perks-so-far equipped up to its slot count; 0/omitted = no progress, matching a fresh campaign)
-//                  [--map training-grounds|lights-out|signal-fire|market-row|jackals-den|fuel-depot|
-//                        pharmacy-row|rail-yard|underpass|waterworks] (which layout to simulate)
+//                  [--map <id>] which layout to simulate; run with an unknown id to list them all
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
 import type { AiProfileId } from '../src/data/aiProfiles';
 import { TRAINING_GROUNDS, type ClassProgress, type MapDef } from '../src/data/trainingGrounds';
 import {
-  FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, PHARMACY_ROW, RAIL_YARD, SIGNAL_FIRE, UNDERPASS, WATERWORKS,
+  COLD_STORAGE, FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, NIGHT_MARKET, PHARMACY_ROW, PUMPHOUSE,
+  RAIL_YARD, ROW_RELAY, SIGNAL_FIRE, THE_CLINIC, TOLLGATE, UNDERPASS, WATERWORKS,
 } from '../src/data/maps';
 import { LEVEL_PATHS } from '../src/data/leveling';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
@@ -38,7 +38,7 @@ const objectiveCapture = (oi >= 0 ? args[oi + 1] : 'none') as ObjectiveCapture;
 const timeOfDay = str('--time-of-day', 'midday') as TimeOfDayId;
 const weather = str('--weather', 'clear') as WeatherId;
 const aiRevive = !args.includes('--no-ai-revive');
-const enemyProfile = str('--enemy-profile', 'standard') as AiProfileId;
+const enemyProfileFlag = str('--enemy-profile', '') as AiProfileId | '';
 const playerProfile = str('--player-profile', 'standard') as AiProfileId;
 const reserveMult = num('--reserve-mult', 1);
 const playerLevel = num('--player-level', 0);
@@ -46,7 +46,10 @@ const playerLevel = num('--player-level', 0);
 /** Every hand-authored layout, by the id `--map` takes. Defaults to Training Grounds, the historical baseline. */
 const MAPS: Record<string, MapDef> = {
   'training-grounds': TRAINING_GROUNDS,
-  'lights-out': LIGHTS_OUT, 'signal-fire': SIGNAL_FIRE, 'market-row': MARKET_ROW, 'jackals-den': JACKALS_DEN,
+  'lights-out': LIGHTS_OUT, 'signal-fire': SIGNAL_FIRE, 'cold-storage': COLD_STORAGE,
+  'pumphouse': PUMPHOUSE, 'tollgate': TOLLGATE,
+  'market-row': MARKET_ROW, 'clinic': THE_CLINIC, 'row-relay': ROW_RELAY, 'night-market': NIGHT_MARKET,
+  'jackals-den': JACKALS_DEN,
   'fuel-depot': FUEL_DEPOT, 'pharmacy-row': PHARMACY_ROW, 'rail-yard': RAIL_YARD, 'underpass': UNDERPASS,
   'waterworks': WATERWORKS,
 };
@@ -69,6 +72,10 @@ function progressAtLevel(cls: ClassId, level: number): ClassProgress {
 const map = playerLevel > 0
   ? { ...baseMap, startingProgress: Object.fromEntries(CLASS_ORDER.map((cls) => [cls, progressAtLevel(cls, playerLevel)])) }
   : baseMap;
+
+// Default to the map's own shipped profile, so a run measures the mission as it ships rather than as
+// 'standard' regardless of what the designer chose.
+const enemyProfile: AiProfileId = enemyProfileFlag || baseMap.enemyProfile || 'standard';
 
 const results: MatchResult[] = [];
 for (let i = 0; i < n; i++) {

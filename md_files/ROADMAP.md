@@ -368,8 +368,11 @@ supply-run pool's own design (five hand-authored layouts x six complications x f
 
 What changed since this section was a set of planning bullets:
 
-- **All four Act 1 missions have real, individually designed maps** (`src/data/maps/`), one per objective
-  type, none of them reusing Training Grounds. That closes #5's biggest scope cut (see its Resolved list).
+- **Act 1 has ten story missions, five per district, each on its own hand-authored 48x32 map**
+  (`src/data/maps/story/`), one per objective type, none reusing Training Grounds. That closes #5's biggest
+  scope cut (see its Resolved list). The maps are composed structurally via `src/data/maps/compose.ts`.
+- **The story is told in the UI**, not just in this repo: each district has a briefing modal shown once when
+  it unlocks, and each story mission has a debrief shown when it is completed.
 - **Generated supply runs draw from five more hand-authored layouts**, not one placeholder, and roll a
   weather/time/scarcity complication on top. A saved campaign stores the template id, not a baked `MapDef`.
 - `scripts/sim.ts` gained `--map <id>` so every layout can be balance-checked the same way Training Grounds

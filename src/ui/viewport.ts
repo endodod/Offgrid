@@ -24,6 +24,8 @@ const KEY = 'offgrid.zoom';
  */
 export class Viewport {
   private mode: string;
+  /** The last tile the camera was pointed at, so a zoom change keeps looking at the same place. */
+  private last: { x: number; y: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private wrap: HTMLElement, segEl: HTMLElement) {
     this.mode = load();
@@ -45,10 +47,25 @@ export class Viewport {
       this.canvas.style.width = `${cols * z.px}px`;
       this.canvas.style.maxWidth = 'none';
     }
+    // Zooming should not also move you somewhere else: re-centre on whatever the camera was last watching,
+    // on the next frame, once the browser has laid the new canvas size out.
+    const last = this.last;
+    if (last) requestAnimationFrame(() => this.center(last.x, last.y));
+  }
+
+  /** Put the given tile in the middle of the viewport, for the first frame of a new mission. */
+  center(tileX: number, tileY: number) {
+    this.last = { x: tileX, y: tileY };
+    const scale = this.canvas.getBoundingClientRect().width / this.canvas.width;
+    this.wrap.scrollTo({
+      left: Math.max(0, (tileX + 0.5) * TILE * scale - this.wrap.clientWidth / 2),
+      top: Math.max(0, (tileY + 0.5) * TILE * scale - this.wrap.clientHeight / 2),
+    });
   }
 
   /** Scroll the given tile into view, with a margin, but only if it is not comfortably visible already. */
   ensureVisible(tileX: number, tileY: number) {
+    this.last = { x: tileX, y: tileY };
     const scale = this.canvas.getBoundingClientRect().width / this.canvas.width; // device px -> css px
     const px = (tileX + 0.5) * TILE * scale;
     const py = (tileY + 0.5) * TILE * scale;

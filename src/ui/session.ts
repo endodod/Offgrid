@@ -62,7 +62,9 @@ export class Session {
     this.autoRun = false;
     this.lastAction = null;
     this.floaters = [];
-    this.focus = null;
+    // Open the camera on the squad, not on tile (0,0): on a 48x32 map the spawn corner is off screen.
+    const first = this.state.units.find((u) => u.team === 'player');
+    this.focus = first ? { x: first.x, y: first.y } : null;
     this.coverRot = 0;
     this.showOverwatch = false;
     this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];

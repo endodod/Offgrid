@@ -1,11 +1,11 @@
 # Ashport
 
 The story bible. Premise, factions, the shape of all three acts, and a per-mission design sheet for every
-level that actually exists in the build. ROADMAP.md tracks *features*; this file tracks *fiction and levels*.
+level in the build. ROADMAP.md tracks *features*; this file tracks *fiction and levels*.
 
 Rule of thumb used throughout: **nothing here needs a narrative system.** Every beat is carried by a mission's
-objective type, its map, its weather, or a line of text on the campaign screen. If a beat can only be told in
-a cutscene, it gets cut or rewritten until a map can tell it.
+objective type, its map, its weather, a district briefing modal, or a line of debrief text. If a beat can only
+be told in a cutscene, it gets cut or rewritten until a map can tell it.
 
 ---
 
@@ -34,15 +34,23 @@ that makes you visible.
 | | Who | What they want | How they play |
 |---|---|---|---|
 | **The Lamplighters** | The player squad. Five people who were not anybody before the Blackout. | A block that stays lit. Then another one. | You. |
-| **The Jackals** (Act 1) | Scavenger raiders. No structure beyond whoever is currently frightening. | Whatever is not nailed down, and the people who are. | `easy` / `standard` profiles. Sloppy, aggressive, punished by patience. |
+| **The Jackals** (Act 1) | Scavenger raiders — until Act 1 reveals they are being organised by somebody. | Whatever is not nailed down, and the people who are. | `easy` / `standard`. Aggressive, sloppy, punished by patience. |
 | **The Cinder Wardens** (Act 2) | An organised militia that carved the city into fiefs. Checkpoints, tithes, ledgers. | Fuel and food, taken on a schedule, from people who cannot refuse. | `camper` / `hard` / `ambush`. Fortified positions and prepared ground. |
 | **Halcyon Systems** (Act 3) | The utility and security contractor that ran Ashport's grid before the Blackout. | To keep the outage from ever being attributed. | Not yet designed. |
 
-**The twist**, seeded from the first mission and paid off in Act 3: the Cinder Wardens are Halcyon's
-contracted enforcement arm, still running the last orders they were given, long after anyone was left to
-countermand them. The Blackout was Halcyon's — a failure they chose not to fix because fixing it meant
-admitting it. Every tithe ledger the player takes off a Warden is stamped with a cinder-and-wrench mark,
-which is a Halcyon subcontractor stamp; the player sees it four times before anyone explains it.
+**The twist**, seeded from Riverside's fourth mission and paid off in Act 3: the Cinder Wardens are Halcyon's
+contracted enforcement arm, still executing the last orders they were given long after anyone was left to
+countermand them. The Blackout was Halcyon's — a failure they chose not to fix, because fixing it meant
+admitting it had started on their side of the meter.
+
+**The cinder-and-wrench stamp** is how that is seeded, and it is seeded four times before anybody explains it:
+
+1. **The Pumphouse** — a maintenance sticker on the sluice board: *HALCYON SYSTEMS — DO NOT OPERATE WITHOUT AUTHORISATION*.
+2. **The Row Relay** — a frequency list taped inside a transmitter cabinet, with one frequency that is not a Jackal frequency, signed with a cinder over a wrench.
+3. **The Night Market** — Sable's ledger is not what the Jackals *took*. It is what they *handed over*, quarterly, marked PAID under the same stamp.
+4. **The Jackals' Den** — Vex's fuel-tithe schedule, countersigned by the Cinder Wardens of the Dockyards, above the mark of the company that used to run the lights.
+
+The player is told nothing. They are shown the same stamp four times in four different kinds of document.
 
 ---
 
@@ -50,185 +58,289 @@ which is a Halcyon subcontractor stamp; the player sees it four times before any
 
 | Act | Districts | Antagonist | Shape |
 |---|---|---|---|
-| 1 | Riverside, Market Row | the Jackals | Teaches the loop: light a block, find a recruit, run a supply job, take out the local leader. Low stakes, on purpose. |
+| 1 | Riverside, Market Row | the Jackals | Teaches the loop: light a block, feed it, water it, take the road. Then find out the raiders have a landlord. |
 | 2 | Dockyards, Substation Hill, Old Town | the Cinder Wardens | Escalation. Fortified positions, patrol/turret AI profiles, and an ammo economy that actually bites. |
-| 3 | Uptown, The Spire | Halcyon Systems | Payoff. The Wardens' command structure collapses once Halcyon is exposed; the last mission is retaking the Spire and handing grid control back to the districts. |
+| 3 | Uptown, The Spire | Halcyon Systems | Payoff. The Wardens collapse once Halcyon is exposed; the last mission is retaking the Spire and handing grid control back to the districts. |
 
 District order is linear: Riverside → Market Row → Dockyards → Substation Hill → Old Town → Uptown → The
-Spire. Acts 2 and 3 have districts and a shape but **no missions written yet** — they are the next content
-task, and `data/campaign.ts` already has the slots.
+Spire. Each district has **five story missions**; clearing all five unlocks the next district and shows its
+briefing. Acts 2 and 3 have districts, briefings and a shape but **no missions written yet** — see §6.
+
+**District briefings** are a modal shown once, the first time a district unlocks (`District.intro` in
+`data/campaign.ts`, tracked by `CampaignState.seenIntros`). **Mission debriefs** are the same modal, shown
+when a story mission is completed (`StoryMissionDef.outcome`). Both queue from `Campaign.open()`, so finishing
+the mission that clears a district shows the debrief and *then* the next district's briefing, in that order.
 
 ---
 
-## 4. Act 1: the four levels, in detail
+## 4. Act 1, Riverside: the five levels
 
-All four are built and playable. Each has its own `MapDef` under `src/data/maps/`, designed around its own
-objective type — none of them share a layout, and none of them reuse Training Grounds.
+Every mission owns a hand-authored **48×32** `MapDef` under `src/data/maps/story/`, composed structurally with
+`src/data/maps/compose.ts` rather than typed row by row. No two share a layout, and each is built around one
+objective type chosen before the map was drawn.
 
-Balance figures below are AI-vs-AI, from `npm run sim -- --map <id>`, which gives the player **no gadgets, no
-gear and no levels**. A real player has all three, so treat these as a floor.
+Balance figures are AI-vs-AI, from `npm run sim -- --map <id> --objective player`, 60 matches, using each
+map's own shipped enemy profile. The sim gives the player **no gadgets, no gear and no levels**, so treat
+every number as a floor.
 
-### 4.1 Lights Out — `lights-out` — `data/maps/lightsOut.ts`
+| # | Mission | Objective | Conditions | Sim (player / enemy / draw) |
+|---|---|---|---|---|
+| 1 | **Lights Out** | `sabotage` ×2 | Afternoon, clear, `easy` | 92 / 2 / 7 |
+| 2 | **Signal Fire** | `hold` ×4 rounds | Midnight, storm | 92 / 8 / 0 |
+| 3 | **Cold Storage** | `reach` ×3 units | Midnight, fog | 63 / 10 / 27 |
+| 4 | **The Pumphouse** | `sabotage` ×3 | Morning, rain | 80 / 17 / 3 |
+| 5 | **The Tollgate** | `eliminateTarget` | Afternoon, fog | 62 / 2 / 37 |
 
-| | |
-|---|---|
-| **District** | Riverside |
-| **Objective** | `sabotage` — throw both breakers |
-| **Map** | Riverside Substation, 24×16 |
-| **Conditions** | Afternoon, clear. Enemy profile `easy`. |
-| **Sim** | Player 79% / enemy 8% / draw 13% at its own `easy` profile. |
-
+### 4.1 Lights Out — `lights-out`
 **Beat.** The substation two blocks from the safehouse still has a working feeder. The Jackals fenced it
 first. Get in, throw both breakers, and Riverside has light for the first time in three years.
 
-**Design.** The map is cut in half by a chain-link fence at x=11 with exactly two ways through: a gate at
-(11,7) that starts **closed**, and a torn breach at (11,12)–(11,13) that is always open. That is the first
-thing the mission teaches — not "walk forward", but "pick your entry". The gate is the fast, exposed route;
-the breach is slow and drops you at the back of the compound.
+**Teaches: pick your entry.** A chain-link fence cuts the map in half at x=16 with three ways through — a gate
+at (16,16) that starts closed, and a torn breach at (16,24)–(16,25) that never does. The gate is short and
+exposed; the breach is a long walk that drops you behind the transformer pens.
 
-Breaker A is in the control shack (switch 10, at (21,1)), Breaker B is at the back of a transformer pen that
-is only open to the south (switch 11, at (22,13)). Two objectives at opposite corners means the squad has to
-split or commit, which is the second thing it teaches.
+**Also teaches: split or commit.** The two breakers are at opposite corners — one inside the control building
+in the north-east, one at the back of a transformer pen that is open along a single side.
 
-**A deliberate reversal:** the shack door (21,4) starts **open**. An earlier draft sealed a sniper in there
-with Breaker A, which was atmospheric and wrong — the AI does not open doors, so it also made "eliminate
-every enemy" unreachable until the player breached. Gating the alternate win condition behind a door is the
-wrong lesson for mission 1. The optional gate is the closed door here; the mandatory room is not.
+**A deliberate reversal.** The control building's door starts *open*. An earlier draft sealed a sniper in with
+Breaker A, which was atmospheric and wrong: the AI does not open doors, so it also made "eliminate every
+enemy" unreachable until the player breached. Gating the alternate win condition behind a door is the wrong
+lesson for mission 1. The optional route is the closed door here; the mandatory room is not.
 
-**Ends with:** Abel Cortez climbs out of the basement where he has been rationing a case of water for nine
-days, and asks who he has to shoot to stay. First recruit.
+**Ends with:** Abel Cortez climbs out of a basement where he has been rationing a case of water for nine days,
+and asks who he has to shoot to stay.
 
-### 4.2 Signal Fire — `signal-fire` — `data/maps/signalFire.ts`
+### 4.2 Signal Fire — `signal-fire`
+**Beat.** Power means the Kestrel Street relay can broadcast. Four rounds of carrier tone is enough for anyone
+still listening to find us — and enough for every Jackal in the district to find the roof.
 
-| | |
-|---|---|
-| **District** | Riverside |
-| **Objective** | `hold`, `holdRounds: 4` |
-| **Map** | Kestrel Street Rooftop, 24×16 |
-| **Conditions** | Midnight, storm. Enemy profile `standard`. Six enemies. |
-| **Sim** | Player 93% via objective in ~8 turns, but 19% of all units end downed and unrevived. |
+**Teaches: hold a line.** The whole map is one rooftop. The outer wall is the parapet; two internal parapets
+split it into three bands connected only through seven numbered gaps. The squad starts *on* the objective, so
+there is no approach phase: the hold can begin on turn one and the mission is the four rounds after that.
 
-**Beat.** Power means the Kestrel Street relay can broadcast. Four rounds of carrier tone is enough for
-anyone still listening to find us — and enough for every Jackal in the district to find the roof.
+`holdRounds: 4` instead of the global default of 2 is what turns "hold" from a race into a siege. Seven
+attackers through seven gaps from two directions is the pressure that number is calibrated against.
 
-**Design.** The whole map is one roof. The border wall is the parapet; the only ways up are four stairheads —
-two in the north parapet (x=5, x=18), one west at (0,4), one east at (23,11). The squad starts *on* the
-objective. There is no approach phase at all: you can start the hold on turn one, and the entire mission is
-the four rounds after that.
+Midnight + storm is not set dressing: halved vision and −20 accuracy hurt the side crossing open roof far more
+than the side behind a parapet, which is the only reason a 5-against-7 defence is winnable.
 
-`holdRounds: 4` instead of the global default of 2 is what converts "hold" from a race into a siege. Two
-rounds is "get there first". Four is "survive what arrives". Six attackers against five defenders, from four
-directions at once, is the pressure that number is calibrated against.
+**Ends with:** the tone goes out into a city with nothing left to answer it. Nothing does, that night.
+Something answers three days later, in code, from the Dockyards, and it is not friendly.
 
-Midnight + storm is not set dressing. Halved vision and a −20 accuracy penalty hurt the side crossing open
-roof far more than the side sitting in parapet cover, which is the only reason a 5-vs-6 defence is winnable —
-and it means the mission about a light in the dark is played in the dark.
+### 4.3 Cold Storage — `cold-storage`
+**Beat.** Bellweather's packing plant has been sealed since the Blackout, which is another way of saying
+nobody has eaten what is in it. The Jackals got there this morning.
 
-**Ends with:** the tone goes out. Nothing answers that night. Something answers three days later, in code,
-from the Dockyards, and it is not friendly.
+**Teaches: doors are a decision.** Four halls, three dividing walls, two roller doors in each wall. One of
+each pair is already up and one is down, so every hall has a route the Jackals will use and a second route
+only the squad can open. The AI does not open doors — so a door you open is a flank you then have to watch,
+and a door you leave shut is one that stays shut.
 
-### 4.3 Supply Run: Market Row — `supply-run-market-row` — `data/maps/marketRow.ts`
+Freezer racks run north-south, across the line of advance, so there is no long lane through the building.
+Night *and* fog is the first mission that punishes not bringing `flashlight` or `nvg`: between them they halve
+both penalties.
 
-| | |
-|---|---|
-| **District** | Market Row |
-| **Objective** | `reach`, `unitsRequired: 3` |
-| **Map** | Market Row, 24×16 |
-| **Conditions** | Morning, rain. Enemy profile `easy`. |
-| **Sim** | Player 83% / enemy 13% / draw 5%, ~11 turns. |
+**Ends with:** four hundred kilos of sealed protein and a working generator. Abel stops asking whether he can
+stay.
 
-**Beat.** Abel says the covered market still has sealed crates under the collapsed awnings. Low stakes, high
-value: get in, take what you can carry, be at the loading bay before the Jackals work out you are there.
+### 4.4 The Pumphouse — `the-pumphouse`
+**Beat.** Light and food, and still everybody is boiling river water. Dawes Street still has pressure in the
+mains.
 
-**Design.** A straight west-to-east run down a covered market street. Shopfronts line the top and bottom, each
-with one doorway onto the street; stalls make the cover islands in the middle; the extraction zone is the
-loading bay in the east corner (seven `O` tiles).
+**Teaches: interactables are a system, not scenery.** Three valves have to be turned. One is out in the open
+pipe gallery; two are inside settling tanks whose hatches start closed. There are two ways to open those
+hatches:
 
-`unitsRequired: 3`, not 5, is the point of the mission: it is "get the crates out", not "get everyone out".
-Losing somebody on the way is a setback, not an automatic restart. This is also the first mission that is low
-enough stakes to be worth handing to auto-run (`P`), which is by design.
+- walk to each one and lever it — one action each, three separate approaches; or
+- reach the sluice board at (44,22) in the far south-east corner and throw the master switch, which is
+  **linked to all three hatches** and opens them together.
 
-The crates are ordinary pickups (ammo, medkits, a gadget charge) and nothing forces you to take them. Both
-chests are inside shopfronts, and two of the five Jackals are sitting in shopfronts too — so the detour off
-the straight line between spawn and exit is a real decision instead of free money.
+The master switch is *not* one of the objective's three valves. It is a shortcut, not a step — and because a
+switch toggles, throwing it after you have levered a hatch by hand shuts that one again.
 
-**Ends with:** enough ammunition and gauze to matter, and a name scratched into every crate lid: **VEX**. The
-Jackals are not scavengers picking over Market Row. Somebody is running it.
+The pipe gallery is staggered wall runs with offset gaps: nothing lines up, for shooting or for walking.
 
-### 4.4 The Jackals' Den — `jackals-den` — `data/maps/jackalsDen.ts`
+**Ends with:** water, brown for an hour and then clear. **And the first cinder-and-wrench sighting** — a
+Halcyon maintenance sticker on the sluice board. Nobody in Riverside has heard the name.
 
-| | |
-|---|---|
-| **District** | Market Row |
-| **Objective** | `eliminateTarget`, spawn index 0, "Vex, the Jackal leader" |
-| **Map** | The Jackals' Den, 24×16 |
-| **Conditions** | Afternoon, cloudy. Enemy profile `standard`. Leader on `camper`. |
-| **Sim** | With the office opened so the fight is measurable: fresh squad 47%, level-3 squad 78%, level-5 squad 94%. |
+### 4.5 The Tollgate — `the-tollgate`
+**Beat.** Halloway has held the Kestrel Bridge since the second winter and taxes everything that crosses it,
+which now includes us. There is no way around a bridge.
 
-**Beat.** Vex runs the district out of the freight warehouse on the east end. Take the district by taking him
-— everything the Jackals have is held together by the fact that nobody has.
+**Teaches: there is no flank.** The causeway is sixteen rows wide and forty-six long, open water either side.
+Three barricade lines cross it, each with its three-tile gaps in a different place, so advancing means
+committing to a lane and then changing lanes under fire.
 
-**Design.** An approach yard west, a warehouse east, one solid wall between them at x=8 with two loading-dock
-doors. (8,11) is already rolled up, so the Jackals inside come out to meet you; (8,7) is shut, so there is a
-second breach point you open on your own terms. Inside: four single rows of shelving, each with a clear aisle
-behind it, and Vex's office walled off in the north-east corner behind one closed door at (21,5).
+Halloway sits in the toll house on `camper` — he holds what he has rather than coming to meet you, which on a
+map with no way around him means the mission ends where the map does. The 37% draw rate in the sim is exactly
+that: two AIs that will not dig each other out. A human will.
 
-**Vex is a `tank` with the `camper` profile, not a new stat block.** 24 HP and 3 armor behind a door already
-reads as "the one you have to dig out", and `data/units.ts` has no per-instance stats to hang a bespoke boss
-on. The roadmap's suggested "boss affix" is not needed; the class table already contains a convincing boss.
+Fog is the counterweight to having nothing to flank through; a squad carrying `flashlight` halves it back
+again, which is the first time the loadout screen visibly decides how a mission opens.
 
-**Balance history worth keeping:** the shelving was originally four *double* rows. Nothing could be flanked,
-and ~60% of AI-vs-AI runs timed out. Halving it to single rows with an aisle behind each, and dropping the
-squad from six to five, produced the progression curve above — which is the correct shape for an act finale:
-a starting squad can lose it, a developed one beats it.
-
-**Ends with:** Vex dies in his own office. The Jackals scatter within the week. In his desk is a fuel-tithe
-ledger, stamped with a cinder-and-wrench mark nobody in Riverside recognises. *(First of four sightings of the
-Halcyon subcontractor stamp — see §2.)*
+**Ends with:** Halloway dies at his own tollgate. Riverside is the first district in Ashport with power, water
+and an open road. Word of that travels east.
 
 ---
 
-## 5. Supply runs: the generated pool
+## 5. Act 1, Market Row: the five levels
+
+| # | Mission | Objective | Conditions | Sim (player / enemy / draw) |
+|---|---|---|---|---|
+| 1 | **Supply Run: Market Row** | `reach` ×3 units | Morning, rain, `easy` | 97 / 2 / 2 |
+| 2 | **The Clinic** | `hold` ×3 rounds | Afternoon, clear | 78 / 8 / 13 |
+| 3 | **The Row Relay** | `sabotage` ×2 | Midnight, clear | 67 / 10 / 23 |
+| 4 | **The Night Market** | `eliminateTarget` | Midnight, cloudy | 43 / 53 / 3 |
+| 5 | **The Jackals' Den** | `eliminateTarget` | Afternoon, cloudy | see below |
+
+### 5.1 Supply Run: Market Row — `supply-run-market-row`
+A west-to-east run down a covered market street. Shopfronts top and bottom, each with one doorway; stall
+islands for cover; the loading bay in the east corner.
+
+`unitsRequired: 3`, not 5 — it is "get the crates out", not "get everybody out". Losing somebody is a setback,
+not a restart. It is also the first mission low enough stakes to hand to auto-run (`P`), by design, and
+deliberately the softest fight in the district.
+
+**Ends with:** a name scratched into every crate lid. VEX. The Jackals are not scavengers picking over Market
+Row. Somebody is running it.
+
+### 5.2 The Clinic — `the-clinic`
+**The inverse of Signal Fire.** There the squad started on the objective and had to survive; here the
+dispensary console is in the far corner of a building the Jackals already hold, and the squad has to fight all
+the way in before the hold can even start. Same objective type, opposite mission.
+
+Five wards and a dispensary off two crossing corridors. Every ward is a closed room with one door — three open
+and two shut — so part of the building is already awake and part of it is a decision. Three rounds rather than
+four, because by the time the hold starts the squad has spent half its ammunition getting there.
+
+**Ends with:** four people in the back ward who had been paying for antibiotics by the day. Two of them can
+walk. One of them can shoot.
+
+### 5.3 The Row Relay — `the-row-relay`
+**The switch that closes things.** The two dock shutters start **open** — that is how the Jackals feed the
+tower from the yard — and the breaker board at (13,16), right next to the squad's approach, is linked to both.
+Throwing it drops both shutters and cuts the tower off. Throwing it again raises them.
+
+Nothing in the objective requires it. It is purely the option to decide which half of the map the fight
+happens in, and it is the first thing in the game that lets the player *remove* a route instead of opening
+one. The tower itself is a loop around a solid stairwell core, with a transmitter room at each end.
+
+**Ends with:** the Row goes quiet, and a frequency list taped inside a cabinet door — with one frequency that
+is not a Jackal frequency, signed with a cinder over a wrench.
+
+### 5.4 The Night Market — `the-night-market`
+**The concealment mission.** A grid of tarpaulins — bush tiles, which are walkable, do not block line of
+sight, and hide whoever stands in them until an observer gets within two tiles. At midnight, with vision
+halved, the whole middle of the map becomes a place where both sides are nearby and neither knows where.
+
+It is also where bush **exposure** bites: anything but moving while in a tarpaulin reveals the unit until its
+own next phase. Shooting from concealment costs the concealment, and with six Jackals on the map that is
+usually the whole trade. At 43% player / 53% enemy this is the hardest fight before the finale, on purpose.
+
+Sable sits in the counting house on `camper` and does not wander into the tarpaulins, so this is a hunt
+*through* cover toward a fixed point, not a hunt for a moving target.
+
+**Ends with:** Sable's ledger. Not what the Jackals took — what they *handed over*, quarterly, marked PAID
+under that same stamp.
+
+### 5.5 The Jackals' Den — `jackals-den`
+The act finale, and the biggest fight in the game. An approach yard, a freight warehouse, Vex's office behind
+it, seven Jackals.
+
+Every idea the act taught gets asked for once more. The dock wall has three doors — one up, two shut — so the
+squad picks its breach (*Lights Out*). The shelving is single rows with a clear aisle behind each, so nothing
+is a stalemate. The office is a walled box with one closed door at the far end, so the last thing the mission
+asks is the first thing the act asked: open something and go in.
+
+**Vex is a `tank` on the `camper` profile, not a bespoke stat block.** 24 HP and 3 armor behind a door already
+reads as "the one you have to dig out", and `data/units.ts` has no per-instance stats to hang a boss on. The
+roadmap's suggested "boss affix" turned out not to be needed.
+
+**Balance, measured with the office door opened so the fight itself is visible to the sim:** a fresh squad
+wins 22%, a level-3 squad 38%, a level-5 squad 67%. An act finale a starting squad can lose and a developed
+one beats is the intended shape. Shipped, the office door is shut.
+
+**Ends with:** Vex dead in his own office, and in his desk a fuel-tithe schedule, countersigned quarterly by
+the Cinder Wardens of the Dockyards — above the mark of the company that used to run the lights.
+
+---
+
+## 6. The level-design method (for Acts 2 and 3)
+
+Every Act 1 map follows the same five rules. Acts 2 and 3 should too.
+
+1. **Objective first, map second.** Pick the objective type, then draw a map that only that objective would
+   want. A `hold` map and a `reach` map should not be interchangeable.
+2. **One thing each map teaches that no earlier map did.** Riverside: pick your entry → hold a line → doors
+   are a decision → interactables are a system → there is no flank. Market Row: a soft run → the inverse of a
+   hold → a switch that closes things → concealment → all of it at once.
+3. **Conditions are mechanical, not decorative.** If a mission is at night, night has to be the reason it
+   works — Signal Fire's defenders, Cold Storage's equipment check, the Night Market's concealment.
+4. **High cover in lines, never in slabs.** An early Jackals' Den used double rows of shelving and ~60% of
+   AI-vs-AI runs timed out because nothing could be flanked. Halving them fixed it, and the rule generalised.
+5. **Enemy counts sit near parity.** The squad is always five. A 48×32 map buys distance and routes, not more
+   bodies: the first pass at these maps used 8–10 enemies each and the sim showed 100% enemy wins across the
+   board. Five to seven is the working range, with seven reserved for a finale that expects levels.
+
+Then **balance-check with `npm run sim -- --map <id> --objective player`** and write the numbers into the map
+file's header comment before calling it done.
+
+**Act 2's known beats**, for whoever writes them:
+
+1. **Dockyards** — first contact with the Cinder Wardens. A checkpoint, run like a business. The coded
+   transmission from Signal Fire came from here.
+2. **Substation Hill** — the Wardens hold the high ground and the grid controls on it, and they are
+   *maintaining* the switchgear, not stripping it. Somebody is keeping Ashport's grid alive and choosing not
+   to switch it on.
+3. **Old Town** — narrow streets, the ammo economy at its tightest, and the ledger trail finally naming
+   Halcyon out loud.
+
+Each district's briefing text is already written in `data/campaign.ts`; the missions are what is missing.
+
+---
+
+## 7. Supply runs: the generated pool
 
 Supply runs are the repeatable job between story missions. They are generated, but not procedural: a run is a
-**hand-authored layout** plus three rolled dimensions, so no two offers read the same.
+**hand-authored 24×16 layout** plus three rolled dimensions, so no two offers read the same. They stay small
+on purpose — a supply run is a job, not an operation, and the size difference is how the campaign screen tells
+you which is which.
 
 ```
 supply run = template (5 layouts) × complication (6) × enemy profile (difficulty tier) × callsign
 ```
 
-`core/campaign.ts` keeps three offers on the board at a time and guarantees **three different layouts** — the
-generator draws from the templates not already in the pool. A finished run is retired and re-rolled.
+`core/campaign.ts` keeps three offers on the board and guarantees **three different layouts** — the generator
+draws from the templates not already in the pool. A finished run is retired and re-rolled.
 
-### 5.1 The five layouts
+### 7.1 The five layouts
 
 | Template | Objective | Shape | Why it is in the pool |
 |---|---|---|---|
-| **Ardent Fuel Depot** | `reach` (3 units) | Tank farm. Almost no walls. | The open-ground one. Cover is everything and sightlines are brutal. |
-| **Pharmacy Row** | `hold` | Six shopfronts around one street and one terminal. | The urban one. Close quarters, doorways, a fixed point to defend. |
-| **Halstead Rail Yard** | `sabotage` (2 releases) | Freight cars in rows; long lanes, no cross-flanks. | The corridor one. Two objectives at opposite ends of a map you cannot flank. |
+| **Ardent Fuel Depot** | `reach` (3 units) | Tank farm. Almost no walls. | The open-ground one. Cover is everything, sightlines are brutal. |
+| **Pharmacy Row** | `hold` | Six shopfronts, one street, one terminal. | The urban one. Close quarters, doorways, a fixed point. |
+| **Halstead Rail Yard** | `sabotage` (2 releases) | Freight cars in rows; long lanes, no cross-flanks. | The corridor one. Two objectives you cannot flank between. |
 | **Vance Street Underpass** | `reach` (3 units) | Two sealed levels joined by two one-tile gaps. | The chokepoint one. Whoever holds a gap holds the mission. |
 | **Cold Creek Waterworks** | `eliminateTarget` | Settling tanks, one way into each. | The dig-them-out one. A named target in a bunker. |
 
-That is one of each objective type the game has, twice over for `reach`, which is deliberate — every supply
-run teaches a different verb.
+One of each objective type the game has, twice over for `reach` — every supply run teaches a different verb.
 
-### 5.2 The six complications
+### 7.2 The six complications
 
 Each is a plain `MapDef` override plus a reward multiplier: a worse window pays better.
 
 | Complication | Effect | Reward |
 |---|---|---|
 | Clear window | Nothing. The people there are the only problem. | ×1.0 |
-| Night drop | Midnight: vision roughly halved, −20 accuracy. | ×1.3 |
 | Downpour | Rain: slower movement, blurred sight and aim. | ×1.2 |
 | Fog bank | Fog: vision cut hard, movement and aim mostly fine. | ×1.2 |
-| Storm front | Late-afternoon storm: heavy accuracy *and* movement penalty. | ×1.45 |
+| Night drop | Midnight: vision roughly halved, −20 accuracy. | ×1.3 |
 | Running dry | Half the usual reserve ammo — **for both sides**. | ×1.35 |
+| Storm front | Late-afternoon storm: heavy accuracy *and* movement penalty. | ×1.45 |
 
 "Running dry" being symmetric matters: it is a different mission, not a handicap.
 
-### 5.3 Difficulty tiers
+### 7.3 Difficulty tiers
 
 One step harder every three completed runs, capped at four tiers.
 
@@ -239,35 +351,11 @@ One step harder every three completed runs, capped at four tiers.
 | 2 | Dug in | `standard`, `hard`, `camper` |
 | 3 | Hostile territory | `hard`, `hard`, `ambush` |
 
-Sim check on the tier spread, using the two layouts closest to symmetric:
+Sim check on the two layouts closest to symmetric:
 
 | Map | `easy` (tier 0) | `standard` (tier 1+) |
 |---|---|---|
 | Pharmacy Row | player 98% | player 31% / enemy 39% |
 | Vance Street Underpass | player 88% | player 28% / enemy 39% |
 
-That gap is the intended curve: tier 0 is a warm-up, tier 1 onward is a real fight that expects the gear and
-levels the player has banked by then.
-
----
-
-## 6. Acts 2 and 3 — not written yet
-
-The districts exist in `data/campaign.ts` and the unlock mechanism advances through them, but no missions are
-authored. When they are, the pattern from Act 1 is the one to follow:
-
-- **One objective type per mission**, chosen first; the map is designed around it, never retro-fitted.
-- **One thing the map teaches** that no earlier map did (Act 1: pick your entry → survive a siege → partial
-  extraction → dig out a fortified target).
-- **Conditions are mechanical, not decorative** — if it is at night, night has to be the reason it works.
-- **Balance-check with `npm run sim -- --map <id>`** before calling it done, and write the numbers into the
-  map file's header comment.
-
-Act 2's known beats, for whoever writes them:
-
-1. **Dockyards** — first contact with the Cinder Wardens. A checkpoint, run like a business. The coded
-   transmission from Signal Fire came from here.
-2. **Substation Hill** — the Wardens hold the high ground and the grid controls on it. This is where the
-   player learns the Wardens are *maintaining* infrastructure, not just taxing it, which makes no sense yet.
-3. **Old Town** — narrow streets, the ammo economy at its tightest, and the ledger trail from Vex's desk
-   finally names Halcyon.
+That gap is the intended curve: tier 0 is a warm-up, tier 1 onward expects the gear and levels banked by then.

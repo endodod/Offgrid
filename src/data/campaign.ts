@@ -1,7 +1,10 @@
 import type { AiProfileId } from './aiProfiles';
 import type { TimeOfDayId } from './timeOfDay';
 import type { WeatherId } from './weather';
-import { FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, PHARMACY_ROW, RAIL_YARD, SIGNAL_FIRE, UNDERPASS, WATERWORKS } from './maps';
+import {
+  COLD_STORAGE, FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, NIGHT_MARKET, PHARMACY_ROW, PUMPHOUSE,
+  RAIL_YARD, ROW_RELAY, SIGNAL_FIRE, THE_CLINIC, TOLLGATE, UNDERPASS, WATERWORKS,
+} from './maps';
 import type { MapDef } from './trainingGrounds';
 
 /** A node on the campaign map (5) - one district of Ashport. See STORY.md for the full premise. */
@@ -110,24 +113,28 @@ export const DISTRICTS: District[] = [
 
 export const DISTRICT_ORDER: string[] = DISTRICTS.map((d) => d.id);
 
-/** One of the four fixed Act 1 story missions. Handcrafted end to end: each one owns a real `MapDef` under
- *  `data/maps/`, designed around its own objective type rather than sharing a layout. */
+/** One of Act 1's ten story missions. Handcrafted end to end: each one owns a real 48x32 `MapDef` under
+ *  `data/maps/story/`, designed around its own objective type. No two share a layout. */
 export interface StoryMissionDef {
   id: string;
   name: string;
   district: string; // a District.id
-  /** Where the mission sits in the act - shown as "Mission 1 of 4" on the campaign screen. */
   act: 1 | 2 | 3;
   /** Two or three sentences of setup, spoken in the crew's voice. */
   blurb: string;
   objective: string;
-  /** The beat the mission leaves behind, shown after it is completed. See STORY.md. */
+  /** The beat the mission leaves behind, shown as a debrief once it is completed. See STORY.md. */
   outcome: string;
   map: MapDef;
 }
 
-/** Act 1's four story missions, in play order. Later acts are unwritten (see DISTRICTS above). */
+/**
+ * Act 1's ten story missions, five per district, in play order. Completing all five in a district unlocks the
+ * next one (see core/campaign.ts's `completeStoryMission`). Acts 2 and 3 have districts but no missions yet -
+ * STORY.md's section 6 has the beats they should be written from.
+ */
 export const STORY_MISSIONS: StoryMissionDef[] = [
+  // ---------------------------------------------------------------- Riverside
   {
     id: 'lights-out', name: 'Lights Out', district: 'riverside', act: 1,
     blurb: 'The substation two blocks from the safehouse still has a working feeder - the Jackals just got there first and fenced it. Get inside, throw both breakers, and Riverside has light for the first time in three years.',
@@ -137,23 +144,66 @@ export const STORY_MISSIONS: StoryMissionDef[] = [
   },
   {
     id: 'signal-fire', name: 'Signal Fire', district: 'riverside', act: 1,
-    blurb: "Power means the relay on Kestrel Street can broadcast. Four rounds of carrier tone is enough for anyone still listening to find us - and enough for every Jackal in the district to find the roof.",
+    blurb: 'Power means the relay on Kestrel Street can broadcast. Four rounds of carrier tone is enough for anyone still listening to find us - and enough for every Jackal in the district to find the roof.',
     objective: 'Start the relay and hold the roof for 4 rounds. Or eliminate every enemy.',
-    outcome: 'The tone goes out. Nothing answers that night - but something answers three days later, in code, from the Dockyards, and it is not friendly.',
+    outcome: 'The tone goes out into a city with nothing left to answer it. Nothing does, that night. Something answers three days later, in code, from the Dockyards, and it is not friendly.',
     map: SIGNAL_FIRE,
   },
   {
+    id: 'cold-storage', name: 'Cold Storage', district: 'riverside', act: 1,
+    blurb: "Bellweather's packing plant has been sealed since the Blackout, which is another way of saying nobody has eaten what is in it. Abel knows the door codes. The Jackals got there this morning.",
+    objective: 'Get 3 units to the dock at the far end of the plant. Or eliminate every enemy.',
+    outcome: 'Four hundred kilos of sealed protein and a working generator, which is more than Riverside has seen in a year. Abel stops asking whether he can stay.',
+    map: COLD_STORAGE,
+  },
+  {
+    id: 'the-pumphouse', name: 'The Pumphouse', district: 'riverside', act: 1,
+    blurb: 'Light and food, and still everyone is boiling river water. Dawes Street still has pressure in the mains - three valves and a sluice board stand between the district and something coming out of a tap.',
+    objective: 'Turn all three valves. Or eliminate every enemy.',
+    outcome: 'Water, brown for an hour and then clear. On the sluice board, under three years of grime, a maintenance sticker: HALCYON SYSTEMS - DO NOT OPERATE WITHOUT AUTHORISATION. Nobody in Riverside has heard the name.',
+    map: PUMPHOUSE,
+  },
+  {
+    id: 'the-tollgate', name: 'The Tollgate', district: 'riverside', act: 1,
+    blurb: "Halloway has held the Kestrel Bridge since the second winter and taxes everything that crosses it, which now includes us. There is no way around a bridge. Riverside is not ours until he isn't.",
+    objective: 'Eliminate Halloway. Or eliminate every enemy.',
+    outcome: 'Halloway dies at his own tollgate, and the bridge is just a bridge again. Riverside is the first district in Ashport with power, water and an open road. Word of that travels east, to Market Row, where someone starts keeping a note of it.',
+    map: TOLLGATE,
+  },
+  // -------------------------------------------------------------- Market Row
+  {
     id: 'supply-run-market-row', name: 'Supply Run: Market Row', district: 'market-row', act: 1,
-    blurb: 'Abel says the covered market still has sealed crates under the collapsed awnings. Low stakes, high value: get in, get what you can carry, and be at the loading bay before the Jackals work out you are there.',
+    blurb: 'Abel says the covered market still has sealed crates under the collapsed awnings. Low stakes, high value: get in, take what you can carry, and be at the loading bay before the Jackals work out you are there.',
     objective: 'Get 3 units to the loading bay in the east. Or eliminate every enemy.',
-    outcome: "Enough ammunition and gauze to matter, and a name scratched into every crate lid: VEX. The Jackals are not scavengers picking over Market Row. Somebody is running it.",
+    outcome: 'Enough ammunition and gauze to matter, and a name scratched into every crate lid: VEX. The Jackals are not scavengers picking over Market Row. Somebody is running it.',
     map: MARKET_ROW,
   },
   {
+    id: 'the-clinic', name: 'The Clinic', district: 'market-row', act: 1,
+    blurb: "Saint Brigid's still has a stocked dispensary and a Jackal detail sitting on it, charging by the dose. The console behind the counter releases the cabinets - hold it long enough and the whole stock is ours.",
+    objective: "Reach the dispensary console and hold it for 3 rounds. Or eliminate every enemy.",
+    outcome: 'Antibiotics, morphine, and four people in the back ward who had been paying for both by the day. Two of them can walk. One of them can shoot.',
+    map: THE_CLINIC,
+  },
+  {
+    id: 'the-row-relay', name: 'The Row Relay', district: 'market-row', act: 1,
+    blurb: "Vex has a relay of his own on the Row, and every patrol on this side of the river talks through it. Pull both transmitters and the Jackals stop being a district and go back to being a hundred people with guns.",
+    objective: 'Pull both transmitters in the tower. Or eliminate every enemy.',
+    outcome: "The Row goes quiet. In the transmitter room, taped inside the cabinet door, a frequency list in a careful hand - and at the bottom, one frequency that is not a Jackal frequency at all. It is signed with a cinder over a wrench.",
+    map: ROW_RELAY,
+  },
+  {
+    id: 'the-night-market', name: 'The Night Market', district: 'market-row', act: 1,
+    blurb: "Sable does the counting for Vex: who pays, who eats, who is behind. She works the night market out of a locked counting house, in the middle of four hundred tarpaulins you cannot see through.",
+    objective: 'Eliminate Sable. Or eliminate every enemy.',
+    outcome: "Sable's ledger is not a ledger of what the Jackals took. It is a ledger of what they handed over, quarterly, to somebody else - and the last four quarters are marked PAID under the same cinder-and-wrench stamp.",
+    map: NIGHT_MARKET,
+  },
+  {
     id: 'jackals-den', name: "The Jackals' Den", district: 'market-row', act: 1,
-    blurb: 'Vex works out of the freight warehouse on the east end, behind a dock wall and four rows of shelving. Take the district by taking him - everything else the Jackals have is held together by the fact that nobody has.',
+    blurb: 'Vex runs the district out of the freight warehouse on the east end, behind a dock wall and five rows of shelving. Take the district by taking him - everything the Jackals have is held together by the fact that nobody has.',
     objective: 'Eliminate Vex, the Jackal leader. Or eliminate every enemy.',
-    outcome: 'Vex goes down in his own office. The Jackals scatter within the week - and in his desk is a fuel-tithe ledger, stamped with a cinder-and-wrench mark nobody in Riverside recognises.',
+    outcome: 'Vex dies in his own office. The Jackals scatter within the week, and Market Row belongs to whoever feeds it. In his desk: a fuel-tithe schedule, countersigned, quarterly, by the Cinder Wardens of the Dockyards - and above their mark, the stamp of the company that used to run the lights.',
     map: JACKALS_DEN,
   },
 ];
