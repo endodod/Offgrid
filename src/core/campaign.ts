@@ -1,7 +1,9 @@
 import {
-  DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_MAP, SUPPLY_RUN_NAMES, SUPPLY_RUN_PROFILE_TIERS,
+  DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_CALLSIGNS, SUPPLY_RUN_COMPLICATIONS, SUPPLY_RUN_PROFILE_TIERS,
+  SUPPLY_RUN_TEMPLATES, supplyRunComplication, supplyRunTemplate,
   type GeneratedMissionDef, type StoryMissionDef,
 } from '../data/campaign';
+import type { MapDef } from '../data/trainingGrounds';
 import type { FacilityId } from '../data/base';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
@@ -108,22 +110,66 @@ function tierFor(cs: CampaignState): number {
   return Math.min(SUPPLY_RUN_PROFILE_TIERS.length - 1, Math.floor(cs.completedSupplyRuns / 3));
 }
 
+const pick = <T>(cs: CampaignState, list: readonly T[]): T => list[Math.floor(nextRandom(cs) * list.length)];
+
+/**
+ * Rolls one supply run: a hand-authored layout, a job name, an enemy profile from the current difficulty
+ * tier, and a complication (weather / time of day / ammo scarcity) that pays extra for being worse. The
+ * layout is drawn from the templates *not already in the pool* where possible, so the three offers on the
+ * campaign screen are three different places rather than the same depot three times.
+ */
 function generateOne(cs: CampaignState): GeneratedMissionDef {
   const tier = tierFor(cs);
-  const profiles = SUPPLY_RUN_PROFILE_TIERS[tier];
-  const name = SUPPLY_RUN_NAMES[Math.floor(nextRandom(cs) * SUPPLY_RUN_NAMES.length)];
-  const enemyProfile = profiles[Math.floor(nextRandom(cs) * profiles.length)];
-  const reward = 100 + tier * 50 + Math.floor(nextRandom(cs) * 50);
+  const inPool = new Set(cs.supplyRunPool.map((m) => m.templateId));
+  const choices = SUPPLY_RUN_TEMPLATES.filter((t) => !inPool.has(t.id));
+  const template = pick(cs, choices.length ? choices : SUPPLY_RUN_TEMPLATES);
+  const callsign = pick(cs, SUPPLY_RUN_CALLSIGNS);
+  const complication = pick(cs, SUPPLY_RUN_COMPLICATIONS);
+  const enemyProfile = pick(cs, SUPPLY_RUN_PROFILE_TIERS[tier]);
+  const reward = Math.round((100 + tier * 60 + Math.floor(nextRandom(cs) * 60)) * complication.rewardMult);
   return {
     id: `supply-run-${cs.nextSupplyRunSeq++}`,
-    name, blurb: `A generated supply run - tier ${tier + 1} resistance.`,
-    map: SUPPLY_RUN_MAP, enemyProfile, reward,
+    templateId: template.id,
+    complicationId: complication.id,
+    name: `${callsign}: ${template.name}`,
+    blurb: template.blurb,
+    objective: template.objective,
+    enemyProfile, tier, reward,
+  };
+}
+
+/**
+ * The playable map for a generated mission: its template's layout with the rolled enemy profile and
+ * complication layered on. Rebuilt at launch rather than stored on the mission, so an edited map file reaches
+ * a campaign that is already in progress.
+ */
+export function resolveSupplyRun(def: GeneratedMissionDef): MapDef {
+  const template = supplyRunTemplate(def.templateId) ?? SUPPLY_RUN_TEMPLATES[0];
+  const complication = supplyRunComplication(def.complicationId);
+  return {
+    ...template.map,
+    name: template.name,
+    enemyProfile: def.enemyProfile,
+    ...(complication?.timeOfDay ? { startTimeOfDay: complication.timeOfDay } : {}),
+    ...(complication?.weather ? { startWeather: complication.weather } : {}),
+    ...(complication?.reserveMult ? { reserveMult: complication.reserveMult } : {}),
   };
 }
 
 /** Tops the pool back up to `POOL_SIZE` after a completion (or on a fresh campaign). */
 function fillPool(cs: CampaignState) {
   while (cs.supplyRunPool.length < POOL_SIZE) cs.supplyRunPool.push(generateOne(cs));
+}
+
+/**
+ * Brings a loaded save forward: pool entries written before supply runs were template-based carry a baked-in
+ * `map` and no `templateId`, so they are dropped and re-rolled rather than migrated. Losing three unplayed
+ * offers is a far smaller cost than launching a mission whose stored map no longer matches anything.
+ */
+export function migrateCampaign(cs: CampaignState): CampaignState {
+  cs.supplyRunPool = cs.supplyRunPool.filter((m) => !!m.templateId && !!supplyRunTemplate(m.templateId));
+  fillPool(cs);
+  return cs;
 }
 
 export type DistrictStatus = 'locked' | 'available' | 'completed';

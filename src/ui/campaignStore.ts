@@ -1,5 +1,5 @@
 import { newBaseState } from '../core/base';
-import type { CampaignState } from '../core/campaign';
+import { migrateCampaign, type CampaignState } from '../core/campaign';
 
 const KEY = 'offgrid.campaign';
 
@@ -25,7 +25,8 @@ export function loadCampaign(): CampaignState | null {
     if (!parsed.loadouts || typeof parsed.loadouts !== 'object') parsed.loadouts = {}; // equipment (7)
     if (!parsed.unlockedGear || typeof parsed.unlockedGear !== 'object') parsed.unlockedGear = { armor: [], equipment: [] }; // equipment (7)
     if (!parsed.levels || typeof parsed.levels !== 'object') parsed.levels = {}; // leveling (8)
-    return parsed;
+    // Supply runs became template-based (see core/campaign.ts's migrateCampaign): re-roll any stale offers.
+    return migrateCampaign(parsed);
   } catch {
     return null;
   }

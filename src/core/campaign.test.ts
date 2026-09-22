@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DISTRICT_ORDER, STORY_MISSIONS } from '../data/campaign';
+import { DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_COMPLICATIONS, SUPPLY_RUN_TEMPLATES, supplyRunComplication } from '../data/campaign';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import {
   applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
-  recordMissionGear, togglePerk,
+  migrateCampaign, recordMissionGear, resolveSupplyRun, togglePerk,
 } from './campaign';
 
 /** A minimal EndedUnit for recordMissionGear/applyMissionXp tests - fills in stat defaults not under test. */
@@ -16,6 +16,8 @@ const endedUnit = (over: {
   team: 'player' as const, armor: null, equipment: [null, null] as [EquipmentId | null, EquipmentId | null],
   dmgDealt: 0, kills: 0, revives: 0, alive: true, ...over,
 });
+
+const supplyRunTemplateExists = (id: string) => SUPPLY_RUN_TEMPLATES.some((t) => t.id === id);
 
 describe('campaign (feature 5)', () => {
   it('a fresh campaign starts with only the first district unlocked and a full supply-run pool', () => {
@@ -98,6 +100,64 @@ describe('campaign (feature 5)', () => {
     }
     for (const m of cs.supplyRunPool) seen.add(m.id);
     expect(seen.size).toBe(13); // 3 initial + 10 replacements, all distinct
+  });
+
+  it('offers three different layouts at once rather than the same place three times', () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const cs = newCampaign(seed);
+      const templates = cs.supplyRunPool.map((m) => m.templateId);
+      expect.soft(new Set(templates).size, `seed ${seed} pool: ${templates.join(', ')}`).toBe(3);
+    }
+  });
+
+  it('rolls a real template and complication onto every generated run', () => {
+    const cs = newCampaign(7);
+    for (const m of cs.supplyRunPool) {
+      expect(SUPPLY_RUN_TEMPLATES.some((t) => t.id === m.templateId)).toBe(true);
+      expect(SUPPLY_RUN_COMPLICATIONS.some((c) => c.id === m.complicationId)).toBe(true);
+      expect(m.name).toContain(':');
+      expect(m.reward).toBeGreaterThan(0);
+    }
+  });
+
+  it('varies map, weather and objective across a long run of generated missions', () => {
+    const cs = newCampaign(3);
+    const templates = new Set<string>();
+    const complications = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      const m = cs.supplyRunPool[0];
+      templates.add(m.templateId);
+      complications.add(m.complicationId);
+      completeSupplyRun(cs, m.id);
+    }
+    expect(templates.size).toBe(SUPPLY_RUN_TEMPLATES.length); // every layout shows up
+    expect(complications.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('resolves a generated run to its template map with the rolled conditions layered on', () => {
+    const cs = newCampaign(11);
+    for (const m of cs.supplyRunPool) {
+      const template = SUPPLY_RUN_TEMPLATES.find((t) => t.id === m.templateId)!;
+      const map = resolveSupplyRun(m);
+      expect(map.rows).toBe(template.map.rows); // same layout, not a copy that could drift
+      expect(map.enemyProfile).toBe(m.enemyProfile);
+      const complication = supplyRunComplication(m.complicationId)!;
+      if (complication.weather) expect(map.startWeather).toBe(complication.weather);
+      if (complication.timeOfDay) expect(map.startTimeOfDay).toBe(complication.timeOfDay);
+      if (complication.reserveMult) expect(map.reserveMult).toBe(complication.reserveMult);
+      // a complication that sets nothing leaves the template's own house weather alone
+      if (!complication.weather) expect(map.startWeather).toBe(template.map.startWeather);
+    }
+  });
+
+  it('re-rolls pool entries saved before supply runs were template-based', () => {
+    const cs = newCampaign(5);
+    // what an old save looks like: a name and a profile, no templateId
+    cs.supplyRunPool = [{ id: 'supply-run-old', name: 'Salvage Run', blurb: '', enemyProfile: 'easy', reward: 120 } as never];
+    migrateCampaign(cs);
+    expect(cs.supplyRunPool).toHaveLength(3);
+    expect(cs.supplyRunPool.every((m) => !!supplyRunTemplateExists(m.templateId))).toBe(true);
+    expect(cs.supplyRunPool.some((m) => m.id === 'supply-run-old')).toBe(false);
   });
 
   it('supply-run difficulty escalates with completions (tier scales enemy profile pool)', () => {

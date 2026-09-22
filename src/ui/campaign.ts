@@ -1,7 +1,7 @@
 import { baseGameOptions } from '../core/base';
 import {
   applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
-  recordMissionGear, type CampaignState,
+  recordMissionGear, resolveSupplyRun, type CampaignState,
 } from '../core/campaign';
 import type { Unit } from '../core/types';
 import { DISTRICTS, type GeneratedMissionDef, type StoryMissionDef } from '../data/campaign';
@@ -80,7 +80,7 @@ export class Campaign {
       if (m) this.hooks.onPlay(this.applyBase(m.map), m.id);
     } else {
       const m = this.state.supplyRunPool.find((x) => x.id === id);
-      if (m) this.hooks.onPlay(this.applyBase({ ...m.map, enemyProfile: m.enemyProfile }), m.id);
+      if (m) this.hooks.onPlay(this.applyBase(resolveSupplyRun(m)), m.id);
     }
   }
 

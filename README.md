@@ -23,13 +23,14 @@ Without the flag none of this is reachable, and a saved custom map is ignored.
 
 | Path | What |
 |---|---|
-| `src/data/` | All numbers: `units.ts`, `gadgets.ts`, `rules.ts`, `trainingGrounds.ts` (ASCII map), `missions.ts` (home screen list) |
+| `src/data/` | All numbers: `units.ts`, `gadgets.ts`, `rules.ts`, `trainingGrounds.ts` (ASCII map), `missions.ts` (home screen list), `campaign.ts` (districts, story missions, supply-run templates) |
+| `src/data/maps/` | The hand-authored campaign maps: four Act 1 story levels and five supply-run layouts |
 | `src/core/` | Pure rules: no DOM, no canvas, seeded RNG. `actions.ts` is the rule entry point (`validate` / `perform`) |
 | `src/render/` | Canvas drawing (reads state only) |
 | `src/ui/` | HUD, input, session (clicks -> core actions), home screen, map builder (debug) |
 | `scripts/sim.ts` | Bot-vs-bot balance simulation |
 
-See [ASSUMPTIONS.md](ASSUMPTIONS.md) for every place the brief was ambiguous and what was chosen, and [ROADMAP.md](ROADMAP.md) for planned features (weather, doors, objective types, consumables) and what comes after.
+See [ASSUMPTIONS.md](md_files/ASSUMPTIONS.md) for every place the brief was ambiguous and what was chosen, [STORY.md](md_files/STORY.md) for the setting and the design sheet for every level, and [ROADMAP.md](md_files/ROADMAP.md) for what is built and what comes after.
 
 ## Controls
 

@@ -5,10 +5,15 @@
 //                  [--reserve-mult 1] (ammo economy, 4 - e.g. 0.5 for a scarcer mission)
 //                  [--player-level 1] (leveling, 8 - every player class starts at this level with its
 //                  perks-so-far equipped up to its slot count; 0/omitted = no progress, matching a fresh campaign)
+//                  [--map training-grounds|lights-out|signal-fire|market-row|jackals-den|fuel-depot|
+//                        pharmacy-row|rail-yard|underpass|waterworks] (which layout to simulate)
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
 import type { AiProfileId } from '../src/data/aiProfiles';
-import { TRAINING_GROUNDS, type ClassProgress } from '../src/data/trainingGrounds';
+import { TRAINING_GROUNDS, type ClassProgress, type MapDef } from '../src/data/trainingGrounds';
+import {
+  FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, PHARMACY_ROW, RAIL_YARD, SIGNAL_FIRE, UNDERPASS, WATERWORKS,
+} from '../src/data/maps';
 import { LEVEL_PATHS } from '../src/data/leveling';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
 import type { WeatherId } from '../src/data/weather';
@@ -38,6 +43,20 @@ const playerProfile = str('--player-profile', 'standard') as AiProfileId;
 const reserveMult = num('--reserve-mult', 1);
 const playerLevel = num('--player-level', 0);
 
+/** Every hand-authored layout, by the id `--map` takes. Defaults to Training Grounds, the historical baseline. */
+const MAPS: Record<string, MapDef> = {
+  'training-grounds': TRAINING_GROUNDS,
+  'lights-out': LIGHTS_OUT, 'signal-fire': SIGNAL_FIRE, 'market-row': MARKET_ROW, 'jackals-den': JACKALS_DEN,
+  'fuel-depot': FUEL_DEPOT, 'pharmacy-row': PHARMACY_ROW, 'rail-yard': RAIL_YARD, 'underpass': UNDERPASS,
+  'waterworks': WATERWORKS,
+};
+const mapId = str('--map', 'training-grounds');
+const baseMap = MAPS[mapId];
+if (!baseMap) {
+  console.error(`Unknown --map "${mapId}". Known: ${Object.keys(MAPS).join(', ')}`);
+  process.exit(1);
+}
+
 /** Every perk granted by `level` or below, with as many equipped as the level's own slot count allows - the
  *  same rule core/leveling.ts's `gainXp`/`equipPerk` would produce for a class that actually leveled up there. */
 function progressAtLevel(cls: ClassId, level: number): ClassProgress {
@@ -48,8 +67,8 @@ function progressAtLevel(cls: ClassId, level: number): ClassProgress {
 }
 
 const map = playerLevel > 0
-  ? { ...TRAINING_GROUNDS, startingProgress: Object.fromEntries(CLASS_ORDER.map((cls) => [cls, progressAtLevel(cls, playerLevel)])) }
-  : TRAINING_GROUNDS;
+  ? { ...baseMap, startingProgress: Object.fromEntries(CLASS_ORDER.map((cls) => [cls, progressAtLevel(cls, playerLevel)])) }
+  : baseMap;
 
 const results: MatchResult[] = [];
 for (let i = 0; i < n; i++) {
@@ -60,7 +79,7 @@ const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
 const count = (f: (r: MatchResult) => boolean) => results.filter(f).length;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-console.log(`${TRAINING_GROUNDS.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
+console.log(`${baseMap.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
   `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}, ` +
   `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}, player level: ${playerLevel || 1}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +

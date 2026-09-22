@@ -352,51 +352,35 @@ Persistence: `ui/campaignStore.ts` (new) mirrors `mapStore.ts`'s/`keybindings.ts
 - What persists between missions: for now, only campaign-level progress (unlocked districts, completed missions, the supply-run pool, currency) - nothing about a squad's HP/injuries/consumables carries between missions yet, since there's no persistent roster concept at all (every mission still spawns the same fixed `Spawn` list from its `MapDef`). That's squarely a #6/#7 concern (a roster that exists independent of any one mission's `GameState.units`) and is explicitly out of scope here.
 - Mission pool size: fixed at 3 concurrent supply-run offers, each independently replaced (not the whole pool at once) the moment it's completed - keeps the list from ever going stale/empty and matches "regenerate what's gone" better than "regenerate everything periodically."
 - Supply-run difficulty scaling: yes, resolving the open question - `SUPPLY_RUN_PROFILE_TIERS` has four tiers (easiest to hardest), advancing one tier every 3 completed supply runs, both the enemy-profile pool and the reward amount scale with tier.
-- **The four Act 1 story missions all use Training Grounds' own layout as a placeholder `MapDef`, not real per-district maps.** This is the single biggest scope cut in this feature: hand-authoring four balanced, thematically distinct tactical maps (Riverside/Market Row layouts, unique to a "lived-in district" rather than the rules-exercise range - see the Act 1 section's own open question) is level-design content work, not a system to build - the campaign *engineering* (generation, progression, persistence, the UI screen, launching missions with the right difficulty) is fully built and tested end-to-end against this placeholder content, and swapping in real maps later is a pure data change to `STORY_MISSIONS`, not a rework of anything in `core/campaign.ts` or `ui/campaign.ts`. Generated supply-run missions use the same placeholder for the same reason - there's no second real map anywhere in the game yet to draw from.
+- ~~**The four Act 1 story missions all use Training Grounds' own layout as a placeholder `MapDef`, not real per-district maps.**~~ **Closed** - all four (and five more for the supply-run pool) are now hand-authored in `src/data/maps/`; see [STORY.md](STORY.md). The prediction below held exactly: swapping in real maps was a pure data change to `STORY_MISSIONS` plus a template list, with no rework in `core/campaign.ts`. Original note: This is the single biggest scope cut in this feature: hand-authoring four balanced, thematically distinct tactical maps (Riverside/Market Row layouts, unique to a "lived-in district" rather than the rules-exercise range - see the Act 1 section's own open question) is level-design content work, not a system to build - the campaign *engineering* (generation, progression, persistence, the UI screen, launching missions with the right difficulty) is fully built and tested end-to-end against this placeholder content, and swapping in real maps later is a pure data change to `STORY_MISSIONS`, not a rework of anything in `core/campaign.ts` or `ui/campaign.ts`. Generated supply-run missions use the same placeholder for the same reason - there's no second real map anywhere in the game yet to draw from.
 - Reward currency (`CampaignState.currency`) is tracked and banked correctly but **nothing spends it** - that's #6 (base building), the first feature that gives it a purpose. Modeled now so #6 doesn't need to touch the campaign save shape to add spending.
-- No enemy-count/composition parameterization for generated missions beyond the enemy-profile tier (the design sketch's "mission templates parameterized by map, enemy count/composition, objective type") - Training Grounds' fixed 5-enemy layout is the only map available (see above), so varying enemy count/composition would mean hand-editing spawns per generated mission, which needs either a second real map or a spawn-randomization system neither of which exists yet. Deferred alongside the placeholder-map limitation.
+- **Partly closed.** Generated missions now vary by hand-authored layout (five of them, each with its own enemy count and composition) and by a rolled weather/time/ammo-scarcity complication, on top of the enemy-profile tier. There is still no *randomized* spawn generator - variety comes from authored templates, which is the deliberate trade. Original note: (the design sketch's "mission templates parameterized by map, enemy count/composition, objective type") - Training Grounds' fixed 5-enemy layout is the only map available (see above), so varying enemy count/composition would mean hand-editing spawns per generated mission, which needs either a second real map or a spawn-randomization system neither of which exists yet. Deferred alongside the placeholder-map limitation.
 
 **Tests:** `core/campaign.test.ts` (new, 10 tests) - a fresh campaign starts with only the first district unlocked and a full pool; supply-run pool generation is deterministic for a given seed and differs for a different one; story missions are identical across different seeds (the static-data clarification above); only available (unlocked, not completed) story missions are listed; completing every mission in a district unlocks the next one, including the "nothing left to unlock crashes nothing" edge case for districts with no missions written yet; completing a mission twice is a no-op; completing a supply run banks its reward, retires it, and tops the pool back up without ever reusing an id within one campaign; difficulty genuinely escalates with completions (the freshly-regenerated pool slot, not stale untouched ones, is checked - since only the replaced slot reflects the current tier). Verified end-to-end in a driven headless browser: entering the campaign screen, playing and winning a story mission (removes it from the list, no currency change), returning specifically to the campaign screen rather than home, then playing and winning a supply run (currency increases by its exact reward, the pool regenerates to 3 fresh entries) - all with no console errors.
 
 ---
 
-## Story: the Blackout, Ashport, and the Lamplighters
+## Story and level design
 
-**The premise.** Three years ago the regional grid cascaded and never came back — official story is a transformer chain-failure, but nobody who lived through it believes that anymore. Without power, water treatment and comms, Ashport didn't calm down, it split: every district became whoever had the guns and the fuel. The squad starts as a handful of survivors doing supply runs out of a dead substation in Riverside. What turns that into a campaign is a working theory: someone can still throw switches in this city, and the people doing it call themselves the **Lamplighters** — relighting a district is both the fictional goal and the mechanical one (hold it, clear it, keep it).
+**Status: done - moved out of this file.** The premise, the three factions, the act structure and a
+per-mission design sheet for every level that exists now live in **[STORY.md](STORY.md)**, alongside the
+supply-run pool's own design (five hand-authored layouts x six complications x four difficulty tiers).
 
-**How the mechanics carry the story.** Nothing here needs new narrative systems — it rides entirely on features already on this roadmap:
-- **The squad grows because the fiction says so.** A mission that ends with "found a survivor" is a roster addition; the campaign layer (#5) is where that gets tracked, base building (#6) is where they live between missions.
-- **Gear and levels are loot and progress, not a shop.** Every armor piece, weapon mod and perk (#7, #8) is scavenged or earned on a job, in keeping with "gathers gear, levels up."
-- **Purpose is literally the campaign map.** Each node on the map (#5) is a district; clearing its story mission flips it from raider-held to Lamplighter-held, which is the "cleansing the home city" premise made mechanical rather than narrated.
+What changed since this section was a set of planning bullets:
 
-**Three acts, one city.**
-| Act | Districts | Antagonist | Shape |
-|---|---|---|---|
-| 1 | Riverside (home), Market Row | **the Jackals** — small-time scavenger raiders, opportunists preying on the weak, no real organization | Low-stakes, teaches the loop: clear a block, find a recruit, run a supply mission, take out the local leader |
-| 2 | Dockyards, Substation Hill, Old Town | **the Cinder Wardens** — an organized militia that carved the city into fiefs, runs checkpoints and "tithes" survivor enclaves for fuel and food | Escalation: fortified positions, patrol/turret AI profiles (#0c), the ammo economy (#4) actually bites |
-| 3 | Uptown, the Spire | **Halcyon Systems** (twist) — the utility/security contractor that ran Ashport's grid before the Blackout; the Cinder Wardens turn out to be its enforcement arm gone feral, and the outage that started all this was theirs to begin with | Payoff: the Wardens' command structure collapses once Halcyon is exposed, final mission is retaking the Spire (old Halcyon HQ) and handing grid control back to the districts |
+- **All four Act 1 missions have real, individually designed maps** (`src/data/maps/`), one per objective
+  type, none of them reusing Training Grounds. That closes #5's biggest scope cut (see its Resolved list).
+- **Generated supply runs draw from five more hand-authored layouts**, not one placeholder, and roll a
+  weather/time/scarcity complication on top. A saved campaign stores the template id, not a baked `MapDef`.
+- `scripts/sim.ts` gained `--map <id>` so every layout can be balance-checked the same way Training Grounds
+  always has been. Each map file's header comment records its own numbers.
 
-None of act 2 or 3 needs detail yet — the campaign map (#5) only needs the pool/sequencing mechanism, and later sessions can slot in districts and missions the same way Act 1 does below. What matters now is that district order (Riverside -> Market Row -> Dockyards -> Substation Hill -> Old Town -> Uptown -> the Spire) gives #5's story-mission sequence something concrete to schedule.
-
----
-
-## Act 1 missions: Riverside
-
-The four story missions that open the campaign, in order. They reuse Training Grounds as the standalone tutorial/rules-sandbox (unchanged, per #0f) rather than folding it into the story — Act 1 starts fresh once a player leaves Training Grounds. Each row notes which unbuilt feature it leans on, so these are natural first content once that feature lands rather than needing everything at once.
-
-| # | id | Name | Objective type (#3) | Beat | Needs |
-|---|---|---|---|---|---|
-| 1 | `lights-out` | Lights Out | Sabotage/Hold — reach the substation switch and hold it | Clear the block around the crew's dead substation, throw the switch, power the safehouse. First taste of the loop. Ends with the first recruit (a soldier who'd been holed up in the substation basement). | #2 (switch), #3 (sabotage/hold) |
-| 2 | `signal-fire` | Signal Fire | Defend — hold a rooftop relay N rounds while it broadcasts | Get a relay running to find out who else is still out there; Jackals converge on the broadcast. Good fit for night/storm weather (#1) to sell "signal in the dark." Reward: a gear cache (first armor/equipment drop, #7). | #1 (weather), #3 (defend) |
-| 3 | `supply-run-market-row` | Supply Run: Market Row | Reach/extract — grab marked crates and get to the exfil zone | Routine scavenging for ammo and medkits (#4); the first mission worth delegating to auto-run (#0d) once that exists, since it's low narrative stakes by design. | #4 (pickups), #0d (auto-run, optional) |
-| 4 | `jackals-den` | The Jackals' Den | Eliminate (specific target) — kill or capture the Jackal leader | Act 1 finale: hit the warehouse the Jackals run their district out of, take down their leader. Clears Riverside, unlocks the campaign map onward to the Cinder Wardens in Act 2. | #3 (eliminate-specific), #5 (unlocks next district) |
-
-**Open questions specific to these four**
-- Does "found a recruit" (mission 1) hand the player a new unit immediately, or queue it for the base screen (#6) once that exists? Suggest immediate for Act 1 since base building isn't built yet — revisit once #6 lands.
-- Is the Jackal leader (mission 4) a reskinned soldier with a name, or a distinct stat block? A distinct block is more memorable for an act finale but is scope the class table (`data/units.ts`) doesn't have a slot for yet (no per-unit-instance stats, only per-class) — likely needs a small "boss" affix (bonus HP or a second action) rather than a whole new class, decide when #0c's AI profiles exist to give it a "leader" behavior too.
-- Map layout for these four is not built yet; they can share Riverside's tileset/palette conventions with Training Grounds but should look like a lived-in district, not the rules-exercise range.
+The Act 1 open questions this section used to carry are answered in STORY.md: the recruit from mission 1 is
+narrative-only for now, and the Jackal leader is a `tank` on the `camper` profile rather than a new stat
+block or a boss affix.
 
 ---
+
 
 ## 6. Base building
 
