@@ -1,5 +1,5 @@
 import { newBaseState } from '../core/base';
-import { migrateCampaign, type CampaignState } from '../core/campaign';
+import { migrateCampaign, newGearInventory, type CampaignState } from '../core/campaign';
 
 const KEY = 'offgrid.campaign';
 
@@ -23,9 +23,10 @@ export function loadCampaign(): CampaignState | null {
     // default beats losing an otherwise-valid campaign save over one missing field.
     if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState(); // base building (6)
     if (!parsed.loadouts || typeof parsed.loadouts !== 'object') parsed.loadouts = {}; // equipment (7)
-    if (!parsed.unlockedGear || typeof parsed.unlockedGear !== 'object') parsed.unlockedGear = { armor: [], equipment: [] }; // equipment (7)
+    if (!parsed.inventory || typeof parsed.inventory !== 'object') parsed.inventory = newGearInventory(); // equipment (7)
+    if (!Array.isArray(parsed.seenIntros)) parsed.seenIntros = [...parsed.unlockedDistricts]; // story briefings: don't re-show for districts already reached
     if (!parsed.levels || typeof parsed.levels !== 'object') parsed.levels = {}; // leveling (8)
-    // Supply runs became template-based (see core/campaign.ts's migrateCampaign): re-roll any stale offers.
+    // Supply runs became template-based, and gear became a counted locker: migrateCampaign does both.
     return migrateCampaign(parsed);
   } catch {
     return null;

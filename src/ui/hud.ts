@@ -14,6 +14,8 @@ import { describeObjective } from '../core/objectives';
 import type { GameState } from '../core/types';
 import { keyFor } from './input';
 import { displayKey } from './keybindings';
+import { icon, type IconName } from './icons';
+import { seg } from './seg';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
 
@@ -42,6 +44,9 @@ const gearText = (u: Unit): string =>
 /** Equipped perks (8), comma-joined; '' if none are equipped. */
 const perkText = (u: Unit): string => u.equippedPerks.map((id) => PERKS[id].name).join(', ');
 
+const stat = (k: string, v: string | number, boost?: string) =>
+  `<div class="stat"><div class="stat__k">${k}</div><div class="stat__v">${v}${boost ? `<em>${boost}</em>` : ''}</div></div>`;
+
 /** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 export class Hud {
   private logShown = 0;
@@ -52,6 +57,10 @@ export class Hud {
   /** Set once by main.ts after both are constructed (0f); read fresh on every actionbar render for the same
    *  detached-node reason as hoveredButtonId above. */
   tutorial: { currentHighlight: string | null } | null = null;
+  // Segmented-control setters, so state changed elsewhere (loading a map) re-syncs the highlight.
+  private setTime: (v: string) => void;
+  private setWeather: (v: string) => void;
+  private setProfile: (v: string) => void;
 
   constructor(private session: Session) {
     const actionbar = $('actionbar');
@@ -79,15 +88,14 @@ export class Hud {
     });
     $<HTMLInputElement>('dbg-fog').addEventListener('change', (e) => session.toggleFog((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('dbg-skip').addEventListener('change', (e) => { session.skipEnemyPhase = (e.target as HTMLInputElement).checked; });
-    const timeSel = $<HTMLSelectElement>('dbg-time');
-    timeSel.innerHTML = TIME_ORDER.map((t) => `<option value="${t}">${TIMES_OF_DAY[t].name}</option>`).join('');
-    timeSel.addEventListener('change', () => session.setTimeOfDay(timeSel.value as (typeof TIME_ORDER)[number]));
-    const weatherSel = $<HTMLSelectElement>('dbg-weather');
-    weatherSel.innerHTML = WEATHER_ORDER.map((w) => `<option value="${w}">${WEATHERS[w].name}</option>`).join('');
-    weatherSel.addEventListener('change', () => session.setWeather(weatherSel.value as (typeof WEATHER_ORDER)[number]));
-    const profileSel = $<HTMLSelectElement>('dbg-enemy-profile');
-    profileSel.innerHTML = PROFILE_ORDER.map((p) => `<option value="${p}">${AI_PROFILES[p].name}</option>`).join('');
-    profileSel.addEventListener('change', () => session.setEnemyProfile(profileSel.value as (typeof PROFILE_ORDER)[number]));
+
+    this.setTime = seg($('dbg-time'), TIME_ORDER.map((t) => ({ value: t, label: TIMES_OF_DAY[t].name, title: TIMES_OF_DAY[t].blurb })),
+      session.state.timeOfDay, (v) => session.setTimeOfDay(v as (typeof TIME_ORDER)[number]));
+    this.setWeather = seg($('dbg-weather'), WEATHER_ORDER.map((w) => ({ value: w, label: WEATHERS[w].name, title: WEATHERS[w].blurb })),
+      session.state.weather, (v) => session.setWeather(v as (typeof WEATHER_ORDER)[number]));
+    this.setProfile = seg($('dbg-enemy-profile'), PROFILE_ORDER.map((p) => ({ value: p, label: AI_PROFILES[p].name, title: AI_PROFILES[p].blurb })),
+      session.state.aiProfiles.enemy, (v) => session.setEnemyProfile(v as (typeof PROFILE_ORDER)[number]));
+
     $('dbg-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
@@ -113,12 +121,11 @@ export class Hud {
     const acc = `${mods.accuracyMod > 0 ? '+' : ''}${mods.accuracyMod}%`;
     return `
       <h3>Mission</h3>
-      <div class="row"><span>Map</span><b>${s.map.name}</b></div>
-      <div class="row"><span>Time of day</span><b>${TIMES_OF_DAY[s.timeOfDay].name}</b></div>
-      <p class="dim">${TIMES_OF_DAY[s.timeOfDay].blurb}</p>
-      <div class="row"><span>Weather</span><b>${WEATHERS[s.weather].name}</b></div>
-      <p class="dim">${WEATHERS[s.weather].blurb}</p>
-      <div class="row"><span>Combined effect</span><b>Vision ${delta(mods.visionMult)} · Move ${delta(mods.moveMult)} · Accuracy ${acc}</b></div>`;
+      <div class="kv"><span>Map</span><b>${s.map.name}</b></div>
+      <div class="kv"><span>Time of day</span><b>${TIMES_OF_DAY[s.timeOfDay].name}</b></div>
+      <div class="kv"><span>Weather</span><b>${WEATHERS[s.weather].name}</b></div>
+      <div class="kv"><span>Effect</span><b>Vis ${delta(mods.visionMult)} · Mov ${delta(mods.moveMult)} · Acc ${acc}</b></div>
+      <p class="muted" style="margin-top:8px">${TIMES_OF_DAY[s.timeOfDay].blurb} ${WEATHERS[s.weather].blurb}</p>`;
   }
 
   setMouse(x: number, y: number) {
@@ -138,17 +145,17 @@ export class Hud {
     const s = this.session.state;
     const sel = this.session.selected();
 
-    $('phase').textContent = `Turn ${s.turn} · ${s.phase === 'player' ? 'PLAYER' : 'ENEMY'} PHASE`;
+    $('phase').innerHTML = `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}`;
     $('phase').className = s.phase;
-    $<HTMLSelectElement>('dbg-time').value = s.timeOfDay;
-    $<HTMLSelectElement>('dbg-weather').value = s.weather;
-    $<HTMLSelectElement>('dbg-enemy-profile').value = s.aiProfiles.enemy;
+    this.setTime(s.timeOfDay);
+    this.setWeather(s.weather);
+    this.setProfile(s.aiProfiles.enemy);
     $('status').textContent = this.session.status;
     $('objective').textContent = this.objectiveText();
     $('objective').className = s.capture ? 'securing' : '';
-    $('ow-toggle').classList.toggle('active', this.session.showOverwatch);
+    $('ow-toggle').classList.toggle('is-active', this.session.showOverwatch);
     $('ow-legend').hidden = !this.session.showOverwatch;
-    $('auto-run-toggle').classList.toggle('active', this.session.autoRun);
+    $('auto-run-toggle').classList.toggle('is-active', this.session.autoRun);
 
     // aria-disabled + a class, not the disabled attribute: a truly disabled button can't be hovered or
     // focused in most browsers, which would make it impossible to show the tooltip explaining *why*.
@@ -156,40 +163,53 @@ export class Hud {
     $('actionbar').innerHTML = BUTTON_ORDER.map((id) => {
       const st = this.session.buttonState(id);
       const cls = [st.active ? 'active' : '', st.enabled ? '' : 'disabled', this.tutorial?.currentHighlight === id ? 'tutorial-highlight' : ''].join(' ');
-      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${cls}">${st.label}<kbd>${displayKey(keyFor(id))}</kbd></button>`;
+      return `<button data-b="${id}" aria-disabled="${!st.enabled}" class="${cls}">
+        ${icon(id as IconName)}<span class="lbl">${st.label}<kbd>${displayKey(keyFor(id))}</kbd></span>
+      </button>`;
     }).join('');
 
     $('roster').innerHTML = s.units.filter((u) => u.team === 'player').map((u, n) => {
+      const max = CLASSES[u.cls].hp;
       const cls = [u === sel ? 'sel' : '', !u.alive ? 'dead' : u.downed ? 'down' : ''].join(' ');
-      const status = !u.alive ? 'KIA' : u.downed ? `DOWN ${u.bleedOut}` : `${u.hp}/${CLASSES[u.cls].hp}`;
-      return `<button data-unit="${u.id}" class="${cls}"><b>${n + 1}</b> ${CLASSES[u.cls].name}<span>${status}</span></button>`;
+      const status = !u.alive ? 'KIA' : u.downed ? `DOWN ${u.bleedOut}` : `${u.hp}/${max}`;
+      const frac = u.alive && !u.downed ? u.hp / max : 0;
+      const meterCls = frac <= 0.25 ? 'is-critical' : frac <= 0.55 ? 'is-low' : '';
+      return `<button data-unit="${u.id}" class="${cls}">
+        <span class="r-top"><span class="r-num">${n + 1}</span>${CLASSES[u.cls].name}<span class="r-hp">${status}</span></span>
+        <span class="meter ${meterCls}"><i style="width:${Math.round(frac * 100)}%"></i></span>
+      </button>`;
     }).join('');
 
     $('mission').innerHTML = this.missionInfo(s);
 
-    if (!sel) $('card').innerHTML = '<p class="dim">No unit selected.</p>';
+    if (!sel) $('card').innerHTML = '<h3>Unit</h3><p class="muted">No unit selected. Click one on the board or in the squad list.</p>';
     else {
       const d = CLASSES[sel.cls];
       const w = d.weapon;
       const g = sel.gadget;
       const gtext = !g ? 'none'
-        : `${GADGETS[g.id].name} · uses ${g.uses} · ${g.cooldown > 0 ? `ready in ${g.cooldown} turn${g.cooldown > 1 ? 's' : ''}` : 'ready'}`;
+        : `${GADGETS[g.id].name} · ${g.uses} left · ${g.cooldown > 0 ? `ready in ${g.cooldown}` : 'ready'}`;
       const move = effectiveMove(s, sel);
       const vision = effectiveVision(s, sel);
       const armor = effectiveArmor(sel);
       const acc = effectiveAccuracyMod(s, sel);
       $('card').innerHTML = `
         <h3>${nameOf(sel)} <span class="badge">Lv ${sel.level}</span></h3>
-        <div class="row"><span>HP</span><b>${sel.hp}/${d.hp}</b><span>Armor</span><b>${armor}${armor !== d.armor ? ` <em class="boost">(base ${d.armor})</em>` : ''}</b><span>Move</span><b>${move}${move !== d.move ? ` <em class="boost">(base ${d.move})</em>` : ''}${sel.moveBonus ? ` <em class="boost">+${sel.moveBonus} next move</em>` : ''}</b><span>Vision</span><b>${vision}${vision !== d.vision ? ` <em class="boost">(base ${d.vision})</em>` : ''}</b></div>
-        <div class="row"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · acc ${w.accuracy}%${acc ? ` <em class="boost">(${acc > 0 ? '+' : ''}${acc}%)</em>` : ''}</b></div>
-        <div class="row"><span>Actions</span><b class="pips">${pips(sel.actions, RULES.actionsPerTurn)}</b></div>
-        <div class="row"><span>Ammo</span><b>${sel.ammo}/${w.magazine} <em class="boost">(+${sel.reserve} reserve)</em></b><span>Medkits</span><b>${sel.medkits}</b></div>
-        <div class="row"><span>Gadget</span><b>${gtext}</b></div>
-        ${g ? `<p class="dim">${GADGETS[g.id].blurb}</p>` : ''}
-        ${gearText(sel) ? `<div class="row"><span>Gear</span><b>${gearText(sel)}</b></div>` : ''}
-        ${perkText(sel) ? `<div class="row"><span>Perks</span><b>${perkText(sel)}</b></div>` : ''}
-        ${sel.overwatch ? '<p class="ow">On overwatch</p>' : ''}
-        ${sel.exposed ? '<p class="exposed">Exposed: seen in the bush until your next turn</p>' : ''}`;
+        <div class="stat-grid">
+          ${stat('HP', `${sel.hp}/${d.hp}`)}
+          ${stat('Armor', armor, armor !== d.armor ? `base ${d.armor}` : undefined)}
+          ${stat('Move', move, sel.moveBonus ? `+${sel.moveBonus} next` : move !== d.move ? `base ${d.move}` : undefined)}
+          ${stat('Vision', vision, vision !== d.vision ? `base ${d.vision}` : undefined)}
+        </div>
+        <div class="kv"><span>Actions</span><b>${pips(sel.actions, RULES.actionsPerTurn)}</b></div>
+        <div class="kv"><span>Weapon</span><b>rng ${w.range} · dmg ${w.damage}${w.shots > 1 ? `x${w.shots}` : ''} · ${w.accuracy}%${acc ? ` (${acc > 0 ? '+' : ''}${acc})` : ''}</b></div>
+        <div class="kv"><span>Ammo</span><b>${sel.ammo}/${w.magazine} (+${sel.reserve})</b></div>
+        <div class="kv"><span>Medkits</span><b>${sel.medkits}</b></div>
+        <div class="kv"><span>Gadget</span><b>${gtext}</b></div>
+        ${gearText(sel) ? `<div class="kv"><span>Gear</span><b>${gearText(sel)}</b></div>` : ''}
+        ${perkText(sel) ? `<div class="kv"><span>Perks</span><b>${perkText(sel)}</b></div>` : ''}
+        ${sel.overwatch ? '<p class="flag flag--ow">On overwatch</p>' : ''}
+        ${sel.exposed ? '<p class="flag flag--exposed">Exposed: seen in the bush until your next turn</p>' : ''}`;
     }
 
     const logEl = $('log');
@@ -238,5 +258,3 @@ export class Hud {
     }
   }
 }
-
-

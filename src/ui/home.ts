@@ -1,13 +1,17 @@
 import type { Mission } from '../data/missions';
 import type { MapDef } from '../data/trainingGrounds';
+import { icon } from './icons';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip';
 
+const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip'];
+
 /** Show exactly one screen. */
 export function showScreen(screen: Screen) {
-  for (const s of ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip'] as Screen[]) $(s).hidden = s !== screen;
+  for (const s of SCREENS) $(s).hidden = s !== screen;
+  window.scrollTo({ top: 0 });
 }
 
 export const isGameVisible = () => !$('game').hidden;
@@ -27,14 +31,24 @@ export function initHome(missions: Mission[], h: HomeHooks): () => void {
     $('missions').innerHTML = missions.map((m, i) => {
       const { rows, spawns } = h.resolve(m);
       const custom = h.debug && h.isCustom(m);
-      return `<article class="mission">
-        <h3>${m.name}${custom ? ' <span class="badge">custom map</span>' : ''}</h3>
-        <p>${m.blurb}</p>
-        <p class="obj"><b>Objective</b> ${m.objective}</p>
-        <div class="chips"><span>${rows[0].length} x ${rows.length} tiles</span><span>${spawns.player.length} friendly units</span><span>${spawns.enemy.length} enemies</span></div>
-        <div class="btns">
-          <button class="enter" data-mission="${i}">Enter mission</button>
-          ${h.debug ? `<button data-edit="${i}">Edit map (debug)</button>` : ''}
+      return `<article class="card card--interactive card--accent">
+        <div class="card__head">
+          <div>
+            <h3 class="card__title">${m.name}</h3>
+            <span class="card__sub">${rows[0].length} x ${rows.length} tiles</span>
+          </div>
+          <div class="spacer"></div>
+          ${custom ? '<span class="badge">custom map</span>' : ''}
+        </div>
+        <p class="card__body">${m.blurb}</p>
+        <p class="objective-line"><b>Objective</b> <span>${m.objective}</span></p>
+        <div class="chips">
+          <span class="chip chip--ok">${spawns.player.length} friendly</span>
+          <span class="chip chip--danger">${spawns.enemy.length} hostile</span>
+        </div>
+        <div class="card__foot">
+          <button class="btn--primary" data-mission="${i}">${icon('play')}Enter mission</button>
+          ${h.debug ? `<button class="btn--ghost" data-edit="${i}">Edit map</button>` : ''}
         </div>
       </article>`;
     }).join('');

@@ -1,11 +1,15 @@
-import { togglePerk, type CampaignState } from '../core/campaign';
+import {
+  equipFromInventory, gearStock, loadoutFor, moveEquipped, perkSlots, progressFor, setPerkSlot,
+  unequipToInventory, type CampaignState, type GearSlot,
+} from '../core/campaign';
 import { slotCount } from '../core/leveling';
-import { ARMOR } from '../data/armor';
-import { EQUIPMENT } from '../data/equipment';
+import { ARMOR, ARMOR_ORDER, type ArmorId } from '../data/armor';
+import { EQUIPMENT, EQUIPMENT_ORDER, type EquipmentId } from '../data/equipment';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../data/units';
 import { LEVEL_PATHS } from '../data/leveling';
 import { PERKS, type PerkId } from '../data/perks';
-import type { ClassProgress, UnitLoadout } from '../data/trainingGrounds';
+import { DragDrop } from './dnd';
+import { icon } from './icons';
 import { saveCampaign } from './campaignStore';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -15,98 +19,222 @@ export interface EquipHooks {
 }
 
 /**
- * The equip screen (7, 8): per class, one armor slot, two equipment slots, and its level/XP with a perk
- * checklist limited to unlocked perks and the current slot count. Reads and mutates the same live
- * `CampaignState` the campaign screen (5) owns, exactly like the base screen (6) - not a private copy.
+ * The loadout screen (7, 8). Gear and perks move by drag and drop between a shared locker and each class's
+ * slots - no dropdowns, and no list of checkboxes.
+ *
+ * Payload/target encoding, both consumed by `onDrop` below:
+ *   sources   inv:<kind>:<id>  |  gear:<cls>:<slot>  |  perk:<cls>:<perkId>  |  perkslot:<cls>:<index>
+ *   targets   slot:<cls>:<slot>  |  perkslot:<cls>:<index>  |  locker
+ *
+ * Everything is a string because `DragDrop` is deliberately payload-agnostic; this module owns the grammar.
  */
 export class Equip {
   private cs: CampaignState | null = null;
+  private dnd: DragDrop;
+  private message = '';
 
   constructor(hooks: EquipHooks) {
     $('equip-back').addEventListener('click', () => hooks.onBack());
-    $('equip-classes').addEventListener('change', (e) => this.onChange(e));
+    const root = $('equip');
+    this.dnd = new DragDrop(root, {
+      accepts: (payload, target) => this.accepts(payload, target),
+      onDrop: (payload, target) => this.onDrop(payload, target),
+      onArmedChange: () => this.paintArmed(),
+    });
+    root.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');
+      if (!btn) return;
+      const [cls, slot] = (btn.dataset.target ?? '').split(':');
+      if (btn.dataset.act === 'unequip-gear') this.mutate(() => unequipToInventory(this.cs!, cls as ClassId, slot as GearSlot));
+      if (btn.dataset.act === 'unequip-perk') this.mutate(() => setPerkSlot(this.cs!, cls as ClassId, Number(slot), null));
+    });
   }
 
   open(cs: CampaignState) {
     this.cs = cs;
+    this.message = '';
+    this.dnd.disarm();
     this.render();
   }
 
-  private loadoutFor(cls: ClassId): UnitLoadout {
-    return this.cs!.loadouts[cls] ?? { armor: null, equipment: [null, null] };
+  // ---------- drag/drop rules ----------
+
+  private accepts(payload: string, target: string): boolean {
+    const [kind] = payload.split(':');
+    if (target === 'locker') return kind === 'gear' || kind === 'perkslot';
+    const [tKind, tCls, tKey] = target.split(':');
+    if (tKind === 'slot') {
+      const wanted = tKey === 'armor' ? 'armor' : 'equipment';
+      if (kind === 'inv') return payload.split(':')[1] === wanted;
+      if (kind === 'gear') {
+        const from = payload.split(':')[2];
+        return (from === 'armor' ? 'armor' : 'equipment') === wanted;
+      }
+      return false;
+    }
+    if (tKind === 'perkslot') {
+      if (kind !== 'perk' && kind !== 'perkslot') return false;
+      return payload.split(':')[1] === tCls; // perks never move between classes
+    }
+    return false;
   }
 
-  private progressFor(cls: ClassId): ClassProgress {
-    return this.cs!.levels[cls] ?? { xp: 0, level: 1, perkPool: [], equippedPerks: [] };
+  private onDrop(payload: string, target: string) {
+    const cs = this.cs;
+    if (!cs) return;
+    const src = payload.split(':');
+    const dst = target.split(':');
+
+    this.mutate(() => {
+      if (target === 'locker') {
+        if (src[0] === 'gear') return unequipToInventory(cs, src[1] as ClassId, src[2] as GearSlot);
+        if (src[0] === 'perkslot') return setPerkSlot(cs, src[1] as ClassId, Number(src[2]), null);
+        return null;
+      }
+      if (dst[0] === 'slot') {
+        const toCls = dst[1] as ClassId;
+        const toSlot = dst[2] as GearSlot;
+        if (src[0] === 'inv') return equipFromInventory(cs, toCls, toSlot, src[2] as ArmorId | EquipmentId);
+        return moveEquipped(cs, { cls: src[1] as ClassId, slot: src[2] as GearSlot }, { cls: toCls, slot: toSlot });
+      }
+      if (dst[0] === 'perkslot') {
+        const cls = dst[1] as ClassId;
+        const index = Number(dst[2]);
+        if (src[0] === 'perk') return setPerkSlot(cs, cls, index, src[2] as PerkId);
+        const moving = perkSlots(cs, cls)[Number(src[2])];
+        return moving ? setPerkSlot(cs, cls, index, moving) : null;
+      }
+      return null;
+    });
   }
 
-  private onChange(e: Event) {
+  /** Runs a mutation, reports whatever it refused, saves and redraws. One path for drops and buttons alike. */
+  private mutate(fn: () => string | null | void) {
     if (!this.cs) return;
-    const el = e.target as HTMLElement;
-    if (el instanceof HTMLSelectElement) this.onGearChange(el);
-    else if (el instanceof HTMLInputElement && el.dataset.perk) this.onPerkToggle(el);
-  }
-
-  private onGearChange(sel: HTMLSelectElement) {
-    if (!this.cs) return;
-    const cls = sel.dataset.cls as ClassId | undefined;
-    const slot = sel.dataset.slot; // 'armor' | '0' | '1'
-    if (!cls || slot === undefined) return;
-    const loadout = { ...this.loadoutFor(cls), equipment: [...this.loadoutFor(cls).equipment] as UnitLoadout['equipment'] };
-    const value = sel.value || null;
-    if (slot === 'armor') loadout.armor = value as UnitLoadout['armor'];
-    else loadout.equipment[Number(slot)] = value as UnitLoadout['equipment'][number];
-    this.cs.loadouts[cls] = loadout;
+    this.message = fn() || '';
     saveCampaign(this.cs);
+    this.dnd.disarm();
     this.render();
   }
 
-  private onPerkToggle(box: HTMLInputElement) {
-    if (!this.cs) return;
-    const cls = box.dataset.cls as ClassId;
-    const id = box.dataset.perk as PerkId;
-    const err = togglePerk(this.cs, cls, id);
-    $('equip-msg').textContent = err ?? '';
-    saveCampaign(this.cs);
-    this.render();
+  // ---------- rendering ----------
+
+  private paintArmed() {
+    for (const el of $('equip').querySelectorAll<HTMLElement>('[data-drag]')) {
+      el.classList.toggle('is-armed', el.dataset.drag === this.dnd.armed);
+    }
   }
 
   private render() {
     const cs = this.cs;
     if (!cs) return;
-    $('equip-classes').innerHTML = CLASS_ORDER.map((cls) => classCard(cls, this.loadoutFor(cls), this.progressFor(cls), cs)).join('');
+    $('equip-msg').textContent = this.message;
+    $('equip-classes').innerHTML = CLASS_ORDER.map((cls) => this.classCard(cls)).join('');
+    $('equip-locker-items').innerHTML = this.lockerItems();
+    this.paintArmed();
+  }
+
+  private lockerItems(): string {
+    const cs = this.cs!;
+    const rows = [
+      ...gearStock(cs.inventory, 'armor', ARMOR_ORDER).map((e) =>
+        itemTile(`inv:armor:${e.id}`, 'armor', ARMOR[e.id as ArmorId].name, ARMOR[e.id as ArmorId].blurb, e.count)),
+      ...gearStock(cs.inventory, 'equipment', EQUIPMENT_ORDER).map((e) =>
+        itemTile(`inv:equipment:${e.id}`, 'equipment', EQUIPMENT[e.id as EquipmentId].name, EQUIPMENT[e.id as EquipmentId].blurb, e.count)),
+    ];
+    return rows.length ? rows.join('')
+      : '<p class="locker__empty">Empty. Armor and equipment are loot only - open chests and take what the Jackals drop.</p>';
+  }
+
+  private classCard(cls: ClassId): string {
+    const cs = this.cs!;
+    const lo = loadoutFor(cs, cls);
+    const progress = progressFor(cs, cls);
+    const slots = slotCount(cls, progress.level);
+    const next = LEVEL_PATHS[cls].find((d) => d.xpThreshold > progress.xp)?.xpThreshold;
+    const prev = [...LEVEL_PATHS[cls]].reverse().find((d) => d.xpThreshold <= progress.xp)?.xpThreshold ?? 0;
+    const pct = next === undefined ? 100 : Math.round(((progress.xp - prev) / (next - prev)) * 100);
+    const equippedPerks = perkSlots(cs, cls);
+    const loose = progress.perkPool.filter((id) => !equippedPerks.includes(id));
+
+    return `<article class="card card--player">
+      <div class="card__head">
+        <div>
+          <h3 class="card__title">${CLASSES[cls].name}</h3>
+          <span class="card__sub">${CLASSES[cls].hp} HP · move ${CLASSES[cls].move} · vision ${CLASSES[cls].vision}</span>
+        </div>
+        <div class="spacer"></div>
+        <span class="badge">Lv ${progress.level}</span>
+      </div>
+
+      <div class="xp">
+        <span>${progress.xp} XP</span>
+        <div class="meter"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>
+        <span>${next === undefined ? 'max level' : `next ${next}`}</span>
+      </div>
+
+      <div class="loadout">
+        ${gearSlot(cls, 'armor', 'Armor', lo.armor, 'armor')}
+        ${gearSlot(cls, 'equip0', 'Equipment 1', lo.equipment[0], 'equipment')}
+        ${gearSlot(cls, 'equip1', 'Equipment 2', lo.equipment[1], 'equipment')}
+      </div>
+
+      <h4 class="section__title" style="margin:4px 0 0">Perks · ${equippedPerks.filter(Boolean).length}/${slots} slots</h4>
+      <div class="loadout">
+        ${equippedPerks.map((id, i) => perkSlot(cls, i, id)).join('')}
+      </div>
+      ${loose.length
+        ? `<div class="stack" style="gap:6px">${loose.map((id) => perkTile(`perk:${cls}:${id}`, id)).join('')}</div>`
+        : progress.perkPool.length
+          ? '<p class="muted">Every unlocked perk is equipped.</p>'
+          : '<p class="muted">No perks unlocked yet - earn XP on missions to level up.</p>'}
+    </article>`;
   }
 }
 
-const option = (value: string, label: string, selected: boolean) =>
-  `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
+// ---------- tiles ----------
 
-function classCard(cls: ClassId, loadout: UnitLoadout, progress: ClassProgress, cs: CampaignState): string {
-  const armorOptions = [option('', 'None', !loadout.armor), ...cs.unlockedGear.armor.map((id) => option(id, ARMOR[id].name, loadout.armor === id))];
-  const equipOptions = (slot: 0 | 1) => [
-    option('', 'None', !loadout.equipment[slot]),
-    ...cs.unlockedGear.equipment.map((id) => option(id, EQUIPMENT[id].name, loadout.equipment[slot] === id)),
-  ];
-  const slots = slotCount(cls, progress.level);
-  const nextThreshold = LEVEL_PATHS[cls].find((d) => d.xpThreshold > progress.xp)?.xpThreshold;
-  const perkRows = progress.perkPool.length ? progress.perkPool.map((id) => perkRow(cls, id, progress)).join('')
-    : '<p class="dim">No perks unlocked yet - earn XP on missions to level up.</p>';
-  return `<article class="mission">
-    <h3>${CLASSES[cls].name} <span class="badge">Lv ${progress.level} - ${progress.xp} XP${nextThreshold !== undefined ? ` (next at ${nextThreshold})` : ' (max)'}</span></h3>
-    <div class="row">
-      <span>Armor</span><select data-cls="${cls}" data-slot="armor">${armorOptions.join('')}</select>
-      <span>Equipment</span><select data-cls="${cls}" data-slot="0">${equipOptions(0).join('')}</select>
-      <select data-cls="${cls}" data-slot="1">${equipOptions(1).join('')}</select>
-    </div>
-    <p class="dim">Perks: ${progress.equippedPerks.length}/${slots} slots used</p>
-    ${perkRows}
-  </article>`;
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+function itemTile(payload: string, kind: 'armor' | 'equipment', name: string, blurb: string, count?: number): string {
+  return `<div class="item" data-drag="${payload}" tabindex="0" role="button" title="${esc(blurb)}">
+    <span class="item__icon">${icon(kind)}</span>
+    <span class="item__text"><span class="item__name">${name}</span><span class="item__stat">${esc(blurb)}</span></span>
+    ${count !== undefined && count > 1 ? `<span class="item__count">x${count}</span>` : ''}
+  </div>`;
 }
 
-function perkRow(cls: ClassId, id: PerkId, progress: ClassProgress): string {
+function perkTile(payload: string, id: PerkId): string {
   const def = PERKS[id];
-  const equipped = progress.equippedPerks.includes(id);
-  const full = !equipped && progress.equippedPerks.length >= slotCount(cls, progress.level);
-  return `<label class="row"><input type="checkbox" data-cls="${cls}" data-perk="${id}" ${equipped ? 'checked' : ''} ${full ? 'disabled' : ''} />
-    <span>${def.name}</span><span class="dim">${def.blurb}</span></label>`;
+  return `<div class="item item--perk" data-drag="${payload}" tabindex="0" role="button" title="${esc(def.blurb)}">
+    <span class="item__icon">${icon('perk')}</span>
+    <span class="item__text"><span class="item__name">${def.name}</span><span class="item__stat">${esc(def.blurb)}</span></span>
+  </div>`;
+}
+
+function gearSlot(cls: ClassId, slot: GearSlot, label: string, id: ArmorId | EquipmentId | null, kind: 'armor' | 'equipment'): string {
+  const filled = id !== null;
+  const def = !id ? null : kind === 'armor' ? ARMOR[id as ArmorId] : EQUIPMENT[id as EquipmentId];
+  return `<div class="slot ${filled ? 'is-filled' : ''}" data-drop="slot:${cls}:${slot}">
+    ${filled
+      ? `<div class="item" data-drag="gear:${cls}:${slot}" tabindex="0" role="button" title="${esc(def!.blurb)}">
+           <span class="item__icon">${icon(kind)}</span>
+           <span class="item__text"><span class="item__name">${def!.name}</span><span class="item__stat">${label}</span></span>
+         </div>
+         <button class="btn--ghost slot__remove" data-act="unequip-gear" data-target="${cls}:${slot}" title="Take off">${icon('close')}</button>`
+      : `<span class="item__icon">${icon(kind)}</span><span class="item__text"><span class="slot__label">${label}</span><span class="slot__empty">Empty</span></span>`}
+  </div>`;
+}
+
+function perkSlot(cls: ClassId, index: number, id: PerkId | null): string {
+  const def = id ? PERKS[id] : null;
+  return `<div class="slot ${id ? 'is-filled' : ''}" data-drop="perkslot:${cls}:${index}">
+    ${def
+      ? `<div class="item item--perk" data-drag="perkslot:${cls}:${index}" tabindex="0" role="button" title="${esc(def.blurb)}">
+           <span class="item__icon">${icon('perk')}</span>
+           <span class="item__text"><span class="item__name">${def.name}</span><span class="item__stat">${esc(def.blurb)}</span></span>
+         </div>
+         <button class="btn--ghost slot__remove" data-act="unequip-perk" data-target="${cls}:${index}" title="Unequip">${icon('close')}</button>`
+      : `<span class="item__icon">${icon('perk')}</span><span class="item__text"><span class="slot__label">Perk ${index + 1}</span><span class="slot__empty">Empty</span></span>`}
+  </div>`;
 }

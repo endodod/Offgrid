@@ -14,9 +14,9 @@ export function initSettings(hooks: SettingsHooks): () => void {
 
   const render = () => {
     $('kb-list').innerHTML = BINDABLE_ACTIONS.map((a) => `
-      <div class="row kb-row">
+      <div class="kb-row">
         <span>${ACTION_LABEL[a]}</span>
-        <button data-rebind="${a}" class="${listening === a ? 'active' : ''}">${listening === a ? 'Press a key...' : displayKey(getBindings()[a])}</button>
+        <button data-rebind="${a}" class="${listening === a ? 'is-listening' : ''}">${listening === a ? 'Press a key...' : displayKey(getBindings()[a])}</button>
       </div>`).join('');
     $('kb-msg').textContent = message;
   };

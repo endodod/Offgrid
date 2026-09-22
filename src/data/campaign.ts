@@ -11,6 +11,8 @@ export interface District {
   act: 1 | 2 | 3;
   antagonist: string;
   blurb: string;
+  /** Shown once, as a modal, the first time the district is unlocked. See ui/campaign.ts. */
+  intro: { title: string; body: string[] };
 }
 
 /**
@@ -20,14 +22,92 @@ export interface District {
  * story section's own note that only the pool/sequencing mechanism is needed before those are written.
  */
 export const DISTRICTS: District[] = [
-  { id: 'riverside', name: 'Riverside', act: 1, antagonist: 'the Jackals', blurb: 'Home. A dead substation, a handful of survivors.' },
-  { id: 'market-row', name: 'Market Row', act: 1, antagonist: 'the Jackals', blurb: 'Scavenged storefronts under loose Jackal patrol.' },
-  { id: 'dockyards', name: 'Dockyards', act: 2, antagonist: 'the Cinder Wardens', blurb: 'Checkpoints and "tithes" on the waterfront.' },
-  { id: 'substation-hill', name: 'Substation Hill', act: 2, antagonist: 'the Cinder Wardens', blurb: 'A fortified high point overlooking the grid.' },
-  { id: 'old-town', name: 'Old Town', act: 2, antagonist: 'the Cinder Wardens', blurb: 'Narrow streets, heavier resistance.' },
-  { id: 'uptown', name: 'Uptown', act: 3, antagonist: 'Halcyon Systems', blurb: 'What is left of corporate Ashport.' },
-  { id: 'spire', name: 'The Spire', act: 3, antagonist: 'Halcyon Systems', blurb: 'Old Halcyon HQ - grid control, for whoever holds it.' },
+  {
+    id: 'riverside', name: 'Riverside', act: 1, antagonist: 'the Jackals',
+    blurb: 'Home. A dead substation, a handful of survivors.',
+    intro: {
+      title: 'Riverside',
+      body: [
+        'Three years since the grid went down. Three years of the same argument: wait for someone to come, or stop waiting.',
+        'You have a dead substation, a basement that holds heat, and four people who are still here because leaving was worse. Two blocks east, the Jackals have the only working feeder in the district behind a chain-link fence, because that is what the Jackals do - find the one thing that still works and sit on it.',
+        'Nobody is coming. So: lights first. Everything else is downstream of lights.',
+      ],
+    },
+  },
+  {
+    id: 'market-row', name: 'Market Row', act: 1, antagonist: 'the Jackals',
+    blurb: 'Scavenged storefronts under loose Jackal patrol.',
+    intro: {
+      title: 'Market Row',
+      body: [
+        'Riverside is lit. Word travels faster than it has any right to in a city with no radio, and what came back down the line was a name: Vex.',
+        'Market Row was six blocks of covered market and it is now six blocks of Jackal storage. They are not scavenging it. They are inventorying it - crates stacked by contents, lids marked in the same hand, a rota for the patrols.',
+        'Scavengers do not keep books. Somebody taught them to. Find out who, and take the Row.',
+      ],
+    },
+  },
+  {
+    id: 'dockyards', name: 'Dockyards', act: 2, antagonist: 'the Cinder Wardens',
+    blurb: 'Checkpoints and "tithes" on the waterfront.',
+    intro: {
+      title: 'The Dockyards',
+      body: [
+        'The coded transmission that answered your relay came from the waterfront, and it was not asking for help. It was a schedule.',
+        'The people running the Dockyards call themselves the Cinder Wardens. They hold checkpoints, they issue receipts, and they take a percentage of everything that moves - fuel, food, medicine - on a timetable nobody voted for.',
+        'They are not raiders. That is the part that should worry you.',
+      ],
+    },
+  },
+  {
+    id: 'substation-hill', name: 'Substation Hill', act: 2, antagonist: 'the Cinder Wardens',
+    blurb: 'A fortified high point overlooking the grid.',
+    intro: {
+      title: 'Substation Hill',
+      body: [
+        'The Wardens hold the hill, and the hill holds the switchgear for half of Ashport.',
+        'They are not stripping it for copper. They are *maintaining* it - greased breakers, swept bays, a log book with entries as recent as last week.',
+        "Somebody is keeping this city's grid alive and choosing not to turn it on. Get up the hill and find out who they are doing it for.",
+      ],
+    },
+  },
+  {
+    id: 'old-town', name: 'Old Town', act: 2, antagonist: 'the Cinder Wardens',
+    blurb: 'Narrow streets, heavier resistance.',
+    intro: {
+      title: 'Old Town',
+      body: [
+        'Narrow streets, stone, and a Warden garrison that has had three years to decide where it wants you to walk.',
+        "The ledgers from the Hill all route through an office in Old Town, and every one of them carries the same stamp: a cinder over a wrench. You have seen it before - on a tithe sheet in a dead man's desk in Market Row.",
+        'Ammunition is short. Take what you need off them.',
+      ],
+    },
+  },
+  {
+    id: 'uptown', name: 'Uptown', act: 3, antagonist: 'Halcyon Systems',
+    blurb: 'What is left of corporate Ashport.',
+    intro: {
+      title: 'Uptown',
+      body: [
+        "The cinder-and-wrench is a subcontractor stamp. It belongs to Halcyon Systems, who ran Ashport's grid, Ashport's water, and - it turns out - Ashport's security contracts.",
+        'The Cinder Wardens were never a militia. They are a contract still being executed, three years after the last person with authority to cancel it stopped answering.',
+        'Uptown is where the contract was written.',
+      ],
+    },
+  },
+  {
+    id: 'spire', name: 'The Spire', act: 3, antagonist: 'Halcyon Systems',
+    blurb: 'Old Halcyon HQ - grid control, for whoever holds it.',
+    intro: {
+      title: 'The Spire',
+      body: [
+        'The Blackout was not a transformer chain-failure. It was a cascade Halcyon could have arrested in eleven minutes and did not, because arresting it meant admitting it had started on their side of the meter.',
+        'Every switch in Ashport still answers to one room at the top of the Spire.',
+        'Take the room. Then give it away - to Riverside, to the Row, to the Dockyards, to whoever is left. A grid one company can switch off is not a grid. It is a leash.',
+      ],
+    },
+  },
 ];
+
 export const DISTRICT_ORDER: string[] = DISTRICTS.map((d) => d.id);
 
 /** One of the four fixed Act 1 story missions. Handcrafted end to end: each one owns a real `MapDef` under

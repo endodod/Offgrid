@@ -9,16 +9,23 @@ import { Campaign } from './ui/campaign';
 import { Equip } from './ui/equip';
 import { initHome, showScreen, type Screen } from './ui/home';
 import { Hud } from './ui/hud';
+import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
 import { initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
+import { Viewport } from './ui/viewport';
 
 /** The only mission the guided walkthrough covers so far (see ROADMAP.md #0f). */
 const TUTORIAL_MISSION_ID = 'training-grounds';
 
 const el = (id: string) => document.getElementById(id)!;
+
+// Static markup asks for its icon with data-icon rather than inlining SVG; fill them in once at boot.
+for (const node of document.querySelectorAll<HTMLElement>('[data-icon]')) {
+  node.insertAdjacentHTML('afterbegin', icon(node.dataset.icon as IconName));
+}
 
 // Debug mode (VITE_DEBUG=true): debug panel, combat log and map builder. Otherwise none of it is reachable.
 el('debug').hidden = !DEBUG;
@@ -32,6 +39,7 @@ const canvas = el('board') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const session = new Session(resolve(MISSIONS[0]));
 const hud = new Hud(session);
+const viewport = new Viewport(canvas, el('board-wrap'), el('zoom'));
 bindInput(canvas, session, hud);
 const tutorial = new Tutorial(session, () => hud.update());
 hud.tutorial = tutorial;
@@ -40,7 +48,11 @@ let queued = false;
 function frame() {
   queued = false;
   const s = session.state;
-  if (canvas.width !== s.width * TILE) { canvas.width = s.width * TILE; canvas.height = s.height * TILE; }
+  if (canvas.width !== s.width * TILE) {
+    canvas.width = s.width * TILE;
+    canvas.height = s.height * TILE;
+    viewport.apply();
+  }
   draw(ctx, session.view(performance.now()));
   if (session.floaters.length) request(); // keep animating while floating texts are alive
 }
@@ -48,7 +60,15 @@ function request() {
   if (!queued) { queued = true; requestAnimationFrame(frame); }
 }
 // tutorial before hud: a step it advances this change should already be reflected in this same render.
-session.onChange = () => { tutorial.onSessionChange(); hud.update(); request(); };
+session.onChange = () => {
+  tutorial.onSessionChange();
+  hud.update();
+  request();
+  // Keep the camera on whatever the game is drawing attention to: the selected unit during the player's
+  // phase, or the unit that just acted during the enemy's. Only matters on maps bigger than the viewport.
+  const focus = session.focusTile();
+  if (focus) viewport.ensureVisible(focus.x, focus.y);
+};
 
 // ---------- screens ----------
 // Set when a mission is launched from the campaign screen (5), so a win can be reported back to it, and so
@@ -92,18 +112,20 @@ const campaign = new Campaign({
   onPlay: (map, missionId) => { activeCampaignMissionId = missionId; returnScreen = 'campaign'; startGame(map, false, missionId); },
   onBack: () => showScreen('home'),
 });
-el('home-campaign').addEventListener('click', () => { campaign.open(); showScreen('campaign'); });
+/** Campaign.open() is async (it may queue a debrief and a district briefing); nothing waits on it. */
+const toCampaign = () => { showScreen('campaign'); void campaign.open(); };
+el('home-campaign').addEventListener('click', toCampaign);
 
-const base = new Base({ onBack: () => { campaign.open(); showScreen('campaign'); } });
+const base = new Base({ onBack: toCampaign });
 el('campaign-to-base').addEventListener('click', () => { base.open(campaign.campaignState()); showScreen('base'); });
 
-const equip = new Equip({ onBack: () => { campaign.open(); showScreen('campaign'); } });
+const equip = new Equip({ onBack: toCampaign });
 el('campaign-to-equip').addEventListener('click', () => { equip.open(campaign.campaignState()); showScreen('equip'); });
 
 const toMenu = () => {
   if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId, session.state.units);
   activeCampaignMissionId = null;
-  if (returnScreen === 'campaign') { campaign.open(); showScreen('campaign'); }
+  if (returnScreen === 'campaign') toCampaign();
   else { refreshHome(); showScreen('home'); }
 };
 el('menu').addEventListener('click', toMenu);

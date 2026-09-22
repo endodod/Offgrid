@@ -5,7 +5,8 @@ import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import {
   applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
-  migrateCampaign, recordMissionGear, resolveSupplyRun, togglePerk,
+  addGear, equipFromInventory, migrateCampaign, moveEquipped, perkSlots, progressFor, recordMissionGear,
+  resolveSupplyRun, setPerkSlot, stockOf, togglePerk, unequipToInventory,
 } from './campaign';
 
 /** A minimal EndedUnit for recordMissionGear/applyMissionXp tests - fills in stat defaults not under test. */
@@ -169,39 +170,122 @@ describe('campaign (feature 5)', () => {
     expect(['hard', 'ambush']).toContain(fresh.enemyProfile); // tier 3's pool is only ever 'hard' or 'ambush'
   });
 
-  describe('recordMissionGear (feature 7)', () => {
-    it('a fresh campaign starts with no loadouts and no unlocked gear', () => {
+  describe('gear: recordMissionGear and the locker (feature 7)', () => {
+    it('a fresh campaign starts with no loadouts and an empty locker', () => {
       const cs = newCampaign(1);
       expect(cs.loadouts).toEqual({});
-      expect(cs.unlockedGear).toEqual({ armor: [], equipment: [] });
+      expect(cs.inventory).toEqual({ armor: {}, equipment: {} });
     });
 
-    it('persists a player unit\'s ending loadout by class, and unlocks what it found', () => {
+    it("persists a player unit's ending loadout by class, and never the enemy's", () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [
         endedUnit({ cls: 'soldier', armor: 'heavyPlate', equipment: ['boots', null] }),
         endedUnit({ team: 'enemy', cls: 'soldier', armor: 'lightVest' }), // enemy gear never persists
       ]);
       expect(cs.loadouts.soldier).toEqual({ armor: 'heavyPlate', equipment: ['boots', null] });
-      expect(cs.unlockedGear.armor).toEqual(['heavyPlate']);
-      expect(cs.unlockedGear.equipment).toEqual(['boots']);
+      expect(cs.loadouts.sniper).toBeUndefined();
+      // found on the mission and still worn: on the unit, not in the locker
+      expect(stockOf(cs.inventory, 'armor', 'heavyPlate')).toBe(0);
     });
 
-    it('overwrites a class\'s loadout on a later mission rather than merging', () => {
+    it('returns a piece to the locker when a class stops carrying it', () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [endedUnit({ cls: 'medic', armor: 'lightVest' })]);
       recordMissionGear(cs, [endedUnit({ cls: 'medic', equipment: ['nvg', 'flashlight'] })]);
       expect(cs.loadouts.medic).toEqual({ armor: null, equipment: ['nvg', 'flashlight'] });
-      // but the armor found on the first mission stays unlocked even though it's no longer equipped
-      expect(cs.unlockedGear.armor).toEqual(['lightVest']);
-      expect(cs.unlockedGear.equipment).toEqual(['nvg', 'flashlight']);
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(1); // back on the shelf, not lost
     });
 
-    it('never unlocks the same item id twice', () => {
+    it('counts two of the same piece when two missions each find one', () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [endedUnit({ cls: 'tank', armor: 'lightVest' })]);
       recordMissionGear(cs, [endedUnit({ cls: 'sniper', armor: 'lightVest' })]);
-      expect(cs.unlockedGear.armor).toEqual(['lightVest']); // not duplicated
+      // both are worn, so neither is in the locker...
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(0);
+      // ...and taking both off leaves two, not one
+      unequipToInventory(cs, 'tank', 'armor');
+      unequipToInventory(cs, 'sniper', 'armor');
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(2);
+    });
+
+    it('equipping takes from the locker, and displaces whatever was in the slot back into it', () => {
+      const cs = newCampaign(1);
+      addGear(cs.inventory, 'armor', 'lightVest');
+      addGear(cs.inventory, 'armor', 'heavyPlate');
+      expect(equipFromInventory(cs, 'soldier', 'armor', 'lightVest')).toBeNull();
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(0);
+      expect(equipFromInventory(cs, 'soldier', 'armor', 'heavyPlate')).toBeNull();
+      expect(cs.loadouts.soldier!.armor).toBe('heavyPlate');
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(1); // displaced, not deleted
+    });
+
+    it('refuses to equip something the squad does not own, and changes nothing', () => {
+      const cs = newCampaign(1);
+      expect(equipFromInventory(cs, 'soldier', 'armor', 'heavyPlate')).toBe('Not in the locker');
+      expect(cs.loadouts.soldier?.armor ?? null).toBeNull();
+    });
+
+    it('moves a piece straight from one squadmate to another without leaking a copy', () => {
+      const cs = newCampaign(1);
+      addGear(cs.inventory, 'equipment', 'boots');
+      equipFromInventory(cs, 'assault', 'equip0', 'boots');
+      expect(moveEquipped(cs, { cls: 'assault', slot: 'equip0' }, { cls: 'sniper', slot: 'equip1' })).toBeNull();
+      expect(cs.loadouts.assault!.equipment[0]).toBeNull();
+      expect(cs.loadouts.sniper!.equipment[1]).toBe('boots');
+      expect(stockOf(cs.inventory, 'equipment', 'boots')).toBe(0); // exactly one pair still exists
+    });
+
+    it('refuses to put armor in an equipment slot', () => {
+      const cs = newCampaign(1);
+      addGear(cs.inventory, 'armor', 'lightVest');
+      equipFromInventory(cs, 'tank', 'armor', 'lightVest');
+      expect(moveEquipped(cs, { cls: 'tank', slot: 'armor' }, { cls: 'tank', slot: 'equip0' })).toBe('Wrong kind of slot');
+      expect(cs.loadouts.tank!.armor).toBe('lightVest');
+    });
+
+    it('converts a save from before the locker existed, minus what is already worn', () => {
+      const cs = newCampaign(1);
+      // the old shape: a flat "ever found" list, with one of them equipped
+      cs.loadouts.soldier = { armor: 'heavyPlate', equipment: [null, null] };
+      (cs as unknown as { unlockedGear: unknown }).unlockedGear = { armor: ['heavyPlate', 'lightVest'], equipment: ['boots'] };
+      cs.inventory = { armor: {}, equipment: {} };
+      migrateCampaign(cs);
+      expect(stockOf(cs.inventory, 'armor', 'heavyPlate')).toBe(0); // the soldier is wearing it
+      expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(1);
+      expect(stockOf(cs.inventory, 'equipment', 'boots')).toBe(1);
+      expect((cs as unknown as { unlockedGear?: unknown }).unlockedGear).toBeUndefined();
+    });
+  });
+
+  describe('perk slots (feature 8)', () => {
+    it('reads equipped perks back as indexed slots, one per unlocked slot', () => {
+      const cs = newCampaign(1);
+      const progress = progressFor(cs, 'sniper');
+      progress.level = 3; // two slots
+      progress.perkPool = ['sniperFocus', 'sniperEagleEye'];
+      expect(perkSlots(cs, 'sniper')).toEqual([null, null]);
+      expect(setPerkSlot(cs, 'sniper', 1, 'sniperFocus')).toBeNull();
+      expect(progress.equippedPerks).toEqual(['sniperFocus']); // written back compacted
+    });
+
+    it('moves a perk between slots rather than duplicating it', () => {
+      const cs = newCampaign(1);
+      const progress = progressFor(cs, 'tank');
+      progress.level = 5; // three slots
+      progress.perkPool = ['tankPlating', 'tankBrace'];
+      setPerkSlot(cs, 'tank', 0, 'tankPlating');
+      setPerkSlot(cs, 'tank', 1, 'tankBrace');
+      setPerkSlot(cs, 'tank', 0, 'tankBrace');
+      expect(progress.equippedPerks).toEqual(['tankBrace']);
+    });
+
+    it('refuses a perk that is not unlocked, and a slot that is not unlocked', () => {
+      const cs = newCampaign(1);
+      progressFor(cs, 'medic').perkPool = [];
+      expect(setPerkSlot(cs, 'medic', 0, 'medicTriage')).toBe('Not unlocked yet');
+      progressFor(cs, 'medic').perkPool = ['medicTriage'];
+      expect(setPerkSlot(cs, 'medic', 2, 'medicTriage')).toBe('No open perk slots'); // level 1 has one slot
     });
   });
 

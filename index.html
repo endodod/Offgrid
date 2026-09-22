@@ -6,103 +6,141 @@
     <title>Offgrid</title>
   </head>
   <body>
-    <section id="home">
-      <div class="home-inner">
-        <div class="home-header">
-          <h1>OFFGRID</h1>
-          <button id="home-settings">Settings</button>
-        </div>
-        <p class="dim">Turn-based squad tactics. Fog of war, cover, overwatch.</p>
-        <div class="row"><button id="home-campaign">Campaign</button><span class="dim">Play through Ashport's districts, or jump straight into a single mission below.</span></div>
-        <h2>Select mission</h2>
-        <div id="missions"></div>
-        <p class="dim help">Combat log, hit chances and cover are shown in-game. Numbers live in <code>src/data</code>.</p>
-      </div>
-    </section>
+    <!-- Every [data-icon] is filled in by main.ts from src/ui/icons.ts, so the markup stays readable. -->
 
-    <section id="campaign" hidden>
-      <div class="home-inner">
-        <div class="home-header">
-          <h1>CAMPAIGN</h1>
-          <div class="btns"><span id="campaign-currency" class="dim"></span><button id="campaign-to-base">Base</button><button id="campaign-to-equip">Equip</button><button id="campaign-back">Back</button></div>
-        </div>
-        <h2>Districts</h2>
-        <div id="campaign-districts" class="chips"></div>
-        <h2>Story missions</h2>
-        <div id="campaign-story"></div>
-        <h2>Supply runs</h2>
-        <p class="dim">Generated missions - low narrative stakes, good practice for delegating a phase.</p>
-        <div id="campaign-supply"></div>
-        <p class="dim help"><button id="campaign-reset">Reset campaign</button> starts a brand new save over.</p>
-      </div>
-    </section>
-
-    <section id="base" hidden>
-      <div class="home-inner">
-        <div class="home-header">
-          <h1>BASE</h1>
-          <div class="btns"><span id="base-currency" class="dim"></span><button id="base-back">Back</button></div>
-        </div>
-        <p class="dim">Facilities upgrade every mission launched from the campaign screen.</p>
-        <div id="base-facilities"></div>
-        <p id="base-msg" class="dim"></p>
-      </div>
-    </section>
-
-    <section id="equip" hidden>
-      <div class="home-inner">
-        <div class="home-header">
-          <h1>EQUIP</h1>
-          <button id="equip-back">Back</button>
-        </div>
-        <p class="dim">Assign armor and equipment found on missions, and equip perks unlocked from leveling up - one armor slot, two equipment slots, and a growing number of perk slots, per class. What a class starts its next mission with.</p>
-        <div id="equip-classes"></div>
-        <p id="equip-msg" class="dim"></p>
-      </div>
-    </section>
-
-    <section id="settings" hidden>
-      <div class="home-inner">
-        <h1>SETTINGS</h1>
-        <h2>Keybindings</h2>
-        <p class="dim">Click a binding, then press the key you want. Escape always cancels and can't be rebound.</p>
-        <div id="kb-list"></div>
-        <p id="kb-msg" class="dim"></p>
-        <div class="btns">
-          <button id="kb-reset">Reset to defaults</button>
-          <button id="kb-back">Back</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="builder" hidden>
-      <div class="builder-inner">
-        <div class="b-main">
-          <div class="b-top"><h2 id="b-title"></h2><span id="b-msg"></span></div>
-          <canvas id="bcanvas" width="864" height="576"></canvas>
-          <p class="dim help">Pick a tool, then drag on the map. Right-drag erases. Q / wheel rotates low cover. Painting the same unit/door/switch/chest/pickup onto its tile removes it. The link tool: click a switch, then a door, to link or unlink them.</p>
-        </div>
-        <aside class="b-side">
-          <div class="panel">
-            <h3>Tools</h3>
-            <div id="b-tools"></div>
-            <label class="row">Unit class <select id="b-class"></select></label>
-            <label class="row" id="b-profile-row" hidden>Enemy AI <select id="b-profile"></select></label>
-            <div class="row"><button id="b-rot">Rotate low cover (Q)</button><span id="b-rotlabel"></span></div>
+    <section id="home" class="screen">
+      <div class="screen__body">
+        <div class="hero">
+          <h1 class="hero__logo">OFFGRID</h1>
+          <p class="hero__tag">Turn-based squad tactics in a city three years off the grid. Fog of war, cover, overwatch, and a district at a time.</p>
+          <div class="hero__actions">
+            <button id="home-campaign" class="btn--primary" data-icon="map">Campaign</button>
+            <button id="home-settings" class="btn--ghost" data-icon="settings">Settings</button>
           </div>
-          <div class="panel"><h3>Checks</h3><ul id="b-checks"></ul></div>
-          <div class="panel btns">
-            <button id="b-play">Play test</button>
-            <button id="b-save">Save</button>
-            <button id="b-default">Reset to default</button>
-            <button id="b-back">Back</button>
+        </div>
+
+        <div class="section">
+          <h2 class="section__title">Single missions</h2>
+          <p class="section__note">Standalone, outside the campaign. Nothing here carries over - the Training Grounds is the rules sandbox and the guided tutorial.</p>
+          <div id="missions" class="grid grid--cards"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="campaign" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title">Campaign<small>Ashport, district by district</small></h1>
+        <div class="spacer"></div>
+        <span id="campaign-currency" class="currency" data-icon="currency"></span>
+        <button id="campaign-to-equip" data-icon="squad">Loadout</button>
+        <button id="campaign-to-base" data-icon="base">Base</button>
+        <button id="campaign-back" class="btn--ghost btn--icon" title="Back to the main menu" data-icon="back"></button>
+      </header>
+      <div class="screen__body">
+        <div class="section">
+          <h2 class="section__title">Districts</h2>
+          <div id="campaign-districts" class="district-rail"></div>
+        </div>
+
+        <div class="section">
+          <h2 class="section__title">Story missions</h2>
+          <div id="campaign-story" class="grid grid--wide"></div>
+        </div>
+
+        <div class="section">
+          <h2 class="section__title">Supply runs</h2>
+          <p class="section__note">Generated jobs: a real location, a rolled complication, and a difficulty that climbs as you clear them. Three different places on offer at a time - finish one and a new one comes in.</p>
+          <div id="campaign-supply" class="grid grid--wide"></div>
+        </div>
+
+        <div class="section">
+          <h2 class="section__title">Danger zone</h2>
+          <button id="campaign-reset" class="btn--danger">Start a new campaign</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="base" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title">Base<small>Facilities, funded by salvage</small></h1>
+        <div class="spacer"></div>
+        <span id="base-currency" class="currency" data-icon="currency"></span>
+        <button id="base-back" class="btn--ghost" data-icon="back">Back</button>
+      </header>
+      <div class="screen__body">
+        <p class="section__note">Every facility tier applies to every mission launched from the campaign screen. Nothing here affects single missions.</p>
+        <div id="base-facilities" class="grid grid--cards"></div>
+        <p id="base-msg" class="muted"></p>
+      </div>
+    </section>
+
+    <section id="equip" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title">Loadout<small>Drag gear from the locker onto a slot</small></h1>
+        <div class="spacer"></div>
+        <button id="equip-back" class="btn--ghost" data-icon="back">Back</button>
+      </header>
+      <div class="screen__body">
+        <p id="equip-msg" class="muted"></p>
+        <div class="equip">
+          <div id="equip-classes" class="stack stack--lg"></div>
+          <aside class="locker stack">
+            <div class="panel stack" id="equip-locker" data-drop="locker">
+              <h3>Locker</h3>
+              <div id="equip-locker-items" class="stack"></div>
+            </div>
+            <p class="muted">Drag a piece onto a slot, or tap it and then tap the slot. Drag anything back here to take it off. Gear is shared: a piece on one squadmate is not available to another.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title">Settings<small>Keybindings</small></h1>
+        <div class="spacer"></div>
+        <button id="kb-reset" class="btn--ghost">Reset to defaults</button>
+        <button id="kb-back" class="btn--ghost" data-icon="back">Back</button>
+      </header>
+      <div class="screen__body screen__body--narrow">
+        <p class="section__note">Click a binding, then press the key you want. Escape always cancels and can't be rebound.</p>
+        <div id="kb-list" class="stack"></div>
+        <p id="kb-msg" class="muted"></p>
+      </div>
+    </section>
+
+    <section id="builder" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title" id="b-title">Map builder</h1>
+        <div class="spacer"></div>
+        <span id="b-msg"></span>
+        <button id="b-play" class="btn--primary btn--sm" data-icon="play">Play test</button>
+        <button id="b-save">Save</button>
+        <button id="b-default" class="btn--ghost">Reset to default</button>
+        <button id="b-back" class="btn--ghost" data-icon="back">Back</button>
+      </header>
+      <div class="screen__body">
+        <div class="builder-grid">
+          <div class="stack">
+            <div class="canvas-wrap"><canvas id="bcanvas" width="864" height="576"></canvas></div>
+            <p class="help">Pick a tool, then drag on the map. Right-drag erases. <kbd>Q</kbd> / wheel rotates low cover. Painting the same unit/door/switch/chest/pickup onto its tile removes it. The link tool: click a switch, then a door, to link or unlink them.</p>
           </div>
-          <div class="panel">
-            <h3>Import / export (JSON)</h3>
-            <textarea id="b-json" rows="7" spellcheck="false"></textarea>
-            <div class="btns"><button id="b-export">Export</button><button id="b-import">Import</button></div>
-          </div>
-        </aside>
+          <aside class="stack">
+            <div class="panel stack">
+              <h3>Tools</h3>
+              <div id="b-tools"></div>
+              <div class="field"><span class="field__label">Unit class</span><div id="b-class" class="seg"></div></div>
+              <div class="field" id="b-profile-row" hidden><span class="field__label">Enemy AI</span><div id="b-profile" class="seg"></div></div>
+              <div class="cluster"><button id="b-rot" class="btn--sm">Rotate low cover (Q)</button><span id="b-rotlabel" class="muted"></span></div>
+            </div>
+            <div class="panel"><h3>Checks</h3><ul id="b-checks"></ul></div>
+            <div class="panel stack">
+              <h3>Import / export (JSON)</h3>
+              <textarea id="b-json" rows="7" spellcheck="false"></textarea>
+              <div class="cluster"><button id="b-export" class="btn--sm">Export</button><button id="b-import" class="btn--sm">Import</button></div>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
 
@@ -110,58 +148,72 @@
       <section id="board-col">
         <div id="topbar">
           <div id="phase"></div>
-          <button id="ow-toggle" title="Show the range of active friendly and enemy overwatch (V)">Overwatch view<kbd>V</kbd></button>
-          <button id="auto-run-toggle" title="Let the squad play its own phase automatically, and yours (P)">Auto-run<kbd>P</kbd></button>
-          <button id="to-builder" hidden>Back to builder</button>
-          <button id="tutorial-replay" hidden title="Replay the guided walkthrough for this mission">Tutorial</button>
-          <button id="game-settings">Settings</button>
-          <button id="menu">Main menu</button>
+          <button id="ow-toggle" class="btn--sm" title="Show the range of active friendly and enemy overwatch" data-icon="eye">Overwatch<kbd>V</kbd></button>
+          <button id="auto-run-toggle" class="btn--sm" title="Let the squad play its own phase automatically" data-icon="bolt">Auto-run<kbd>P</kbd></button>
+          <button id="to-builder" class="btn--sm btn--ghost" hidden>Back to builder</button>
+          <button id="tutorial-replay" class="btn--sm btn--ghost" hidden title="Replay the guided walkthrough for this mission">Tutorial</button>
+          <button id="game-settings" class="btn--sm btn--ghost btn--icon" title="Settings" data-icon="settings"></button>
+          <button id="menu" class="btn--sm btn--ghost" data-icon="back">Menu</button>
         </div>
+        <div class="cluster" style="margin-bottom:var(--s-3)">
+          <span class="field__label">Zoom</span>
+          <div id="zoom" class="seg"></div>
+        </div>
+
         <div id="objective"></div>
+
         <div id="tutorial-box" hidden>
           <span id="tutorial-progress"></span>
           <span id="tutorial-text"></span>
-          <div class="btns">
-            <button id="tutorial-next">Next</button>
-            <button id="tutorial-skip">Skip tutorial</button>
+          <div class="cluster">
+            <button id="tutorial-next" class="btn--sm btn--accent">Next</button>
+            <button id="tutorial-skip" class="btn--sm btn--ghost">Skip</button>
           </div>
         </div>
-        <div class="canvas-wrap">
-          <canvas id="board" width="864" height="576"></canvas>
-          <div id="tip" hidden></div>
+
+        <div class="board-frame">
+          <div class="canvas-wrap" id="board-wrap"><canvas id="board" width="864" height="576"></canvas></div>
           <div id="banner" hidden>
             <div id="banner-text"></div>
-            <div class="btns">
-              <button id="banner-reset">Play again</button>
-              <button id="banner-menu">Main menu</button>
+            <div class="cluster">
+              <button id="banner-reset" class="btn--primary">Play again</button>
+              <button id="banner-menu" class="btn--ghost btn--lg">Main menu</button>
             </div>
           </div>
         </div>
-        <div id="ow-legend" hidden><i class="sw friend"></i> friendly overwatch <i class="sw foe"></i> enemy overwatch (weapon range + line of sight of units currently on overwatch)</div>
+
+        <div id="ow-legend" hidden><i class="sw friend"></i> friendly overwatch <i class="sw foe"></i> enemy overwatch <span class="muted">(weapon range + line of sight of units currently on overwatch)</span></div>
         <div id="status"></div>
         <div id="actionbar"></div>
-        <p class="dim help">Click a unit to select (click it again to deselect). With a unit selected, click a tile to move or an enemy to attack. Right-click / Esc cancels, then deselects. Keys: 1-5 select, M A R G O F U I, E = end turn, V = overwatch view, P = auto-run, Q / wheel = rotate cover while placing it.</p>
+        <p class="help">
+          Click a unit to select (click again to deselect). With a unit selected, click a tile to move or an enemy to attack. Right-click / <kbd>Esc</kbd> cancels, then deselects.<br />
+          <kbd>1</kbd>-<kbd>5</kbd> select · <kbd>E</kbd> end turn · <kbd>V</kbd> overwatch view · <kbd>P</kbd> auto-run · <kbd>Q</kbd> / wheel rotate cover while placing it.
+        </p>
       </section>
-      <aside>
-        <div id="roster"></div>
-        <div id="card"></div>
-        <div id="mission"></div>
-        <div id="log-wrap" hidden><h3>Combat log</h3><div id="log"></div></div>
-        <div id="debug" hidden>
+
+      <aside id="sidebar">
+        <div class="panel"><h3>Squad</h3><div id="roster"></div></div>
+        <div class="panel" id="card"></div>
+        <div class="panel" id="mission"></div>
+        <div class="panel" id="log-wrap" hidden><h3>Combat log</h3><div id="log"></div></div>
+        <div class="panel stack" id="debug" hidden>
           <h3>Debug</h3>
-          <label><input type="checkbox" id="dbg-fog" checked /> Fog of war</label>
-          <label><input type="checkbox" id="dbg-skip" /> Skip enemy phase</label>
-          <label>Time of day <select id="dbg-time"></select></label>
-          <label>Weather <select id="dbg-weather"></select></label>
-          <label>Enemy AI <select id="dbg-enemy-profile"></select></label>
-          <div class="btns">
-            <button id="dbg-reset">Reset map</button>
-            <button id="dbg-reseed">Reseed RNG</button>
+          <label class="switch"><input type="checkbox" id="dbg-fog" checked /><i></i> Fog of war</label>
+          <label class="switch"><input type="checkbox" id="dbg-skip" /><i></i> Skip enemy phase</label>
+          <div class="field"><span class="field__label">Time of day</span><div id="dbg-time" class="seg"></div></div>
+          <div class="field"><span class="field__label">Weather</span><div id="dbg-weather" class="seg"></div></div>
+          <div class="field"><span class="field__label">Enemy AI</span><div id="dbg-enemy-profile" class="seg"></div></div>
+          <div class="cluster">
+            <button id="dbg-reset" class="btn--sm btn--ghost">Reset map</button>
+            <button id="dbg-reseed" class="btn--sm btn--ghost">Reseed RNG</button>
           </div>
-          <div class="dim">seed <span id="seed"></span></div>
+          <div class="muted">seed <span id="seed"></span></div>
         </div>
       </aside>
     </main>
+
+    <div id="modal" hidden></div>
+    <div id="tip" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

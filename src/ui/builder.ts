@@ -10,6 +10,7 @@ import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/training
 import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
 import { draw, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
+import { seg } from './seg';
 
 type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'chest' | 'link'
   | 'pickup-ammo' | 'pickup-medkit' | 'pickup-gadget' | 'player' | 'enemy' | 'erase';
@@ -60,18 +61,10 @@ export class Builder {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
       if (b) { this.tool = b.dataset.tool as Tool; this.linkFrom = null; this.note(''); this.refresh(); }
     });
-    const select = $<HTMLSelectElement>('b-class');
-    select.innerHTML = CLASS_ORDER.map((c) => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
-    select.value = this.cls;
-    select.addEventListener('change', () => { this.cls = select.value as ClassId; });
-    const profileSelect = $<HTMLSelectElement>('b-profile');
-    profileSelect.innerHTML = PROFILE_ORDER.map((p) => `<option value="${p}">${AI_PROFILES[p].name}</option>`).join('');
-    profileSelect.value = this.profile;
-    profileSelect.title = AI_PROFILES[this.profile].blurb;
-    profileSelect.addEventListener('change', () => {
-      this.profile = profileSelect.value as AiProfileId;
-      profileSelect.title = AI_PROFILES[this.profile].blurb;
-    });
+    seg($('b-class'), CLASS_ORDER.map((c) => ({ value: c, label: CLASSES[c].name })), this.cls,
+      (v) => { this.cls = v as ClassId; });
+    seg($('b-profile'), PROFILE_ORDER.map((p) => ({ value: p, label: AI_PROFILES[p].name, title: AI_PROFILES[p].blurb })), this.profile,
+      (v) => { this.profile = v as AiProfileId; });
     $('b-rot').addEventListener('click', () => this.rotate(1));
 
     const tileAt = (ev: MouseEvent): Pos => {

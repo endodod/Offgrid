@@ -37,6 +37,9 @@ export class Session {
   coverRot = 0; // rotation the tank gives the cover it places (Q / wheel)
   showOverwatch = false; // overwatch view: coverage of units on overwatch
   lastAction: Action | null = null; // most recent manually-performed action (0f's tutorial reacts to this)
+  /** Where the camera should be looking (ui/viewport.ts): the selected unit, or whatever just acted. Only
+   *  has any visible effect on maps larger than the board viewport. */
+  private focus: Pos | null = null;
   onChange: () => void = () => {};
   private runId = 0;
 
@@ -59,6 +62,7 @@ export class Session {
     this.autoRun = false;
     this.lastAction = null;
     this.floaters = [];
+    this.focus = null;
     this.coverRot = 0;
     this.showOverwatch = false;
     this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];
@@ -109,7 +113,29 @@ export class Session {
     if (!u || !u.alive || u.downed || u.team !== 'player') return;
     this.selectedId = id;
     this.mode = 'move';
+    this.focus = { x: u.x, y: u.y };
     this.onChange();
+  }
+
+  /** The tile the camera should keep in view, or null if there is nothing in particular to look at. */
+  focusTile(): Pos | null {
+    return this.focus;
+  }
+
+  /** Snapshot of every unit's tile, for spotting which one an AI step moved. */
+  private positions(): string[] {
+    return this.state.units.map((u) => `${u.x},${u.y}`);
+  }
+
+  /** Point the camera at the first unit that moved between `before` and now, if the player can see it. */
+  private focusOnMover(before: string[]) {
+    const after = this.positions();
+    for (let i = 0; i < after.length; i++) {
+      if (after[i] === before[i]) continue;
+      const u = this.state.units[i];
+      if (u.team === 'player' || this.state.seenUnits.player.has(u.id)) this.focus = { x: u.x, y: u.y };
+      return;
+    }
   }
 
   /** Esc / right-click: leave a targeting mode first; with nothing pending, deselect the unit. */
@@ -293,7 +319,9 @@ export class Session {
     const gen = aiTurn(this.state, 'enemy'); // one action per step so the player can follow what happens
     const step = () => {
       if (runId !== this.runId) return;
+      const before = this.positions();
       const r = gen.next();
+      this.focusOnMover(before);
       this.flush();
       this.onChange();
       if (r.done || this.state.winner) this.finishEnemyPhase();
@@ -320,7 +348,9 @@ export class Session {
     const gen = aiTurn(this.state, 'player');
     const step = () => {
       if (runId !== this.runId) return;
+      const wasAt = this.positions();
       const r = gen.next();
+      this.focusOnMover(wasAt);
       this.flush();
       if (this.autoRun && this.alivePlayerCount() < before) { // hand control back on a casualty
         this.autoRun = false;
@@ -365,6 +395,9 @@ export class Session {
       if (line) this.log.push(line);
       if (e.seen && this.floaterFor(e, now + n * 260)) n++;
     }
+    // A combat event outranks a move for the camera's attention.
+    const newest = this.floaters[this.floaters.length - 1];
+    if (newest && newest.born >= now) this.focus = { x: newest.x, y: newest.y };
     if (this.selectedId !== null && !this.selected()) this.selectedId = null;
   }
 
