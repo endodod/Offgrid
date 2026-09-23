@@ -8,8 +8,9 @@ import { ITEMS, type ItemType } from '../data/items';
 import type { Mission } from '../data/missions';
 import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/trainingGrounds';
 import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
-import { draw, TILE } from '../render/renderer';
+import { draw, RES, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
+import { confirmModal } from './modal';
 import { seg } from './seg';
 
 type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'chest' | 'link'
@@ -69,7 +70,7 @@ export class Builder {
 
     const tileAt = (ev: MouseEvent): Pos => {
       const r = this.canvas.getBoundingClientRect();
-      const k = this.canvas.width / TILE / r.width;
+      const k = this.canvas.width / RES / TILE / r.width;
       return { x: Math.floor((ev.clientX - r.left) * k), y: Math.floor((ev.clientY - r.top) * k) };
     };
     this.canvas.addEventListener('mousedown', (ev) => {
@@ -98,9 +99,9 @@ export class Builder {
 
     $('b-play').addEventListener('click', () => { if (!this.errors().length) this.hooks.onPlay(this.toMap()); });
     $('b-save').addEventListener('click', () => this.save());
-    $('b-default').addEventListener('click', () => this.resetToDefault());
-    $('b-back').addEventListener('click', () => {
-      if (this.dirty && !confirm('Discard your unsaved changes to this map?')) return;
+    $('b-default').addEventListener('click', () => void this.resetToDefault());
+    $('b-back').addEventListener('click', async () => {
+      if (this.dirty && !(await confirmModal({ title: 'Discard changes?', body: ['Your unsaved changes to this map will be lost.'], cta: 'Discard', danger: true }))) return;
       this.dirty = false;
       this.hooks.onExit();
     });
@@ -256,8 +257,8 @@ export class Builder {
     this.refresh();
   }
 
-  private resetToDefault() {
-    if (!confirm('Delete the saved map and go back to the default layout?')) return;
+  private async resetToDefault() {
+    if (!(await confirmModal({ title: 'Reset to default?', body: ['This deletes the saved map and goes back to the default layout.'], cta: 'Delete saved map', danger: true }))) return;
     clearCustom(this.mission.id);
     this.load(this.mission.map);
     this.dirty = false;
@@ -330,7 +331,8 @@ export class Builder {
 
   private render() {
     const s = this.state();
-    if (this.canvas.width !== s.width * TILE) { this.canvas.width = s.width * TILE; this.canvas.height = s.height * TILE; }
+    const w = Math.round(s.width * TILE * RES), h = Math.round(s.height * TILE * RES);
+    if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     draw(this.ctx, {
       s, selected: null, hover: this.hover, mode: 'move', reach: null, path: null, ringed: new Set(), aimTiles: new Set(),
       coverRot: this.rot, overwatchView: false, floaters: [], now: 0,

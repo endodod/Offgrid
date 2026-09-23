@@ -6,6 +6,12 @@ import { hasLos, idx, dist } from '../core/grid';
 import type { GameState, Pos, Unit } from '../core/types';
 
 export const TILE = 36;
+/**
+ * Backing-store pixels per logical pixel. Everything draws in logical units (tiles of TILE px) through a
+ * transform; the canvas holds RES times as many pixels so it stays sharp on HiDPI screens and at the L zoom
+ * (44 CSS px a tile). Capped at 2: a 48x32 map at 3x is a ~70 MB canvas for no visible gain.
+ */
+export const RES = Math.min(2, Math.max(1.5, globalThis.devicePixelRatio || 1));
 
 export interface Floater { x: number; y: number; text: string; color: string; born: number }
 
@@ -51,6 +57,7 @@ const hash = (x: number, y: number, k = 0) => ((x * 73856093) ^ (y * 19349663) ^
 
 export function draw(ctx: CanvasRenderingContext2D, v: View) {
   const { s } = v;
+  ctx.setTransform(RES, 0, 0, RES, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#0c0e0b';
   ctx.fillRect(0, 0, s.width * TILE, s.height * TILE);

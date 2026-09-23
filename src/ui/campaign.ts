@@ -12,7 +12,7 @@ import { AI_PROFILES } from '../data/aiProfiles';
 import type { MapDef } from '../data/trainingGrounds';
 import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
 import { icon } from './icons';
-import { showModal } from './modal';
+import { confirmModal, showModal } from './modal';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -37,8 +37,12 @@ export class Campaign {
   constructor(private hooks: CampaignHooks) {
     this.state = loadCampaign() ?? newCampaign();
     $('campaign-back').addEventListener('click', () => hooks.onBack());
-    $('campaign-reset').addEventListener('click', () => {
-      if (!confirm('Start a brand new campaign? This discards all current progress.')) return;
+    $('campaign-reset').addEventListener('click', async () => {
+      const ok = await confirmModal({
+        title: 'Start a new campaign?', body: ['This discards all current progress: districts, gear, levels and salvage.'],
+        cta: 'Discard and restart', danger: true,
+      });
+      if (!ok) return;
       clearCampaign();
       this.state = newCampaign();
       this.pendingDebrief = null;

@@ -36,6 +36,7 @@ export function initSettings(hooks: SettingsHooks): () => void {
     listening = null;
     if (ev.key === RESERVED_KEY) { message = `${RESERVED_KEY} always cancels; rebind aborted.`; render(); return; }
     const key = keyOf(ev);
+    if (key.startsWith('Arrow')) { message = 'Arrow keys always pan the camera; rebind aborted.'; render(); return; }
     const already = actionUsing(key, action);
     if (already) { message = `"${displayKey(key)}" is already bound to ${ACTION_LABEL[already]}.`; render(); return; }
     rebindAction(action, key);

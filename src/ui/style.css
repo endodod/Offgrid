@@ -395,6 +395,7 @@ kbd {
   font: 700 14px/var(--hit) var(--font-ui); letter-spacing: 0.12em;
 }
 #phase.enemy { border-left-color: var(--enemy); color: #eda98f; }
+#phase .phase__meta { margin-left: auto; padding-left: var(--s-3); font-size: 12px; color: var(--text-dim); font-weight: 500; letter-spacing: 0; }
 #phase b { font-family: var(--font-mono); color: var(--text-dim); font-weight: 600; letter-spacing: 0.04em; }
 
 #objective {
@@ -412,7 +413,10 @@ kbd {
   border: 1px solid var(--line); box-shadow: var(--shadow-2);
   overflow: auto; max-height: min(72vh, 820px); overscroll-behavior: contain;
 }
-canvas { width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; display: block; }
+/* No image-rendering: pixelated - the board's backing store is RES x its logical size (render/renderer.ts) and is
+   usually scaled down, where smoothing is what keeps text and thin lines legible. */
+canvas { width: 100%; height: auto; cursor: crosshair; display: block; }
+canvas.is-panning { cursor: grabbing; }
 /* The banner overlays the *viewport* of the board, not its (scrollable) full size, so it sits outside
    .canvas-wrap in a plain positioned frame. */
 .board-frame { position: relative; }
@@ -465,7 +469,7 @@ canvas { width: 100%; height: auto; image-rendering: pixelated; cursor: crosshai
 .flag--ow { color: var(--enemy); background: rgba(212, 98, 63, 0.12); }
 .flag--exposed { color: var(--warn); background: rgba(224, 168, 58, 0.12); }
 
-#log { height: 190px; overflow-y: auto; font: 12px/1.55 var(--font-mono); display: flex; flex-direction: column; gap: 2px; }
+#log { height: 150px; overflow-y: auto; font: 12px/1.55 var(--font-mono); display: flex; flex-direction: column; gap: 2px; }
 #log div { padding: 2px 6px; border-radius: 4px; }
 #log .player { color: #a9d6b2; background: rgba(111, 174, 130, 0.06); }
 #log .enemy { color: #e59a7f; background: rgba(212, 98, 63, 0.06); }

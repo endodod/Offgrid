@@ -19,6 +19,11 @@ describe('rebinding (0e)', () => {
     expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move); // unchanged
   });
 
+  it('refuses the arrow keys, which always pan the camera (10b)', () => {
+    for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) expect(rebindAction('move', k)).toBe('reserved');
+    expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move);
+  });
+
   it('refuses a key already bound to a different action, and reports which one', () => {
     expect(rebindAction('move', DEFAULT_BINDINGS.attack)).toBe('attack');
     expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move); // unchanged

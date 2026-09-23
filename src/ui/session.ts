@@ -30,6 +30,8 @@ export class Session {
   hover: Pos | null = null;
   floaters: Floater[] = [];
   log: LogLine[] = [];
+  /** Bumped whenever `log` is replaced (reset, load), so the HUD knows to clear what it already rendered. */
+  logEpoch = 0;
   status = '';
   busy = false; // true while the enemy phase (or a player auto-run phase) is playing out
   skipEnemyPhase = false; // debug
@@ -68,6 +70,7 @@ export class Session {
     this.coverRot = 0;
     this.showOverwatch = false;
     this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];
+    this.logEpoch++;
     this.status = 'Your turn. Click a unit, then a tile to move or an enemy to attack.';
     this.mode = 'move';
     this.selectedId = null; // no unit pre-selected: the player's first click is a deliberate one

@@ -13,7 +13,7 @@ import type { Unit } from '../core/types';
 import { describeObjective } from '../core/objectives';
 import type { GameState } from '../core/types';
 import { keyFor } from './input';
-import { displayKey } from './keybindings';
+import { displayKey, type BindableAction } from './keybindings';
 import { icon, type IconName } from './icons';
 import { seg } from './seg';
 import type { ButtonId, Session } from './session';
@@ -50,6 +50,8 @@ const stat = (k: string, v: string | number, boost?: string) =>
 /** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 export class Hud {
   private logShown = 0;
+  private logEpoch = -1;
+  private keyHelp = '';
   private mouse = { x: 0, y: 0 };
   // Tracked by id, not DOM element: the actionbar's buttons are rebuilt on every update(), which would
   // otherwise leave a hovered/focused reference pointing at a detached node.
@@ -128,6 +130,25 @@ export class Hud {
       <p class="muted" style="margin-top:8px">${TIMES_OF_DAY[s.timeOfDay].blurb} ${WEATHERS[s.weather].blurb}</p>`;
   }
 
+  /**
+   * "Hostiles: 2 in sight · 3/6 down" for the phase strip. The total is on the mission card already, and every
+   * enemy death comes from something the player did, so neither number is new information.
+   */
+  private hostileCount(s: GameState): string {
+    const enemies = s.units.filter((u) => u.team === 'enemy');
+    const down = enemies.filter((u) => !u.alive).length;
+    const inSight = enemies.filter((u) => u.alive && s.seenUnits.player.has(u.id)).length;
+    return `<span class="phase__meta">Hostiles: ${inSight} in sight · ${down}/${enemies.length} down</span>`;
+  }
+
+  /** The key help under the board, from the live bindings. Rebuilt only when a binding changed. */
+  private renderKeyHelp() {
+    const k = (a: BindableAction) => `<kbd>${displayKey(keyFor(a))}</kbd>`;
+    const html = `Click a unit to select it, then a tile to move or an enemy to attack. Right-click / <kbd>Esc</kbd> cancels, then deselects.<br />
+      ${k('selectUnit1')}-${k('selectUnit5')} select · ${k('endTurn')} end turn · ${k('toggleOverwatchView')} overwatch view · ${k('toggleAutoRun')} auto-run · ${k('rotateCoverCW')} / wheel rotate cover while placing it · arrows / drag pan · ${k('zoomIn')} ${k('zoomOut')} / Ctrl+wheel zoom · ${k('centerCamera')} centre`;
+    if (html !== this.keyHelp) { this.keyHelp = html; $('keyhelp').innerHTML = html; }
+  }
+
   setMouse(x: number, y: number) {
     this.mouse = { x, y };
   }
@@ -145,7 +166,7 @@ export class Hud {
     const s = this.session.state;
     const sel = this.session.selected();
 
-    $('phase').innerHTML = `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}`;
+    $('phase').innerHTML = `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}${this.hostileCount(s)}`;
     $('phase').className = s.phase;
     this.setTime(s.timeOfDay);
     this.setWeather(s.weather);
@@ -213,6 +234,7 @@ export class Hud {
     }
 
     const logEl = $('log');
+    if (this.logEpoch !== this.session.logEpoch) { logEl.innerHTML = ''; this.logShown = 0; this.logEpoch = this.session.logEpoch; }
     for (; this.logShown < this.session.log.length; this.logShown++) {
       const line = this.session.log[this.logShown];
       const div = document.createElement('div');
@@ -220,10 +242,10 @@ export class Hud {
       div.textContent = line.text;
       logEl.appendChild(div);
     }
-    if (this.logShown > this.session.log.length) { logEl.innerHTML = ''; this.logShown = 0; this.update(); return; } // after a reset
     logEl.scrollTop = logEl.scrollHeight;
 
     $('seed').textContent = String(this.session.seed);
+    this.renderKeyHelp();
     const banner = $('banner');
     banner.hidden = !s.winner;
     if (s.winner) {

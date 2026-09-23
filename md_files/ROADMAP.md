@@ -520,6 +520,73 @@ Persistence: `CampaignState` (5) gained `levels: Partial<Record<ClassId, ClassPr
 
 ---
 
+## 10. Polish pass: game feel, UX and presentation to web-game standard
+
+**Goal:** the rules are ahead of most web tactics games, and the presentation is behind them. This feature closes
+that gap in the order that buys the most per hour: things the player notices every turn first (feedback, camera,
+losing progress), then options and summaries, then art (#9), then deeper AI/pacing work.
+
+Each sub-item is its own commit and keeps the ground rules above (core stays pure; presentation reads state only).
+
+| # | Item | Size | Status |
+|---|---|---|---|
+| 10a | Quick wins: HiDPI canvas, combat log for everyone, in-game modals instead of `confirm()`, generated key help, turn/enemy counter | small | done |
+| 10b | Camera: drag to pan, arrow keys pan, Ctrl+wheel / keys zoom at the cursor, re-centre key | small | done |
+| 10c | Mid-mission autosave and "Resume mission" | small-medium | |
+| 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | |
+| 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | |
+| 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | |
+| 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | |
+| 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | |
+| 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | |
+| 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | |
+| 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | |
+
+**Design sketch**
+- **10a.** *Done.* Also fixed on the way: the HUD only noticed a log reset when the new log was shorter than
+  what it had rendered, so loading a mission could leave the previous one's lines up (`Session.logEpoch` now).
+  Scale the board's backing store by `devicePixelRatio` (draw in tile units through `ctx.setTransform`) so
+  it is sharp on HiDPI. The combat log already respects fog (`ui/log.ts`), so there is no reason to hide it outside
+  debug: show it collapsed to the last few lines. Replace the three `confirm()` calls with `ui/modal.ts`. The key help
+  under the board goes stale after a rebind, so build it from `keyFor`. Turn number and "enemies spotted / remaining"
+  in the phase strip.
+- **10b.** `ui/viewport.ts` owns scrolling already. Add pointer-drag panning (a drag past a few pixels
+  suppresses the click), arrow-key panning (arrows are not bindable, so no conflict), and zoom around the cursor.
+  A bindable "centre on selected" key.
+  *Done as:* any mouse button drags (right-drag swallows its contextmenu so it doesn't also cancel); arrows are
+  reserved and refused by the rebind screen; zoom is Ctrl+wheel / trackpad pinch and bindable `=`/`-` keys, not
+  the plain wheel - hijacking the plain wheel breaks two-finger trackpad panning of the scroll box. `C` centres.
+  The camera now only follows `Session.focusTile()` when it *changes* - `onChange` fires on every hover, and
+  re-asserting an unchanged focus snapped the view back after every pan.
+- **10c.** `GameState` is plain data apart from `Set`s and `Uint8Array`s, and the RNG is in the state, so a
+  save is `serialize(state)` at the start of every player phase, keyed with the mission id (and campaign mission id
+  if any). The home screen offers "Resume mission" when one exists; winning, losing or leaving clears it.
+- **10d.** The core already emits `GameEvent`s. The UI turns them into a queue of short tracks (move along
+  a path, tracer + muzzle flash, blast, flinch, death) and the renderer draws units at their animated position
+  instead of their state position until the track ends. Input stays blocked while the queue plays; a speed setting
+  (and "instant") scales every duration. `prefers-reduced-motion` defaults to instant and disables shake.
+- **10e.** A tiny WebAudio synth (noise bursts and envelopes) for select, step, shot, hit, miss, blast, door, UI
+  click, phase change, win/lose. No files to license or load. Audio starts on the first user gesture.
+- **10f.** Settings gains a "Game" section next to keybindings, stored like the bindings. The colour-blind
+  palette swaps team colours to blue/orange in both CSS tokens and the renderer's palette.
+- **10g.** Replace the banner's two buttons with a debrief panel: per-unit kills, shots and hit rate, damage dealt and
+  taken, XP gained and level-ups, and loot picked up. All of it is already on `Unit` or in the event stream.
+- **10h.** End turn with units that still have actions asks first (a "don't ask again" toggle). Undo: only the last
+  move, only when it consumed no RNG and changed no team's `seenUnits`/`memory`. That is a snapshot and compare, and
+  it cannot leak information.
+- **10i.** Fog as a darkness overlay with a soft edge instead of greyscale tiles; rain streaks, fog haze and a
+  night vignette from `envMods`. This is the start of #9, not a replacement for it.
+- **10j.** Recorded as separate follow-ups once 10a-10i land: the AI's door handling (see `SESSION_HANDOFF.md`), the
+  `hard` retreat finding in 0c, and pod activation + reinforcements as mission options (each with a sim knob).
+- **10k.** After 10b: pinch zoom, and on coarse pointers a first tap previews (path, hit chance) and a second
+  confirms.
+
+**Tests:** 10c's serialize/deserialize round-trip (a resumed game plays the same as the original for the same
+actions), 10h's undo eligibility rules and 10d's event-to-track conversion are pure and get unit tests. The rest
+is presentation, checked in a driven headless browser as before.
+
+---
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

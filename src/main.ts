@@ -2,12 +2,12 @@ import './ui/style.css';
 import { DEBUG } from './debug';
 import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
-import { draw, TILE } from './render/renderer';
+import { draw, RES, TILE } from './render/renderer';
 import { Base } from './ui/base';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
 import { Equip } from './ui/equip';
-import { initHome, showScreen, type Screen } from './ui/home';
+import { initHome, isGameVisible, showScreen, type Screen } from './ui/home';
 import { Hud } from './ui/hud';
 import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
@@ -27,9 +27,9 @@ for (const node of document.querySelectorAll<HTMLElement>('[data-icon]')) {
   node.insertAdjacentHTML('afterbegin', icon(node.dataset.icon as IconName));
 }
 
-// Debug mode (VITE_DEBUG=true): debug panel, combat log and map builder. Otherwise none of it is reachable.
+// Debug mode (VITE_DEBUG=true): debug panel and map builder. Otherwise neither is reachable. The combat log is
+// for everyone - it is fog-filtered (ui/log.ts), so it never tells the player more than the board does.
 el('debug').hidden = !DEBUG;
-el('log-wrap').hidden = !DEBUG;
 
 /** The map a mission plays: a map saved from the builder (debug mode only), else the default. */
 const custom = (m: Mission): MapDef | null => (DEBUG ? loadCustom(m.id, m.map) : null);
@@ -39,8 +39,9 @@ const canvas = el('board') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const session = new Session(resolve(MISSIONS[0]));
 const hud = new Hud(session);
-const viewport = new Viewport(canvas, el('board-wrap'), el('zoom'));
-bindInput(canvas, session, hud);
+const typing = () => ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName ?? '');
+const viewport = new Viewport(canvas, el('board-wrap'), el('zoom'), () => isGameVisible() && el('modal').hidden && !typing());
+bindInput(canvas, session, hud, viewport);
 const tutorial = new Tutorial(session, () => hud.update());
 hud.tutorial = tutorial;
 
@@ -48,9 +49,9 @@ let queued = false;
 function frame() {
   queued = false;
   const s = session.state;
-  if (canvas.width !== s.width * TILE) {
-    canvas.width = s.width * TILE;
-    canvas.height = s.height * TILE;
+  if (canvas.width !== Math.round(s.width * TILE * RES) || canvas.height !== Math.round(s.height * TILE * RES)) {
+    canvas.width = Math.round(s.width * TILE * RES);
+    canvas.height = Math.round(s.height * TILE * RES);
     viewport.apply();
   }
   draw(ctx, session.view(performance.now()));
@@ -66,9 +67,13 @@ session.onChange = () => {
   request();
   // Keep the camera on whatever the game is drawing attention to: the selected unit during the player's
   // phase, or the unit that just acted during the enemy's. Only matters on maps bigger than the viewport.
+  // Only when that changes: onChange also fires on every hover, and re-asserting an unchanged focus then
+  // would yank the camera back each time the mouse moved after the player panned away.
   const focus = session.focusTile();
-  if (focus) viewport.ensureVisible(focus.x, focus.y);
+  if (focus && (focus.x !== lastFocus?.x || focus.y !== lastFocus?.y)) viewport.ensureVisible(focus.x, focus.y);
+  lastFocus = focus && { ...focus };
 };
+let lastFocus: { x: number; y: number } | null = null;
 
 // ---------- screens ----------
 // Set when a mission is launched from the campaign screen (5), so a win can be reported back to it, and so

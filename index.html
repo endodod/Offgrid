@@ -185,17 +185,15 @@
         <div id="ow-legend" hidden><i class="sw friend"></i> friendly overwatch <i class="sw foe"></i> enemy overwatch <span class="muted">(weapon range + line of sight of units currently on overwatch)</span></div>
         <div id="status"></div>
         <div id="actionbar"></div>
-        <p class="help">
-          Click a unit to select (click again to deselect). With a unit selected, click a tile to move or an enemy to attack. Right-click / <kbd>Esc</kbd> cancels, then deselects.<br />
-          <kbd>1</kbd>-<kbd>5</kbd> select · <kbd>E</kbd> end turn · <kbd>V</kbd> overwatch view · <kbd>P</kbd> auto-run · <kbd>Q</kbd> / wheel rotate cover while placing it.
-        </p>
+        <!-- Filled by Hud from the live keybindings, so it can never disagree with a rebind. -->
+        <p class="help" id="keyhelp"></p>
       </section>
 
       <aside id="sidebar">
         <div class="panel"><h3>Squad</h3><div id="roster"></div></div>
         <div class="panel" id="card"></div>
         <div class="panel" id="mission"></div>
-        <div class="panel" id="log-wrap" hidden><h3>Combat log</h3><div id="log"></div></div>
+        <div class="panel" id="log-wrap"><h3>Combat log</h3><div id="log"></div></div>
         <div class="panel stack" id="debug" hidden>
           <h3>Debug</h3>
           <label class="switch"><input type="checkbox" id="dbg-fog" checked /><i></i> Fog of war</label>
