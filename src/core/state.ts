@@ -5,6 +5,7 @@ import { GADGETS } from '../data/gadgets';
 import { ITEMS } from '../data/items';
 import { EQUIPMENT } from '../data/equipment';
 import { refreshVision } from './vision';
+import { blocksMove } from './grid';
 import { holdRounds, objectiveComplete } from './objectives';
 import { lootOnDeath } from './loot';
 import { perkBonus } from './leveling';
@@ -72,6 +73,8 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     }
   }
 
+  if (options.enemyPods ?? map.enemyPods) assignPods(units.filter((u) => u.team === 'enemy'));
+
   const interactables: Interactable[] = (map.interactables ?? []).map((it) => ({ ...it, active: it.active ?? false }));
   const pickups: Pickup[] = (map.pickups ?? []).map((p) => ({ ...p, amount: p.amount ?? ITEMS[p.type].defaultAmount }));
 
@@ -93,6 +96,70 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
   };
   startPhase(s, 'player');
   return s;
+}
+
+/** How close (in tiles) two enemy spawns must be to share a pod (10j). */
+export const POD_RADIUS = 6;
+
+/**
+ * 10j: groups enemies into pods by where they start - anyone within POD_RADIUS of a pod member joins it - and
+ * puts every one of them to sleep. A pod wakes together (core/ai.ts `wakePods`).
+ */
+function assignPods(enemies: Unit[]) {
+  let next = 0;
+  for (const u of enemies) {
+    if (u.pod !== undefined) continue;
+    const pod = next++;
+    const queue = [u];
+    u.pod = pod;
+    for (let h = 0; h < queue.length; h++) {
+      for (const o of enemies) {
+        if (o.pod === undefined && Math.max(Math.abs(o.x - queue[h].x), Math.abs(o.y - queue[h].y)) <= POD_RADIUS) { o.pod = pod; queue.push(o); }
+      }
+    }
+  }
+  for (const u of enemies) u.dormant = true;
+}
+
+/**
+ * 10j: a reinforcement wave (`MapDef.reinforcements`) due at the start of this enemy phase. Each spawn becomes
+ * a new enemy unit, awake and with a full set of actions, on its tile - or, if that tile is taken, the nearest
+ * free one within 2. Always announced (the arrival is heard, even when it isn't seen).
+ */
+function arriveReinforcements(s: GameState) {
+  const waves = (s.map.reinforcements ?? []).filter((w) => w.turn === s.turn);
+  if (!waves.length) return;
+  const arrived: number[] = [];
+  for (const [cls, x0, y0, aiProfile] of waves.flatMap((w) => w.spawns)) {
+    const at = freeTileNear(s, x0, y0, 2);
+    if (!at) continue;
+    const def = CLASSES[cls];
+    const reserveMult = s.options.reserveMult ?? s.map.reserveMult ?? 1;
+    const u: Unit = {
+      id: s.units.length, team: 'enemy', cls, x: at.x, y: at.y,
+      hp: def.hp, ammo: def.weapon.magazine, reserve: Math.round(def.reserve * reserveMult), medkits: RULES.medkitsPerUnit,
+      actions: RULES.actionsPerTurn, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
+      gadget: null, armor: null, equipment: [null, null], xp: 0, level: 1, perkPool: [], equippedPerks: [],
+      dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, shotsFired: 0, shotsHit: 0, aiProfile,
+    };
+    s.units.push(u);
+    arrived.push(u.id);
+  }
+  if (!arrived.length) return;
+  refreshVision(s);
+  emit(s, { t: 'reinforce', units: arrived }, true);
+}
+
+/** The nearest tile to (x, y), within `r`, that nothing blocks and no living unit stands on. */
+function freeTileNear(s: GameState, x: number, y: number, r: number): Pos | null {
+  for (let d = 0; d <= r; d++) {
+    for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+      const nx = x + dx, ny = y + dy;
+      if (!blocksMove(s, nx, ny) && !s.units.some((u) => u.alive && u.x === nx && u.y === ny)) return { x: nx, y: ny };
+    }
+  }
+  return null;
 }
 
 /** Re-seed the RNG stream without touching the rest of the state. */
@@ -180,6 +247,7 @@ export function endTurn(s: GameState) {
   const next: Team = s.phase === 'player' ? 'enemy' : 'player';
   if (next === 'player') s.turn++;
   startPhase(s, next);
+  if (next === 'enemy') arriveReinforcements(s);
   // Not part of startPhase: it also runs once from createGame's initial phase, before any unit could be downed
   // or a side eliminated, and single-team test scenarios (no opposing spawns) rely on that being a no-op.
   tickBleedOut(s, next);

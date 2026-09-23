@@ -96,6 +96,15 @@ export interface MapDef {
    *  that spawn was authored as, and brings their own class, gear, progress and HP. Missing = the map's own
    *  spawns, bare. */
   squad?: SquadMember[];
+  /** 10j: false keeps the AI from opening doors on this map - for a sealed boss room that the player has to
+   *  breach (Vex, Halloway). Missing = the AI opens doors. */
+  aiOpensDoors?: boolean;
+  /** 10j: enemies start dormant, grouped into pods by where they spawn; a pod wakes together the moment one of
+   *  its members sees the squad or is hurt. */
+  enemyPods?: boolean;
+  /** 10j: enemy reinforcements. At the start of the enemy phase of `turn`, each spawn in `spawns` that is free
+   *  becomes a new enemy unit. */
+  reinforcements?: { turn: number; spawns: Spawn[] }[];
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;

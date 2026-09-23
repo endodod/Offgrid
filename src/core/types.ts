@@ -51,6 +51,8 @@ export interface Unit {
   ranDry: boolean; // ammo (4): true once this unit has ever had both ammo and reserve at 0 simultaneously
   shotsFired: number; // results screen (10g): every shot of every burst, overwatch included
   shotsHit: number;
+  pod?: number; // 10j: enemies that wake together (MapDef.enemyPods)
+  dormant?: boolean; // 10j: asleep until its pod is alerted - takes no actions
   soldierId?: string; // unit rework (13): the campaign soldier this unit is
   name?: string; // (13) their name, for the HUD and the log
 }
@@ -98,6 +100,7 @@ export interface Memory {
   objectiveSeen: boolean;
   searchIndex: number;
   doors: Record<number, boolean>; // interactable id -> last-seen `active` state (2)
+  explored?: Uint8Array; // 10j: every tile this team has ever had in view (1), for the AI's exploring
 }
 
 /** `seen` = whether the player team could see it when it happened (used to filter the log). */
@@ -122,6 +125,8 @@ export type EventBody =
   | { t: 'pickup'; unit: number; item: ItemType; amount: number; at: Pos; itemId?: ArmorId | EquipmentId }
   | { t: 'objective'; unit: number }
   | { t: 'capture'; unit: number; status: 'start' | 'progress' | 'broken'; roundsLeft: number }
+  | { t: 'alert'; units: number[] } // 10j: a dormant pod wakes up
+  | { t: 'reinforce'; units: number[] } // 10j: an enemy reinforcement wave arrives
   | { t: 'end'; winner: Team | 'draw' };
 export type GameEvent = EventBody & { seen: boolean };
 
@@ -134,6 +139,8 @@ export interface GameOptions {
   playerReserveMult?: number; // base building (6): a *player-only* reserve multiplier, from a built workbench
   medkitBonus?: number; // base building (6): extra medkits per unit, from a built medstation
   gadgetUsesBonus?: number; // base building (6): extra gadget uses per unit, from a built comms relay
+  aiDoors?: boolean; // 10j, default true: the AI opens closed doors on its way (a map can opt out: MapDef.aiOpensDoors)
+  enemyPods?: boolean; // 10j, default false (or the map's own): enemies start dormant in pods that wake together
 }
 
 export interface GameState {

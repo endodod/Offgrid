@@ -6,6 +6,8 @@
 //                  [--player-level 1] (leveling, 8 - every player class starts at this level with its
 //                  perks-so-far equipped up to its slot count; 0/omitted = no progress, matching a fresh campaign)
 //                  [--map <id>] which layout to simulate; run with an unknown id to list them all
+//                  [--no-ai-doors] (10j: the AI never opens doors) [--pods] (10j: enemies start dormant in pods)
+//                  [--reinforce <turn>] [--reinforce-count 2] (10j: a wave of enemies at the map's first enemy spawns)
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
 import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
 import type { AiProfileId } from '../src/data/aiProfiles';
@@ -42,6 +44,10 @@ const enemyProfileFlag = str('--enemy-profile', '') as AiProfileId | '';
 const playerProfile = str('--player-profile', 'standard') as AiProfileId;
 const reserveMult = num('--reserve-mult', 1);
 const playerLevel = num('--player-level', 0);
+const aiDoors = !args.includes('--no-ai-doors');
+const enemyPods = args.includes('--pods');
+const reinforceTurn = num('--reinforce', 0);
+const reinforceCount = num('--reinforce-count', 2);
 
 /** Every hand-authored layout, by the id `--map` takes. Defaults to Training Grounds, the historical baseline. */
 const MAPS: Record<string, MapDef> = {
@@ -69,9 +75,13 @@ function progressAtLevel(cls: ClassId, level: number): ClassProgress {
   return { xp: 0, level, perkPool, equippedPerks: perkPool.slice(0, slots) };
 }
 
-const map = playerLevel > 0
-  ? { ...baseMap, startingProgress: Object.fromEntries(CLASS_ORDER.map((cls) => [cls, progressAtLevel(cls, playerLevel)])) }
+// Progress now travels on the squad (13: MapDef.squad), one member per player spawn.
+const leveled: MapDef = playerLevel > 0
+  ? { ...baseMap, squad: baseMap.spawns.player.map(([cls], i) => ({ soldierId: `sim${i}`, name: CLASSES[cls].name, cls, loadout: { armor: null, equipment: [null, null] }, progress: progressAtLevel(cls, playerLevel) })) }
   : baseMap;
+const map: MapDef = reinforceTurn > 0
+  ? { ...leveled, reinforcements: [...(leveled.reinforcements ?? []), { turn: reinforceTurn, spawns: leveled.spawns.enemy.slice(0, reinforceCount).map(([c, x, y]) => [c, x, y] as [ClassId, number, number]) }] }
+  : leveled;
 
 // Default to the map's own shipped profile, so a run measures the mission as it ships rather than as
 // 'standard' regardless of what the designer chose.
@@ -79,7 +89,7 @@ const enemyProfile: AiProfileId = enemyProfileFlag || baseMap.enemyProfile || 's
 
 const results: MatchResult[] = [];
 for (let i = 0; i < n; i++) {
-  results.push(playMatch(map, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive, enemyProfile, playerProfile, reserveMult }, maxTurns));
+  results.push(playMatch(map, seed0 + i, { objectiveCapture, timeOfDay, weather, aiRevive, enemyProfile, playerProfile, reserveMult, aiDoors, enemyPods }, maxTurns));
 }
 
 const pct = (k: number) => `${((100 * k) / n).toFixed(1)}%`;
@@ -88,7 +98,8 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 
 console.log(`${baseMap.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
   `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}, ` +
-  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}, player level: ${playerLevel || 1}`);
+  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}, player level: ${playerLevel || 1}, ` +
+  `AI doors: ${aiDoors}, pods: ${enemyPods}, reinforcements: ${reinforceTurn || 'none'}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +

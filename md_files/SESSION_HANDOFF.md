@@ -24,8 +24,6 @@ console errors.
 ## Next up
 
 1. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
-2. **10j** gameplay depth (AI opens doors, retreat to real cover, enemy pods/reinforcements). Each needs a sim
-   knob; see the notes below on doors.
 3. **Balance pass on the roster economy** (feature 13): hire cost, candidate count and permadeath have not
    been simulated. Watch whether salvage is enough to replace losses and build stations too.
 4. The earlier queue still stands: Act 2 missions and the feature 9 visual rehaul.
@@ -69,7 +67,9 @@ console errors.
   to remember when authoring Act 2.
 - **High cover in lines, never in slabs.** Double rows of high cover make a map unflankable and AI-vs-AI runs
   time out (~60% on an early Jackals' Den). Single rows with a clear aisle behind each fixed it.
-- **The AI does not open doors.** Anything sealed behind a closed door is unreachable *to the AI*, which means
+- **The AI opens doors now (10j),** except on maps with `aiOpensDoors: false` (the two boss rooms). The note
+  below describes the old behaviour, which those two maps still rely on: anything sealed behind a closed door
+  was unreachable *to the AI*, which means
   (a) sealing an enemy there makes "eliminate every enemy" unwinnable until the player breaches, and (b) the
   sim reports those missions as near-100% draws. That is deliberate for the two boss rooms (Vex, Halloway) and
   deliberately avoided everywhere else - see Lights Out's header comment for the full reasoning.

@@ -16,11 +16,11 @@ export function closedDoorAt(s: GameState, x: number, y: number) {
  * terminal tile itself, which is a physical console a unit stands *next to*, not on. Other objective types
  * (e.g. 'reach') put units on their 'O' tile(s) on purpose, so those stay open floor.
  */
-export function blocksMove(s: GameState, x: number, y: number): boolean {
+export function blocksMove(s: GameState, x: number, y: number, throughDoors = false): boolean {
   if (!inBounds(s, x, y)) return true;
   const i = idx(s, x, y);
   const onTerminal = s.objectiveDef?.type === 'hold' && s.objective?.x === x && s.objective.y === y;
-  return s.terrain[i] === 'wall' || s.cover[i] !== null || onTerminal || !!closedDoorAt(s, x, y);
+  return s.terrain[i] === 'wall' || s.cover[i] !== null || onTerminal || (!throughDoors && !!closedDoorAt(s, x, y));
 }
 
 /** Walls and a closed door (2) block sight. High cover does only if RULES.highCoverBlocksLos is set; low cover and bushes never do. */
@@ -57,11 +57,11 @@ export function hasLos(s: GameState, a: Pos, b: Pos): boolean {
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 /** Neighbours a walker may step to; diagonals may not cut a blocked corner. */
-function* steps(s: GameState, x: number, y: number): Generator<Pos> {
+function* steps(s: GameState, x: number, y: number, throughDoors = false): Generator<Pos> {
   for (const [dx, dy] of DIRS) {
     const nx = x + dx, ny = y + dy;
-    if (blocksMove(s, nx, ny)) continue;
-    if (dx !== 0 && dy !== 0 && (blocksMove(s, x + dx, y) || blocksMove(s, x, y + dy))) continue;
+    if (blocksMove(s, nx, ny, throughDoors)) continue;
+    if (dx !== 0 && dy !== 0 && (blocksMove(s, x + dx, y, throughDoors) || blocksMove(s, x, y + dy, throughDoors))) continue;
     yield { x: nx, y: ny };
   }
 }
@@ -98,14 +98,15 @@ export function findPath(s: GameState, u: Unit, to: Pos, maxCost: number): Pos[]
   return path.reverse();
 }
 
-/** BFS distance from `goal` to every tile, ignoring units. The goal itself may be a blocked tile (objective). */
-export function distanceMap(s: GameState, goal: Pos): Int16Array {
+/** BFS distance from `goal` to every tile, ignoring units. The goal itself may be a blocked tile (objective).
+ *  `throughDoors` treats closed doors as open - the route a unit that can open them would take (10j). */
+export function distanceMap(s: GameState, goal: Pos, throughDoors = false): Int16Array {
   const d = new Int16Array(s.width * s.height).fill(-1);
   d[idx(s, goal.x, goal.y)] = 0;
   const queue: Pos[] = [goal];
   for (let head = 0; head < queue.length; head++) {
     const cur = queue[head];
-    for (const n of steps(s, cur.x, cur.y)) {
+    for (const n of steps(s, cur.x, cur.y, throughDoors)) {
       const i = idx(s, n.x, n.y);
       if (d[i] >= 0) continue;
       d[i] = d[idx(s, cur.x, cur.y)] + 1;

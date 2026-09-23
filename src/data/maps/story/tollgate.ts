@@ -73,6 +73,8 @@ export const TOLLGATE: MapDef = {
   startWeather: 'fog',
   enemyProfile: 'standard',
   objective: { type: 'eliminateTarget', enemySpawnIndex: 0, label: 'Halloway, who runs the tollgate' },
+  // 10j: the boss room is sealed on purpose - the squad breaches it, the boss never walks out.
+  aiOpensDoors: false,
   interactables: [
     { id: 1, type: 'door', x: 37, y: 16, active: true },
     { id: 20, type: 'chest', x: 17, y: 6 },

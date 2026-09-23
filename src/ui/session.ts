@@ -26,6 +26,10 @@ export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | '
 export interface ButtonState { enabled: boolean; reason: string | null; label: string; active: boolean }
 
 /** UI state + input rules. Turns clicks into core actions; never implements game rules itself. */
+/** What the player's team remembers, for undo's "did this move teach anything" check (10h) - without the
+ *  explored-tiles record (10j), since newly seen empty floor is exactly what undo is allowed to forget. */
+const memoryKey = (s: GameState): string => JSON.stringify({ ...s.memory.player, explored: undefined });
+
 export class Session {
   state!: GameState;
   seed = 1;
@@ -516,13 +520,13 @@ export class Session {
   private try(a: Action): boolean {
     const s0 = this.state;
     const before = a.type === 'move'
-      ? { snap: serializeGame(s0), rng: s0.rng, seen: [...s0.seenUnits.player].sort().join(), mem: JSON.stringify(s0.memory.player) }
+      ? { snap: serializeGame(s0), rng: s0.rng, seen: [...s0.seenUnits.player].sort().join(), mem: memoryKey(s0) }
       : null;
     const r = perform(this.state, a);
     if (r.ok) {
       const s = this.state;
       this.undoSnapshot = before && s.rng === before.rng && [...s.seenUnits.player].sort().join() === before.seen
-        && JSON.stringify(s.memory.player) === before.mem && !s.winner ? before.snap : null;
+        && memoryKey(s) === before.mem && !s.winner ? before.snap : null;
     }
     this.flush();
     this.status = r.ok ? '' : r.error;

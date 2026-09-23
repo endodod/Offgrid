@@ -539,7 +539,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | done |
 | 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | done |
 | 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | done |
-| 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | |
+| 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | done |
 | 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | |
 
 **Design sketch**
@@ -614,6 +614,35 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
   main.ts redraws at ~30 fps only while weather is moving and nothing else is.
 - **10j.** Recorded as separate follow-ups once 10a-10i land: the AI's door handling (see `SESSION_HANDOFF.md`), the
   `hard` retreat finding in 0c, and pod activation + reinforcements as mission options (each with a sim knob).
+  *Done as:*
+  - **Doors.** The AI plans routes as if closed doors were open (`distanceMap(..., throughDoors)`), opens one
+    next to it that leads closer (`doorOnRoute`), and prefers that over overwatch with its last action.
+    `GameOptions.aiDoors` / `MapDef.aiOpensDoors: false` turn it off; the two sealed boss rooms (Jackals' Den,
+    Tollgate) do.
+  - **Retreat.** It now looks for real safety: out of every visible enemy's sight first, then cover against the
+    nearest, then distance.
+  - **Pods.** `MapDef.enemyPods` / `GameOptions.enemyPods` group enemies by spawn (`POD_RADIUS` 6). They start
+    dormant, take no actions and show a "z". A pod wakes together when a member is hurt or sees a squad member
+    with its *own* eyes (`wakePods`).
+  - **Reinforcements.** `MapDef.reinforcements` waves arrive at the start of the enemy phase of their turn, on
+    free tiles, announced in the log. The Mission panel shows the next wave in advance.
+  - **Two AI bugs found through the sim and fixed.**
+    - The AI walked up to a 'sabotage' switch and never threw it: plain `interact` only works the 'hold'
+      terminal (`objectiveSwitch`).
+    - `objectiveGoalPositions` kept already-thrown switches as goals.
+
+    Together they were the "genuine AI stalls" behind many sim draws.
+  - **Exploring.** Each team now remembers every tile it has seen (`Memory.explored`). Once a team has been
+    round its authored search waypoints, the AI heads for the nearest unseen ground (`frontier`); the Explore
+    order does so before the waypoints.
+  - **Sim switches:** `--no-ai-doors`, `--pods`, `--reinforce <turn> [--reinforce-count 2]`. Also fixed:
+    `--player-level` had been silently ignored since feature 13 (it still wrote the removed `startingProgress`).
+  - **Measured** (40 seeds, Balanced squad, objective on):
+    - Lights Out: 65/15/20 player/enemy/draw baseline; 95/0/5 with pods; 20/63/18 with 2 reinforcements on
+      turn 8; 55/35/10 with 1.
+    - Pods and reinforcements together swing wildly by map: 83–100% player wins on Lights Out, Pharmacy Row
+      and Rail Yard, but 5% on Fuel Depot. So they ship as per-mission authoring options, **not** as a random
+      supply-run complication. Tune per mission when Act 2 uses them.
 - **10k.** After 10b: pinch zoom, and on coarse pointers a first tap previews (path, hit chance) and a second
   confirms.
 

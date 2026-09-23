@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AI_PROFILES } from '../data/aiProfiles';
 import { planAction, runAiTurn } from './ai';
 import { act, blank, makeGame, rolls, unit } from './testkit';
+import { hasLos } from './grid';
 
 /** Ends the player's phase (so the enemy is up) and plays out the enemy's whole turn. */
 const runEnemyTurn = (s: ReturnType<typeof makeGame>) => { act(s, { type: 'endTurn' }); runAiTurn(s, 'enemy'); };
@@ -243,5 +244,67 @@ describe('squad orders for auto-run (16)', () => {
   it('balanced (friendly) is still the default auto-run order', async () => {
     const { defaultPrefs } = await import('../ui/prefs');
     expect(defaultPrefs().autoMode).toBe('friendly');
+  });
+});
+
+describe('gameplay depth (10j)', () => {
+  it('pods: enemies start asleep, take no actions, and a whole pod wakes when one member sees the squad', async () => {
+    const { wakePods } = await import('./ai');
+    const s = makeGame(blank(40, 5), { player: { soldier: [1, 2] }, enemy: { soldier: [20, 2], sniper: [22, 2], tank: [38, 2] } }, { enemyPods: true });
+    const [a, b, far] = ['soldier', 'sniper', 'tank'].map((c) => unit(s, 'enemy', c as 'soldier'));
+    expect(a.pod).toBe(b.pod);
+    expect(far.pod).not.toBe(a.pod);
+    expect([a, b, far].every((u) => u.dormant)).toBe(true);
+    runEnemyTurn(s);
+    expect([a.x, b.x, far.x]).toEqual([20, 22, 38]); // nobody moved
+    const p = unit(s, 'player', 'soldier');
+    p.x = 17; // walk into the first pod's sight
+    s.seenUnits.enemy.add(p.id);
+    expect(wakePods(s, a)).toBe(true);
+    expect(a.dormant || b.dormant).toBe(false);
+    expect(far.dormant).toBe(true); // the far pod never heard it
+  });
+
+  it('pods: a hurt member wakes its pod', async () => {
+    const { wakePods } = await import('./ai');
+    const s = makeGame(blank(40, 5), { player: { soldier: [1, 2] }, enemy: { soldier: [30, 2], sniper: [32, 2] } }, { enemyPods: true });
+    const a = unit(s, 'enemy', 'soldier');
+    a.dmgTaken = 2;
+    expect(wakePods(s, unit(s, 'enemy', 'sniper'))).toBe(true);
+  });
+
+  it('reinforcements arrive at the start of the enemy phase of their turn, on free tiles, announced', () => {
+    const s = makeGame(blank(20, 5), { player: { soldier: [1, 2] }, enemy: { soldier: [18, 2] } });
+    s.map = { ...s.map, reinforcements: [{ turn: 2, spawns: [['tank', 18, 2], ['sniper', 17, 1]] }] };
+    act(s, { type: 'endTurn' }); // turn 1 enemy: nothing yet
+    expect(s.units).toHaveLength(2);
+    act(s, { type: 'endTurn' }); // turn 2 player
+    act(s, { type: 'endTurn' }); // turn 2 enemy: they arrive
+    const fresh = s.units.slice(2);
+    expect(fresh.map((u) => u.cls)).toEqual(['tank', 'sniper']);
+    expect(fresh[0].x === 18 && fresh[0].y === 2).toBe(false); // the soldier stands on (18,2): shifted to a free tile
+    expect(fresh.every((u) => u.team === 'enemy' && u.actions > 0)).toBe(true);
+    expect(s.events.some((e) => e.t === 'reinforce' && e.seen)).toBe(true);
+  });
+
+  it('retreat heads out of sight rather than just further away', () => {
+    // a wall stub the hurt enemy can duck behind, closer than the far corner
+    const s = makeGame(blank(20, 7, [[14, 1, '#'], [14, 2, '#'], [14, 3, '#']]), { player: { soldier: [8, 2] }, enemy: { soldier: [12, 2] } }, { enemyProfile: 'hard' });
+    act(s, { type: 'endTurn' });
+    const e = unit(s, 'enemy', 'soldier');
+    e.hp = 2; // below hard's 30%
+    const a = planAction(s, e);
+    expect(a?.type).toBe('move');
+    const to = (a as { to: { x: number; y: number } }).to;
+    expect(hasLos(s, unit(s, 'player', 'soldier'), to)).toBe(false);
+  });
+
+  it('the AI throws a sabotage switch it stands next to (it used to just stand there)', () => {
+    const s = makeGame(blank(10, 5), { player: { soldier: [3, 2] }, enemy: { soldier: [9, 4] } }, { playerProfile: 'friendly' }, [
+      { id: 1, type: 'switch', x: 4, y: 2 },
+    ]);
+    s.objectiveDef = { type: 'sabotage', interactableIds: [1] };
+    const a = planAction(s, unit(s, 'player', 'soldier'));
+    expect(a).toEqual({ type: 'interact', unit: unit(s, 'player', 'soldier').id, target: 1 });
   });
 });

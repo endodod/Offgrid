@@ -77,6 +77,8 @@ export const JACKALS_DEN: MapDef = {
   startWeather: 'cloudy',
   enemyProfile: 'standard',
   objective: { type: 'eliminateTarget', enemySpawnIndex: 0, label: 'Vex, the Jackal leader' },
+  // 10j: the boss room is sealed on purpose - the squad breaches it, the boss never walks out.
+  aiOpensDoors: false,
   interactables: [
     { id: 1, type: 'door', x: 13, y: 16, active: true },  // the dock door already up
     { id: 2, type: 'door', x: 13, y: 6 },

@@ -52,7 +52,9 @@ export function objectiveGoalPositions(s: GameState, team: Team): Pos[] {
   if (def.type === 'sabotage') {
     return def.interactableIds
       .map((id) => s.interactables.find((i) => i.id === id))
-      .filter((it): it is Interactable => !!it && mem.doors[it.id] !== undefined);
+      // Only switches this team has seen and remembers as not yet thrown: a thrown one is done, and using it
+      // again would flip it back (10j - the AI used to keep one as a goal forever).
+      .filter((it): it is Interactable => !!it && mem.doors[it.id] === false);
   }
   return [];
 }

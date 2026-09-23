@@ -66,8 +66,8 @@ describe('doors: movement and line of sight (feature 2)', () => {
     expect(doors().every((d) => !d.active)).toBe(true); // flipping again toggles both doors back shut
   });
 
-  it('the AI does not walk through a closed door: it holds position instead', () => {
-    const s = makeGame(blank(9, 3, corridorEdits(9)), { player: { soldier: [8, 1] }, enemy: { soldier: [2, 1] } }, {}, [
+  it('with AI doors off (a sealed boss room), the AI does not walk through a closed door: it holds position', () => {
+    const s = makeGame(blank(9, 3, corridorEdits(9)), { player: { soldier: [8, 1] }, enemy: { soldier: [2, 1] } }, { aiDoors: false }, [
       { id: 1, type: 'door', x: 4, y: 1 },
     ]);
     s.map.searchPoints.enemy = [[7, 1]]; // beyond the door, in the same corridor as the (unseen) player
@@ -78,6 +78,31 @@ describe('doors: movement and line of sight (feature 2)', () => {
     expect(e.x).toBe(2); // never crossed the door
     expect(e.y).toBe(1);
     expect(s.events.some((ev) => ev.t === 'shot')).toBe(false);
+  });
+
+  it('the AI opens a closed door on its route (10j) and goes through', () => {
+    const s = makeGame(blank(9, 3, corridorEdits(9)), { player: { soldier: [8, 1] }, enemy: { soldier: [2, 1] } }, {}, [
+      { id: 1, type: 'door', x: 4, y: 1 },
+    ]);
+    s.map.searchPoints.enemy = [[7, 1]];
+    act(s, { type: 'endTurn' });
+    const e = unit(s, 'enemy', 'soldier');
+    runAiTurn(s, 'enemy');
+    expect(s.events.some((ev) => ev.t === 'door' && ev.open)).toBe(true);
+    expect(s.interactables[0].active).toBe(true);
+    expect(e.x).toBe(3); // walked up to it, then opened it with the second action
+    expect(findPath(s, e, { x: 6, y: 1 }, 20)).not.toBeNull(); // the way on is open
+  });
+
+  it('a map can keep its doors shut to the AI (MapDef.aiOpensDoors: false)', () => {
+    const s = makeGame(blank(9, 3, corridorEdits(9)), { player: { soldier: [8, 1] }, enemy: { soldier: [2, 1] } }, {}, [
+      { id: 1, type: 'door', x: 4, y: 1 },
+    ]);
+    s.map = { ...s.map, aiOpensDoors: false };
+    s.map.searchPoints.enemy = [[7, 1]];
+    act(s, { type: 'endTurn' });
+    runAiTurn(s, 'enemy');
+    expect(s.interactables[0].active).toBe(false);
   });
 
   it('remembers the last-seen door state under fog until seen again', () => {

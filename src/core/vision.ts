@@ -76,4 +76,8 @@ function updateMemory(s: GameState, team: Team) {
   // Doors/switches (2): remember the last-seen state, same treatment as everything else fog-related - a door
   // seen closed but opened later behind your back should surprise you, not silently update off-screen.
   for (const it of s.interactables) if (s.visible[team][idx(s, it.x, it.y)]) mem.doors[it.id] = it.active;
+  // 10j: everything ever in view, so the AI can go and look at what it hasn't.
+  if (!mem.explored || mem.explored.length !== s.visible[team].length) mem.explored = new Uint8Array(s.visible[team].length);
+  const vis = s.visible[team];
+  for (let i = 0; i < vis.length; i++) if (vis[i]) mem.explored[i] = 1;
 }

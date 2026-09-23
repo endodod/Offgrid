@@ -50,6 +50,14 @@ const perkText = (u: Unit): string => u.equippedPerks.map((id) => PERKS[id].name
 const stat = (k: string, v: string | number, boost?: string) =>
   `<div class="stat"><div class="stat__k">${k}</div><div class="stat__v">${v}${boost ? `<em>${boost}</em>` : ''}</div></div>`;
 
+/** 10j: the next enemy reinforcement wave, if one is still coming - part of the briefing, so no surprise. */
+function nextWave(s: GameState): string {
+  const w = (s.map.reinforcements ?? []).filter((r) => r.turn >= s.turn && !(r.turn === s.turn && s.phase === 'enemy'))
+    .sort((a, b) => a.turn - b.turn)[0];
+  if (!w) return '';
+  return `<div class="kv"><span>Reinforcements</span><b class="warn">${w.spawns.length} on turn ${w.turn}</b></div>`;
+}
+
 /** Short labels for the auto-run order picker (16). */
 const AUTO_LABEL: Partial<Record<AiProfileId, string>> = { friendly: 'Balanced', explore: 'Explore', rush: 'Rush', defend: 'Defend' };
 
@@ -141,6 +149,7 @@ export class Hud {
       <div class="kv"><span>Time of day</span><b>${TIMES_OF_DAY[s.timeOfDay].name}</b></div>
       <div class="kv"><span>Weather</span><b>${WEATHERS[s.weather].name}</b></div>
       <div class="kv"><span>Effect</span><b>Vis ${delta(mods.visionMult)} · Mov ${delta(mods.moveMult)} · Acc ${acc}</b></div>
+      ${nextWave(s)}
       <p class="muted" style="margin-top:8px">${TIMES_OF_DAY[s.timeOfDay].blurb} ${WEATHERS[s.weather].blurb}</p>`;
   }
 

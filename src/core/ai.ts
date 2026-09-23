@@ -2,7 +2,8 @@ import { CLASSES } from '../data/units';
 import { AI_PROFILES, type AiProfileDef } from '../data/aiProfiles';
 import { perform, validate, type Action } from './actions';
 import { coverAgainst, expectedDamage } from './combat';
-import { effectiveMove } from './environment';
+import { effectiveMove, effectiveVision } from './environment';
+import { emit } from './state';
 import { cheb, dist, distanceMap, hasLos, idx, reachable } from './grid';
 import { objectiveGoalPositions } from './objectives';
 import { rollPercent } from './rng';
@@ -39,11 +40,14 @@ const ok = (s: GameState, a: Action) => validate(s, a) === null;
 
 export function planAction(s: GameState, u: Unit): Action | null {
   if (u.actions <= 0 || u.overwatch) return null;
+  if (u.dormant && !wakePods(s, u)) return null; // 10j: asleep until its pod is alerted
   const holding = s.capture?.unit === u.id; // securing the objective: must not move
   const interact: Action = { type: 'interact', unit: u.id };
   if (ok(s, interact)) return interact;
   const reload: Action = { type: 'reload', unit: u.id };
   if (u.ammo === 0 && ok(s, reload)) return reload;
+  const sabotage = objectiveSwitch(s, u);
+  if (sabotage) return sabotage;
 
   // An already-adjacent downed ally costs nothing extra to revive (no repositioning), so it comes before
   // deciding whether to fight - triage over a marginal shot, even mid-firefight.
@@ -132,22 +136,49 @@ export function planAction(s: GameState, u: Unit): Action | null {
     const mv = goal && advance(s, u, goal);
     if (mv) return mv;
   }
+  // Last action and a door in the way: opening it beats standing on overwatch in front of it (10j).
+  const door = goal && aiOpensDoors(s) ? doorOnRoute(s, u, distanceMap(s, goal, true)) : null;
+  if (door) return door;
   const ow: Action = { type: 'overwatch', unit: u.id };
   if (ok(s, ow)) return ow;
   return goal ? advance(s, u, goal) : null;
 }
 
-/** Self-preservation (a profile's retreatBelowHp): the reachable tile furthest from the nearest visible threat. */
+/**
+ * 10j: whether `u`'s pod is alerted, waking all of it if so. A pod wakes when any member has been hurt, or has
+ * one of the other team's units in its own sight - its own vision range and line of sight, not just "somebody
+ * on the team can see them": a pod asleep across the map doesn't hear about a fight it can't see.
+ */
+export function wakePods(s: GameState, u: Unit): boolean {
+  if (!u.dormant) return true;
+  const pod = s.units.filter((m) => m.team === u.team && m.pod === u.pod && m.alive);
+  const foes = s.units.filter((f) => f.alive && f.team !== u.team && s.seenUnits[u.team].has(f.id));
+  const alerted = pod.some((m) => m.dmgTaken > 0 || m.downed
+    || foes.some((f) => dist(m, f) <= effectiveVision(s, m) && hasLos(s, m, f)));
+  if (!alerted) return false;
+  for (const m of pod) m.dormant = false;
+  emit(s, { t: 'alert', units: pod.map((m) => m.id) }, pod);
+  return true;
+}
+
+/**
+ * Self-preservation (a profile's retreatBelowHp), reworked in 10j. Running "further away" alone lost more fights
+ * than it saved (0c's finding: the enemy just follows, and the retreat cost a shot). So a retreat now goes for
+ * real safety, in this order: out of every visible enemy's line of sight, then the best cover against the
+ * nearest one, then distance. It only moves if that is strictly safer than staying put.
+ */
 function retreat(s: GameState, u: Unit, enemies: Unit[], move: number): Action | null {
   const nearest = enemies.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
-  const here = dist(u, nearest);
-  let best: { pos: Pos; d: number } | null = null;
-  for (const [i] of reachable(s, u, move)) {
+  const safety = (pos: Pos) =>
+    (enemies.every((e) => !hasLos(s, e, pos)) ? 1000 : 0) + coverAgainst(s, pos, nearest).penalty * 4 + Math.min(dist(pos, nearest), 20);
+  const here = safety(u);
+  let best: { pos: Pos; score: number } | null = null;
+  for (const [i, r] of reachable(s, u, move)) {
     const pos = { x: i % s.width, y: Math.floor(i / s.width) };
-    const d = dist(pos, nearest);
-    if (!best || d > best.d) best = { pos, d };
+    const score = safety(pos) - r.cost * 0.1;
+    if (!best || score > best.score) best = { pos, score };
   }
-  if (!best || best.d <= here) return null;
+  if (!best || best.score <= here || (best.pos.x === u.x && best.pos.y === u.y)) return null;
   return { type: 'move', unit: u.id, to: best.pos };
 }
 
@@ -168,10 +199,17 @@ function evaluate(s: GameState, u: Unit, enemies: Unit[], pos: Pos, cost: number
   return best;
 }
 
-/** Move to the reachable tile closest (by walking distance) to the goal, if that is closer than where we stand. */
+/**
+ * Move to the reachable tile closest (by walking distance) to the goal, if that is closer than where we stand.
+ * 10j: the AI can also open doors. Distances are measured as if closed doors were open, so a door on the way
+ * is part of the route; standing next to one that leads closer, the unit opens it instead of walking round.
+ */
 function advance(s: GameState, u: Unit, goal: Pos): Action | null {
-  const d = distanceMap(s, goal);
+  const doors = aiOpensDoors(s);
+  const d = distanceMap(s, goal, doors);
   const here = d[idx(s, u.x, u.y)];
+  const open = doors ? doorOnRoute(s, u, d) : null;
+  if (open) return open;
   let best: { pos: Pos; d: number; cost: number } | null = null;
   for (const [i, r] of reachable(s, u, effectiveMove(s, u))) {
     if (d[i] < 0) continue;
@@ -180,6 +218,38 @@ function advance(s: GameState, u: Unit, goal: Pos): Action | null {
   if (!best || (here >= 0 && best.d >= here)) return null;
   return { type: 'move', unit: u.id, to: best.pos };
 }
+
+/** An adjacent closed door that leads closer to the goal `d` was measured from, as an interact action (10j). */
+function doorOnRoute(s: GameState, u: Unit, d: Int16Array): Action | null {
+  const here = d[idx(s, u.x, u.y)];
+  if (here <= 0) return null;
+  for (const it of s.interactables) {
+    if (it.type !== 'door' || it.active || cheb(u, it) > 1) continue;
+    const through = d[idx(s, it.x, it.y)];
+    const open: Action = { type: 'interact', unit: u.id, target: it.id };
+    if (through >= 0 && through < here && ok(s, open)) return open;
+  }
+  return null;
+}
+
+/**
+ * 10j: a 'sabotage' objective's switch next to `u`, not yet thrown, as an interact action - for a team that may
+ * win by the objective (GameOptions.objectiveCapture). The AI used to walk up to one and then stand there:
+ * the plain `interact` above only works the 'hold' terminal.
+ */
+function objectiveSwitch(s: GameState, u: Unit): Action | null {
+  const capture = s.options.objectiveCapture;
+  if (s.objectiveDef?.type !== 'sabotage' || capture === 'none' || (capture === 'player' && u.team !== 'player')) return null;
+  for (const it of s.interactables) {
+    if (!s.objectiveDef.interactableIds.includes(it.id) || it.active || cheb(u, it) > 1) continue;
+    const a: Action = { type: 'interact', unit: u.id, target: it.id };
+    if (ok(s, a)) return a;
+  }
+  return null;
+}
+
+/** Whether AI units may open doors here: on unless the game options or the map turn it off (10j). */
+const aiOpensDoors = (s: GameState): boolean => s.options.aiDoors !== false && s.map.aiOpensDoors !== false;
 
 const nearestOf = (u: Unit, points: Pos[]): Pos | null => (points.length ? points.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b)) : null);
 
@@ -198,13 +268,16 @@ function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
   if (profile.habitat === 'camper') return goal();
   if (profile.prioritizeObjective || profile.focus === 'objective') { const g = goal(); if (g) return g; }
   if (profile.focus === 'explore') {
-    // Loot it can see, or a chest it has seen and not opened yet; then the waypoints; a fight only after that.
+    // Loot it can see, or a chest it has seen and not opened yet; then ground nobody has looked at; then the
+    // waypoints; a fight only after that.
     const loot = [
       ...s.pickups.filter((p) => s.visible[u.team][idx(s, p.x, p.y)]),
       ...s.interactables.filter((it) => it.type === 'chest' && it.id in mem.doors && !mem.doors[it.id]),
     ];
     const l = nearestOf(u, loot);
     if (l) return l;
+    const f = frontier(s, u);
+    if (f) return f;
     const w = waypoint(s, u);
     if (w) return w;
   }
@@ -212,7 +285,25 @@ function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
   if (ghosts.length) return ghosts.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
   const g = goal();
   if (g) return g;
-  return waypoint(s, u);
+  // The authored waypoints first; once the team has been round them all, whatever it hasn't seen yet (10j) -
+  // otherwise a pod asleep off the waypoint route, or an objective nowhere near one, is never found.
+  const points = s.map.searchPoints[u.team];
+  if (!points.length) return null; // no search route authored: nothing to go looking along (small test maps)
+  if (mem.searchIndex < points.length) return waypoint(s, u);
+  return frontier(s, u) ?? waypoint(s, u);
+}
+
+/** 10j: the nearest tile (walking, doors counted as openable) this team has never had in view, or null. */
+function frontier(s: GameState, u: Unit): Pos | null {
+  const explored = s.memory[u.team].explored;
+  if (!explored) return null;
+  const d = distanceMap(s, u, aiOpensDoors(s));
+  let best = -1;
+  for (let i = 0; i < d.length; i++) {
+    if (d[i] <= 0 || explored[i]) continue;
+    if (best < 0 || d[i] < d[best]) best = i;
+  }
+  return best < 0 ? null : { x: best % s.width, y: Math.floor(best / s.width) };
 }
 
 /** The team's next search waypoint for this unit (each unit is offset along the list, so they spread out). */

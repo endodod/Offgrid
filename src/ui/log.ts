@@ -15,6 +15,8 @@ export function describe(s: GameState, e: GameEvent): LogLine | null {
   const who = (id: number) => nameOf(s.units[id]);
   const kind = (id: number): LogLine['kind'] => s.units[id].team;
   if (e.t === 'phase') return { kind: 'system', text: `— Turn ${e.turn}: ${e.team} phase —` };
+  if (e.t === 'reinforce') return { kind: 'system', text: `Enemy reinforcements have arrived (${e.units.length})!` };
+  if (e.t === 'alert') return e.seen ? { kind: 'system', text: `Hostiles alerted: ${e.units.length} of them are awake now.` } : null;
   if (e.t === 'end') return { kind: 'system', text: e.winner === 'player' ? 'VICTORY' : e.winner === 'enemy' ? 'DEFEAT' : 'DRAW' };
   if (e.t === 'shot' && !e.seen) return e.shot === 1 ? { kind: 'fog', text: 'Gunfire echoes from the fog.' } : null;
   if (!e.seen) return null;

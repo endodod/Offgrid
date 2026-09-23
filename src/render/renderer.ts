@@ -97,6 +97,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   drawObjective(ctx, v);
   drawGhosts(ctx, v);
   for (const u of s.units) if (shownUnit(v, u)) drawUnit(ctx, v, u);
+  for (const u of s.units) if (u.dormant && u.alive && shownUnit(v, u)) drawSleeping(ctx, u);
   drawEffects(ctx, v);
   drawWeather(ctx, v);
   if (v.edgeFog) drawEdgeFog(ctx, v.s);
@@ -232,6 +233,20 @@ function drawEdgeFog(ctx: CanvasRenderingContext2D, s: GameState) {
   band(W, 0, W - d, 0, W - d, 0, d, H);
   band(0, 0, 0, d, 0, 0, W, d);
   band(0, H, 0, H - d, 0, H - d, W, d);
+}
+
+/** 10j: a dormant enemy (its pod not yet alerted) gets a small "z" over it. */
+function drawSleeping(ctx: CanvasRenderingContext2D, u: Unit) {
+  const px = u.x * TILE + TILE - 7, py = u.y * TILE + 7;
+  ctx.save();
+  ctx.globalAlpha = 0.75;
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = C.ink;
+  ctx.fillText('z', px + 1, py + 1);
+  ctx.fillStyle = '#cfd8e8';
+  ctx.fillText('z', px, py);
+  ctx.restore();
 }
 
 /** Whether the board has moving weather, so the frame loop keeps drawing while nothing else is happening. */
