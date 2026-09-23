@@ -3,11 +3,11 @@ import type { MapDef } from '../../trainingGrounds';
 
 /**
  * Riverside, mission 5 of 5 - "The Tollgate". Objective: `eliminateTarget`, Halloway (enemy spawn index 0).
+ * 62x16 (19: the longest, narrowest map in the act - a bridge has no way round).
  *
- * The district finale, and the only Riverside map with no flanks at all: the Kestrel Bridge approach is a
- * causeway with open water north and south, so the whole fight is sixteen rows wide and forty-six long. Three
- * barricade lines cross it, each with its gaps in a different place, so "advance" means committing to a lane
- * and then changing lanes under fire.
+ * The district finale, and the only Riverside map with no flanks at all: the Kestrel Bridge causeway is ten
+ * rows wide with open water north and south, and sixty long. Three barricade lines cross it, each with its
+ * gaps in a different place, so "advance" means committing to a lane and then changing lanes under fire.
  *
  * Halloway sits in the toll house at the far end on the `camper` profile - he holds what he has rather than
  * coming to meet you, which on a map with no way around him means the mission ends where the map does.
@@ -17,57 +17,55 @@ import type { MapDef } from '../../trainingGrounds';
  * equipment screen visibly decides how a mission opens.
  */
 function compose(): string[] {
-  const g = field();
+  const W = 62, H = 16;
+  const g = field(W, H);
   // The river: everything outside the causeway is water.
-  rect(g, 0, 0, 48, 8, '#');
-  rect(g, 0, 24, 48, 8, '#');
-  vRun(g, 0, 8, 16, '#');
-  vRun(g, 47, 8, 16, '#');
+  rect(g, 0, 0, W, 3, '#');
+  rect(g, 0, 13, W, 3, '#');
+  vRun(g, 0, 3, 10, '#');
+  vRun(g, W - 1, 3, 10, '#');
 
   // Two half-collapsed piers reaching into the water - the only ground off the road.
-  rect(g, 14, 5, 5, 3, '.');
-  rect(g, 30, 24, 5, 3, '.');
-  pts(g, [[15, 6], [16, 6], [31, 25], [32, 25]], 'l');
+  rect(g, 20, 1, 5, 2, '.');
+  rect(g, 42, 13, 5, 2, '.');
 
   // Barricade lines. Gaps stagger so no lane runs the length of the bridge.
   const barricade = (x: number, gaps: number[]) => {
-    vRun(g, x, 8, 16, 'h');
+    vRun(g, x, 3, 10, 'h');
     // three tiles wide: two is enough for the AI to jam on itself at a chokepoint (ASSUMPTIONS.md, Enemy AI)
     for (const y of gaps) for (let j = 0; j < 3; j++) put(g, x, y + j, '.');
   };
-  barricade(12, [10, 19]);
-  barricade(22, [14, 21]);
-  barricade(31, [9, 17]);
+  barricade(14, [3, 9]);
+  barricade(26, [6, 10]);
+  barricade(38, [3, 8]);
 
   // Abandoned convoy along the road: soft cover between the hard lines.
-  coverPairs(g, 11, [16, 26]);
-  coverPairs(g, 16, [8, 18, 27]);
-  coverPairs(g, 21, [16, 26]);
-  pts(g, [[7, 13], [7, 14], [26, 12], [27, 12], [18, 20], [19, 20]], 'h');
-  pts(g, [[9, 20], [10, 20], [25, 22], [26, 22]], 'b');
+  coverPairs(g, 5, [18, 31, 44]);
+  coverPairs(g, 8, [9, 21, 33]);
+  coverPairs(g, 11, [18, 31]);
+  pts(g, [[8, 4], [8, 5], [32, 11], [33, 11]], 'h');
+  pts(g, [[11, 11], [12, 11], [45, 4]], 'b');
 
   // The toll house: one door, facing back down the bridge.
-  building(g, 37, 9, 10, 14, [[37, 16]]);
-  pts(g, [[40, 12], [41, 12], [40, 20], [41, 20], [44, 16]], 'l');
-  rect(g, 34, 9, 3, 3, '#');      // sandbagged post: solid, not a room
+  building(g, 50, 3, 11, 10, [[50, 8]]);
+  pts(g, [[53, 5], [54, 5], [53, 10], [54, 10], [58, 8]], 'l');
+  rect(g, 46, 3, 3, 3, '#');      // sandbagged post: solid, not a room
   return toRows(g);
 }
 
-// Sim, 60 AI-vs-AI matches on this map's own profile (`npm run sim -- --map tollgate --objective player`):
-// player 62% / enemy 2% / draw 37% - the draws are Halloway camping, which a human digs out.
 export const TOLLGATE: MapDef = {
   name: 'Kestrel Bridge Tollgate',
   rows: compose(),
   spawns: {
-    player: [['soldier', 2, 14], ['assault', 3, 14], ['medic', 2, 16], ['tank', 2, 18], ['sniper', 3, 18]],
+    player: [['soldier', 2, 6], ['assault', 3, 6], ['medic', 2, 8], ['tank', 2, 10], ['sniper', 3, 10]],
     enemy: [
-      ['tank', 42, 16, 'camper'],
-      ['assault', 15, 12], ['soldier', 15, 20], ['sniper', 20, 16], ['assault', 26, 10],
+      ['tank', 57, 8, 'camper'],
+      ['assault', 18, 4], ['soldier', 18, 10], ['sniper', 24, 7], ['assault', 34, 4],
     ],
   },
   searchPoints: {
-    player: [[16, 16], [25, 16], [35, 16], [42, 12]],
-    enemy: [[16, 16], [25, 16], [7, 16], [35, 16]],
+    player: [[20, 8], [32, 8], [44, 8], [55, 6]],
+    enemy: [[20, 8], [32, 8], [8, 8], [44, 8]],
   },
   startTimeOfDay: 'afternoon',
   startWeather: 'fog',
@@ -76,17 +74,17 @@ export const TOLLGATE: MapDef = {
   // 10j: the boss room is sealed on purpose - the squad breaches it, the boss never walks out.
   aiOpensDoors: false,
   interactables: [
-    { id: 1, type: 'door', x: 37, y: 16, active: true },
-    { id: 20, type: 'chest', x: 17, y: 6 },
-    { id: 21, type: 'chest', x: 32, y: 26 },
-    { id: 22, type: 'chest', x: 45, y: 21 },
+    { id: 1, type: 'door', x: 50, y: 8, active: true },
+    { id: 20, type: 'chest', x: 22, y: 1 },
+    { id: 21, type: 'chest', x: 44, y: 14 },
+    { id: 22, type: 'chest', x: 59, y: 11 },
   ],
   pickups: [
-    { id: 1, type: 'ammo', x: 9, y: 11 },
-    { id: 2, type: 'medkit', x: 14, y: 16 },
-    { id: 3, type: 'ammo', x: 21, y: 11 },
-    { id: 4, type: 'gadget', x: 24, y: 16 },
-    { id: 5, type: 'ammo', x: 29, y: 21 },
-    { id: 6, type: 'medkit', x: 34, y: 16 },
+    { id: 1, type: 'ammo', x: 10, y: 4 },
+    { id: 2, type: 'medkit', x: 16, y: 7 },
+    { id: 3, type: 'ammo', x: 28, y: 4 },
+    { id: 4, type: 'gadget', x: 30, y: 8 },
+    { id: 5, type: 'ammo', x: 40, y: 11 },
+    { id: 6, type: 'medkit', x: 45, y: 8 },
   ],
 };
