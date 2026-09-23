@@ -324,3 +324,26 @@ describe('campaign economy (11)', () => {
     expect(kitted.reserve).toBeGreaterThan(plain.reserve);
   });
 });
+
+describe('debug helpers (17)', () => {
+  it('set HP clamps to 1..max, and full clears the carried-over value', async () => {
+    const { debugSetHp } = await import('./roster');
+    const cs = newCampaign(1);
+    debugSetHp(cs, 'tank', 5);
+    expect(hp(cs, 'tank')).toBe(5);
+    debugSetHp(cs, 'tank', 0);
+    expect(hp(cs, 'tank')).toBe(1);
+    debugSetHp(cs, 'tank', 999);
+    expect(sol(cs, 'tank').hp).toBeUndefined();
+  });
+
+  it('level up gives exactly the XP to the next threshold, perks included', async () => {
+    const { debugGiveXp } = await import('./roster');
+    const cs = newCampaign(1);
+    debugGiveXp(cs, 'sniper', 'level');
+    expect(sol(cs, 'sniper').progress.level).toBe(2);
+    expect(sol(cs, 'sniper').progress.perkPool).toHaveLength(2);
+    debugGiveXp(cs, 'sniper', 50);
+    expect(sol(cs, 'sniper').progress.xp).toBe(150);
+  });
+});

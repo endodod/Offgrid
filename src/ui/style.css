@@ -787,3 +787,10 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 /* Auto-run's order picker (16), beside the Auto-run button. */
 .seg--sm { padding: 2px; }
 .seg--sm button { min-height: 28px; padding: 0 8px; font-size: 12px; }
+
+/* Debug controls (VITE_DEBUG): salvage/parts, soldier HP and XP, a unit's HP mid-mission. */
+.dbg-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px; border: 1px dashed #5a4415; border-radius: var(--r-md); font-size: 12px; }
+.dbg-row input[type="number"] { width: 72px; padding: 4px 6px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--r-sm); font: 600 12px/1.2 var(--font-mono); }
+.dbg-row--panel { margin-bottom: var(--s-4); gap: var(--s-3); }
+.dbg-row--panel b { color: var(--warn); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.dbg-row label { display: inline-flex; align-items: center; gap: 6px; }

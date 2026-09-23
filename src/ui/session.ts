@@ -215,6 +215,22 @@ export class Session {
     this.onChange();
   }
 
+  /**
+   * Debug (VITE_DEBUG): sets a unit's HP, clamped to 0..max. 0 downs it, the way damage would; any HP brings a
+   * downed unit back up. The change is saved at the next checkpoint like any other.
+   */
+  debugSetHp(id: number, hp: number) {
+    const u = this.state.units[id];
+    if (!u || !u.alive || !Number.isFinite(hp)) return;
+    const max = CLASSES[u.cls].hp;
+    u.hp = Math.max(0, Math.min(max, Math.round(hp)));
+    if (u.hp === 0) { u.downed = true; u.bleedOut = RULES.bleedOutRounds; u.overwatch = false; }
+    else if (u.downed) { u.downed = false; u.bleedOut = 0; }
+    this.status = `Debug: ${CLASSES[u.cls].name} set to ${u.hp} HP.`;
+    this.onChange();
+    this.onCheckpoint();
+  }
+
   /** Auto-run's order for the squad (16): explore, rush the objective, defend, or balanced. Takes effect from
    *  the squad's next decision if auto-run is on, and is remembered for next time. */
   setAutoMode(mode: AiProfileId) {

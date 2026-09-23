@@ -1,7 +1,8 @@
 import { candidateCount, facilityLevel, infirmaryBeds, infirmaryHeal, lockerCapacity, restRate, rosterCapacity, upgradeCost, fabricatorTier } from '../core/base';
 import { gearStock, upgradeFacility, type CampaignState, type Soldier } from '../core/campaign';
 import { craft, craftBlocker, lockerCount, scrap, scrapValue } from '../core/crafting';
-import { admit, discharge, dismiss, hire, hireCost, maxHp, soldierHp, soldierStatus } from '../core/roster';
+import { admit, debugGiveXp, debugSetHp, discharge, dismiss, hire, hireCost, maxHp, soldierHp, soldierStatus } from '../core/roster';
+import { DEBUG } from '../debug';
 import { confirmModal } from './modal';
 import { ARMOR, ARMOR_ORDER, type ArmorId } from '../data/armor';
 import { FACILITIES, FACILITY_ORDER, type FacilityGroup, type FacilityId } from '../data/base';
@@ -77,6 +78,12 @@ export class Base {
     else if (act === 'admit') err = admit(cs, a);
     else if (act === 'discharge') discharge(cs, a);
     else if (act === 'hire') err = hire(cs, a);
+    else if (DEBUG && act === 'dbg-money') {
+      const num = (id: string) => Number($<HTMLInputElement>(id).value);
+      if (Number.isFinite(num('dbg-salvage'))) cs.currency = Math.max(0, Math.round(num('dbg-salvage')));
+      if (Number.isFinite(num('dbg-parts'))) cs.parts = Math.max(0, Math.round(num('dbg-parts')));
+    } else if (DEBUG && act === 'dbg-hp') debugSetHp(cs, a, Number($<HTMLInputElement>(`dbg-hp-${a}`).value));
+    else if (DEBUG && act === 'dbg-xp') debugGiveXp(cs, a, b === 'level' ? 'level' : Number(b));
     else if (act === 'dismiss') {
       const s = cs.roster.find((r) => r.id === a);
       if (!s) return;
@@ -124,12 +131,25 @@ function squadTab(cs: CampaignState): string {
     return `<article class="card soldier soldier--${st}">
       ${soldierHead(s, STATUS_CHIP[st])}
       ${hpMeter(s)}
+      ${DEBUG ? `<div class="dbg-row">
+        <input type="number" id="dbg-hp-${s.id}" min="1" max="${maxHp(s.cls)}" value="${soldierHp(s)}" aria-label="HP" />
+        <button class="btn--ghost btn--sm" data-act="dbg-hp:${s.id}">Set HP</button>
+        <button class="btn--ghost btn--sm" data-act="dbg-xp:${s.id}:50">+50 XP</button>
+        <button class="btn--ghost btn--sm" data-act="dbg-xp:${s.id}:level">Level up</button>
+        <span class="muted">${s.progress.xp} XP</span>
+      </div>` : ''}
       <div class="card__foot">${action}<button class="btn--ghost btn--sm" data-act="dismiss:${s.id}" ${cs.roster.length <= 1 || st === 'away' ? 'disabled' : ''}>Dismiss</button></div>
     </article>`;
   }).join('');
   return `<p class="section__note">${cs.roster.length}/${rosterCapacity(cs.base)} soldiers. Everyone keeps their wounds between missions, won or lost.
       Whoever sits a mission out rests (${Math.round(restRate(cs.base) * 100)}% of max HP); whoever deploys and survives is patched up for half that.
       ${note} The fallen are gone for good. Pick who deploys on each mission's briefing; swap gear under Loadout.</p>
+    ${DEBUG ? `<div class="dbg-row dbg-row--panel">
+      <b>Debug</b>
+      <label>Salvage <input type="number" id="dbg-salvage" min="0" value="${cs.currency}" /></label>
+      <label>Parts <input type="number" id="dbg-parts" min="0" value="${cs.parts}" /></label>
+      <button class="btn--ghost btn--sm" data-act="dbg-money">Apply</button>
+    </div>` : ''}
     <div class="grid grid--soldiers">${cards}</div>`;
 }
 

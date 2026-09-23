@@ -50,10 +50,10 @@ const perkText = (u: Unit): string => u.equippedPerks.map((id) => PERKS[id].name
 const stat = (k: string, v: string | number, boost?: string) =>
   `<div class="stat"><div class="stat__k">${k}</div><div class="stat__v">${v}${boost ? `<em>${boost}</em>` : ''}</div></div>`;
 
-/** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 /** Short labels for the auto-run order picker (16). */
 const AUTO_LABEL: Partial<Record<AiProfileId, string>> = { friendly: 'Balanced', explore: 'Explore', rush: 'Rush', defend: 'Defend' };
 
+/** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
 export class Hud {
   private logShown = 0;
   private logEpoch = -1;
@@ -107,6 +107,10 @@ export class Hud {
 
     $('dbg-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
+    $('dbg-unit-hp-set').addEventListener('click', () => {
+      const u = session.selected();
+      if (u) session.debugSetHp(u.id, Number($<HTMLInputElement>('dbg-unit-hp').value));
+    });
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
     $('auto-run-toggle').addEventListener('click', () => session.toggleAutoRun());
     $('undo').addEventListener('click', () => session.undo());
@@ -250,6 +254,11 @@ export class Hud {
     this.updateLog(performance.now());
 
     $('seed').textContent = String(this.session.seed);
+    const picked = this.session.selected();
+    $('dbg-unit-name').textContent = picked ? `${nameOf(picked)}, max ${CLASSES[picked.cls].hp}` : 'select a unit';
+    const hpBox = $<HTMLInputElement>('dbg-unit-hp');
+    if (picked && document.activeElement !== hpBox) hpBox.value = String(picked.hp);
+    $<HTMLButtonElement>('dbg-unit-hp-set').disabled = !picked;
     this.renderKeyHelp();
     const banner = $('banner');
     if (s.winner && banner.hidden) play(s.winner === 'player' ? 'win' : 'lose');

@@ -797,6 +797,20 @@ working as intended, not a bug. Rush beating Balanced this clearly on an objecti
 - Rush walks toward the objective while an enemy is in sight;
 - Balanced stays the default.
 
+## 17. Debug tools for the campaign
+
+**Status: done.** Visible only with `VITE_DEBUG=true`.
+
+- **Base, Squad tab:** set salvage and parts.
+- **Each soldier card:** set HP (clamped to 1..max, and full clears the carried-over value), +50 XP, and
+  Level up (exactly the XP to the next threshold, so perks are granted as usual). These are `debugSetHp` and
+  `debugGiveXp` in `core/roster.ts`, which are tested.
+- **In a mission, the debug panel:** set the selected unit's HP. 0 downs it the way damage would; any HP gets
+  a downed unit back up (`Session.debugSetHp`).
+
+Note: `.env.local` decides debug mode for `npm run dev`. To test debug features without editing it, start
+the server with `VITE_DEBUG=true npx vite`: the process environment takes priority over `.env.local`.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

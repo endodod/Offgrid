@@ -1,6 +1,7 @@
 import { HIRE_COST, PATCH_SHARE } from '../data/base';
 import type { MapDef } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
+import { LEVEL_PATHS } from '../data/leveling';
 import { infirmaryBeds, infirmaryHeal, restRate, rosterCapacity, trainingXp } from './base';
 import {
   addGear, applyMissionXp, completeStoryMission, completeSupplyRun, onMission, recordMissionGear, rollRecruits,
@@ -226,4 +227,23 @@ export function afterMission(cs: CampaignState, units: Pick<EndedUnit, 'team' | 
   }
   if (cs.recruits.length) lines.push(`${cs.recruits.length} new candidates at the recruitment office.`);
   return { lines };
+}
+
+// ---------- debug (VITE_DEBUG only, see ui/base.ts) ----------
+
+/** Sets a soldier's carried-over HP, clamped to 1..max (full clears it). */
+export function debugSetHp(cs: CampaignState, id: string, hp: number): void {
+  const s = soldierById(cs, id);
+  if (!s || !Number.isFinite(hp)) return;
+  const v = Math.max(1, Math.min(maxHp(s.cls), Math.round(hp)));
+  if (v >= maxHp(s.cls)) delete s.hp;
+  else s.hp = v;
+}
+
+/** Gives a soldier `xp` (levels and perks resolve as usual), or with `xp` = 'level' exactly enough for the next level. */
+export function debugGiveXp(cs: CampaignState, id: string, xp: number | 'level'): void {
+  const s = soldierById(cs, id);
+  if (!s) return;
+  const amount = xp === 'level' ? (LEVEL_PATHS[s.cls].find((d) => d.xpThreshold > s.progress.xp)?.xpThreshold ?? s.progress.xp) - s.progress.xp : xp;
+  if (amount > 0) gainXp(s.cls, s.progress, amount);
 }
