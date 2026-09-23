@@ -23,9 +23,15 @@ console errors.
 
 ## Next up
 
-3. **Balance pass on the roster economy** (feature 13): hire cost, candidate count and permadeath have not
-   been simulated. Watch whether salvage is enough to replace losses and build stations too.
-4. The earlier queue still stands: Act 2 missions and the feature 9 visual rehaul.
+Feature 10 (the polish pass, 10a-10k) is complete, as are 11-17 and 10j. Next, in order:
+
+1. **Balance pass.**
+   - The roster economy (feature 13): hire cost, candidate count and permadeath have not been simulated. Is
+     salvage enough to replace losses and build stations?
+   - Balanced auto-run's 50% retreat (16's sim table: Rush beats Balanced on objective maps).
+2. **Act 2 missions.** The pods and reinforcement knobs (10j) are ready for them, and need per-mission tuning:
+   they swing from 5% to 100% player wins by map.
+3. **Feature 9, the visual rehaul.**
 
 ## Gotchas from this session
 
