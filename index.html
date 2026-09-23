@@ -108,6 +108,7 @@
           <div class="set-row"><span>Sound volume<small>Effects are generated in the browser - no downloads.</small></span><input type="range" id="set-volume" min="0" max="100" step="5" /></div>
           <div class="set-row"><span>Animation speed<small>How fast moves, shots and the enemy phase play out.</small></span><div id="set-speed" class="seg"></div></div>
           <div class="set-row"><span>Screen shake<small>On hits and explosions.</small></span><label class="switch"><input type="checkbox" id="set-shake" /><i></i></label></div>
+          <div class="set-row"><span>Confirm end turn<small>Ask first when squad members still have actions left.</small></span><label class="switch"><input type="checkbox" id="set-confirm-end" /><i></i></label></div>
           <div class="set-row"><span>Colour-blind palette<small>Blue squad, orange hostiles, instead of green and red.</small></span><label class="switch"><input type="checkbox" id="set-cb" /><i></i></label></div>
         </div>
         <div class="settings-group">
@@ -159,6 +160,7 @@
         <div id="topbar">
           <div id="phase"></div>
           <button id="ow-toggle" class="btn--sm" title="Show the range of active friendly and enemy overwatch" data-icon="eye">Overwatch<kbd>V</kbd></button>
+          <button id="undo" class="btn--sm" title="Take back the last move - only while it revealed nothing new and rolled no dice" data-icon="back" aria-disabled="true">Undo<kbd>Z</kbd></button>
           <button id="auto-run-toggle" class="btn--sm" title="Let the squad play its own phase automatically" data-icon="bolt">Auto-run<kbd>P</kbd></button>
           <button id="to-builder" class="btn--sm btn--ghost" hidden>Back to builder</button>
           <button id="tutorial-replay" class="btn--sm btn--ghost" hidden title="Replay the guided walkthrough for this mission">Tutorial</button>

@@ -55,7 +55,8 @@ function open(content: ModalContent, cancel: string | null, danger = false): Pro
     dismiss = (confirmed) => { close(); resolve(confirmed); };
     el.addEventListener('click', onBackdropOrButton);
     window.addEventListener('keydown', onKey, true);
-    el.querySelector<HTMLButtonElement>(cancel ? '[data-modal-cancel]' : '[data-modal-close]')?.focus();
+    // Enter confirms, except where confirming destroys something: there the safe button has focus.
+    el.querySelector<HTMLButtonElement>(cancel && danger ? '[data-modal-cancel]' : '[data-modal-close]')?.focus();
   });
 }
 

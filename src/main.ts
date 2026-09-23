@@ -15,6 +15,7 @@ import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
 import { clearMission, loadMission, saveMission } from './ui/missionStore';
+import { confirmModal } from './ui/modal';
 import { applyPalette, initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
@@ -96,6 +97,12 @@ let activeMissionId: string | null = null;
 /** Builder play-tests are never saved: the map only exists in the builder's working copy. */
 let savable = false;
 let returnScreen: Screen = 'home';
+
+session.confirmEndTurn = (idle) => confirmModal({
+  title: 'End turn?',
+  body: [`${idle === 1 ? 'One squad member still has' : `${idle} squad members still have`} actions left.`, 'You can turn this question off in Settings.'],
+  cta: 'End turn', cancel: 'Keep playing',
+});
 
 // 10c: keep the current mission resumable. Every checkpoint either saves it or, once it's over, clears it.
 session.onCheckpoint = () => {

@@ -64,6 +64,7 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud,
     }
     if (action === 'toggleOverwatchView') return session.toggleOverwatchView();
     if (action === 'toggleAutoRun') return session.toggleAutoRun();
+    if (action === 'undo') return session.undo();
     if (action === 'rotateCoverCW') return session.rotateCover(ev.shiftKey ? -1 : 1);
     if (action.startsWith('selectUnit')) {
       const mine = session.state.units.filter((u) => u.team === 'player');

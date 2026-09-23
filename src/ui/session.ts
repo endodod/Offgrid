@@ -12,6 +12,7 @@ import { coverAgainst, coverAt, damageAgainst, hitChance, targetBlock } from '..
 import { envMods } from '../core/environment';
 import { cheb, dist, findPath, hasLos, idx, inBounds, reachable } from '../core/grid';
 import { createGame, reseed } from '../core/state';
+import { deserializeGame, serializeGame } from '../core/save';
 import { refreshVision } from '../core/vision';
 import type { GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
@@ -51,6 +52,11 @@ export class Session {
    *  has any visible effect on maps larger than the board viewport. */
   private focus: Pos | null = null;
   onChange: () => void = () => {};
+  /** Asked before ending the turn while `idle` units can still act (10h). main.ts shows a modal; the default
+   *  (tests, no UI) just says yes. */
+  confirmEndTurn: (idle: number) => Promise<boolean> = () => Promise.resolve(true);
+  /** The state just before the last move, while that move can still be taken back (10h). */
+  private undoSnapshot: string | null = null;
   /** Called whenever the game reaches a resumable point (10c): after a manual action, at the start of the
    *  player's phase, and when the mission ends. The listener decides what to do with it (main.ts saves or clears). */
   onCheckpoint: () => void = () => {};
@@ -88,6 +94,7 @@ export class Session {
     this.lastAction = null;
     this.floaters = [];
     this.loot = [];
+    this.undoSnapshot = null;
     this.anim.clear();
     // Open the camera on the squad, not on tile (0,0): on a 48x32 map the spawn corner is off screen.
     const first = this.state.units.find((u) => u.team === 'player');
@@ -303,7 +310,7 @@ export class Session {
   press(b: ButtonId) {
     if (!this.buttonState(b).enabled || this.animating()) return;
     const u = this.selected();
-    if (b === 'endTurn') return this.endTurn();
+    if (b === 'endTurn') return void this.requestEndTurn();
     if (!u) return;
     switch (b) {
       case 'move':
@@ -343,6 +350,42 @@ export class Session {
   }
 
   // ---------- turn flow ----------
+  /** Squad members who could still do something this phase. */
+  idleUnits(): Unit[] {
+    return this.state.units.filter((u) => u.team === 'player' && u.alive && !u.downed && u.actions > 0);
+  }
+
+  /** End turn from the player (button or key): asks first if anyone still has actions and the player wants that. */
+  async requestEndTurn() {
+    const idle = this.idleUnits().length;
+    if (idle && getPrefs().confirmEndTurn && !(await this.confirmEndTurn(idle))) return;
+    if (this.ready && !this.animating()) this.endTurn();
+  }
+
+  /** Whether the last move can be taken back (10h): see `try`. */
+  canUndo(): boolean {
+    return this.undoSnapshot !== null && this.ready && !this.animating();
+  }
+
+  /** Take back the last move, if it's still eligible. Restores the exact pre-move state. */
+  undo() {
+    if (!this.undoSnapshot || !this.ready) return;
+    const id = this.selectedId;
+    this.state = deserializeGame(this.undoSnapshot);
+    this.undoSnapshot = null;
+    this.anim.clear();
+    this.floaters = [];
+    this.lastAction = null;
+    this.selectedId = id;
+    this.mode = 'move';
+    this.status = 'Move undone.';
+    const u = this.selected();
+    if (u) this.focus = { x: u.x, y: u.y };
+    this.log.push({ kind: 'system', text: 'Move undone.' });
+    this.onChange();
+    this.onCheckpoint();
+  }
+
   endTurn() {
     if (!this.try({ type: 'endTurn' })) return;
     this.mode = 'move';
@@ -399,6 +442,7 @@ export class Session {
 
   /** 0d: play the player's own phase with the 'friendly' AI, mirroring endTurn()'s stepped enemy-phase loop. */
   private runPlayerAuto() {
+    this.undoSnapshot = null; // the AI is about to move units without going through try()
     this.mode = 'move';
     this.selectedId = null; // nothing to manually control while it's driving
     this.busy = true;
@@ -440,8 +484,22 @@ export class Session {
   }
 
   // ---------- helpers ----------
+  /**
+   * A move can be undone only if it taught the player nothing and rolled nothing: no RNG consumed (so no
+   * overwatch shot), no enemy newly in sight, and nothing new remembered (ghosts, doors, the objective). Newly
+   * visible empty floor doesn't count - the map layout is never hidden. Anything else clears the undo.
+   */
   private try(a: Action): boolean {
+    const s0 = this.state;
+    const before = a.type === 'move'
+      ? { snap: serializeGame(s0), rng: s0.rng, seen: [...s0.seenUnits.player].sort().join(), mem: JSON.stringify(s0.memory.player) }
+      : null;
     const r = perform(this.state, a);
+    if (r.ok) {
+      const s = this.state;
+      this.undoSnapshot = before && s.rng === before.rng && [...s.seenUnits.player].sort().join() === before.seen
+        && JSON.stringify(s.memory.player) === before.mem && !s.winner ? before.snap : null;
+    }
     this.flush();
     this.status = r.ok ? '' : r.error;
     if (!r.ok) play('error');

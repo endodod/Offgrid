@@ -537,7 +537,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | done |
 | 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | done |
 | 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | done |
-| 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | |
+| 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | done |
 | 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | |
 | 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | |
 | 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | |
@@ -598,6 +598,12 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 - **10h.** End turn with units that still have actions asks first (a "don't ask again" toggle). Undo: only the last
   move, only when it consumed no RNG and changed no team's `seenUnits`/`memory`. That is a snapshot and compare, and
   it cannot leak information.
+  *Done as:* `Session.requestEndTurn` asks via `confirmEndTurn` (main.ts wires it to `confirmModal`; a Settings
+  toggle turns it off). Undo is bindable (`Z`) with a topbar button: `try` snapshots the state before a move and
+  keeps it only if the RNG didn't advance, `seenUnits.player` and `memory.player` are unchanged and nobody won.
+  Newly visible empty floor is allowed (the layout is never secret). Any other action, or an auto-run phase,
+  clears it. `confirmModal` now focuses the confirm button (E then Enter ends the turn) except for `danger`
+  confirms, which focus Cancel.
 - **10i.** Fog as a darkness overlay with a soft edge instead of greyscale tiles; rain streaks, fog haze and a
   night vignette from `envMods`. This is the start of #9, not a replacement for it.
 - **10j.** Recorded as separate follow-ups once 10a-10i land: the AI's door handling (see `SESSION_HANDOFF.md`), the

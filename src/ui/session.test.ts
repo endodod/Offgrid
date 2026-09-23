@@ -85,3 +85,52 @@ describe('gadget-mode hover (0a)', () => {
     expect(session.hoverInfo()).toEqual(['Grenade', 'Cannot target: Out of range']);
   });
 });
+
+describe('undo a move (10h)', () => {
+  it('restores the exact pre-move state when the move revealed nothing', () => {
+    // Enemy far away behind nothing but distance: moving 2 tiles doesn't bring it into sight (soldier vision 7).
+    const session = makeSession(blank(30, 3), { player: { soldier: [1, 1] }, enemy: { soldier: [28, 1] } });
+    selectFirstPlayer(session);
+    const before = JSON.stringify(session.state.units);
+    session.click({ x: 3, y: 1 });
+    expect(session.state.units[0].x).toBe(3);
+    session.anim.clear(); // skip playback
+    expect(session.canUndo()).toBe(true);
+    session.undo();
+    expect(JSON.stringify(session.state.units)).toBe(before);
+    expect(session.canUndo()).toBe(false); // one step only
+  });
+
+  it('refuses when the move brought an enemy into sight', () => {
+    const session = makeSession(blank(20, 3), { player: { soldier: [1, 1] }, enemy: { soldier: [12, 1] } });
+    selectFirstPlayer(session);
+    expect(session.state.seenUnits.player.size).toBe(0);
+    session.click({ x: 5, y: 1 }); // now within vision 7 of the enemy
+    session.anim.clear();
+    expect(session.state.seenUnits.player.size).toBe(1);
+    expect(session.canUndo()).toBe(false);
+  });
+
+  it('is cleared by any other action', () => {
+    const session = makeSession(blank(30, 3), { player: { soldier: [1, 1] }, enemy: { soldier: [28, 1] } });
+    selectFirstPlayer(session);
+    session.click({ x: 3, y: 1 });
+    session.anim.clear();
+    session.press('overwatch');
+    expect(session.canUndo()).toBe(false);
+  });
+});
+
+describe('end turn confirmation (10h)', () => {
+  it('asks while units still have actions, and does not end the turn on "no"', async () => {
+    const session = makeSession(blank(30, 3), { player: { soldier: [1, 1] }, enemy: { soldier: [28, 1] } });
+    let asked = 0;
+    session.confirmEndTurn = async (idle) => { asked = idle; return false; };
+    await session.requestEndTurn();
+    expect(asked).toBe(1);
+    expect(session.state.phase).toBe('player');
+    session.confirmEndTurn = async () => true;
+    await session.requestEndTurn();
+    expect(session.state.phase).toBe('enemy');
+  });
+});

@@ -2,7 +2,7 @@ import type { ButtonId } from './session';
 
 /** Every action a key can be bound to: the action-bar buttons plus a handful of extra UI actions. */
 export type BindableAction = ButtonId
-  | 'toggleOverwatchView' | 'toggleAutoRun' | 'rotateCoverCW' | 'centerCamera' | 'zoomIn' | 'zoomOut'
+  | 'toggleOverwatchView' | 'toggleAutoRun' | 'rotateCoverCW' | 'centerCamera' | 'zoomIn' | 'zoomOut' | 'undo'
   | 'selectUnit1' | 'selectUnit2' | 'selectUnit3' | 'selectUnit4' | 'selectUnit5';
 
 /** Human-readable label for the settings screen. */
@@ -10,7 +10,7 @@ export const ACTION_LABEL: Record<BindableAction, string> = {
   move: 'Move', attack: 'Attack', reload: 'Reload', gadget: 'Gadget', overwatch: 'Overwatch',
   aid: 'First aid', revive: 'Revive', interact: 'Interact', endTurn: 'End turn',
   toggleOverwatchView: 'Overwatch view', toggleAutoRun: 'Auto-run', rotateCoverCW: 'Rotate cover',
-  centerCamera: 'Centre camera', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+  centerCamera: 'Centre camera', zoomIn: 'Zoom in', zoomOut: 'Zoom out', undo: 'Undo move',
   selectUnit1: 'Select unit 1', selectUnit2: 'Select unit 2', selectUnit3: 'Select unit 3',
   selectUnit4: 'Select unit 4', selectUnit5: 'Select unit 5',
 };
@@ -28,7 +28,7 @@ export type KeyBindings = Record<BindableAction, string>;
  */
 export const DEFAULT_BINDINGS: KeyBindings = {
   move: 'm', attack: 'a', reload: 'r', gadget: 'g', overwatch: 'o', aid: 'f', revive: 'u', interact: 'i', endTurn: 'e',
-  toggleOverwatchView: 'v', toggleAutoRun: 'p', rotateCoverCW: 'q', centerCamera: 'c', zoomIn: '=', zoomOut: '-',
+  toggleOverwatchView: 'v', toggleAutoRun: 'p', rotateCoverCW: 'q', centerCamera: 'c', zoomIn: '=', zoomOut: '-', undo: 'z',
   selectUnit1: '1', selectUnit2: '2', selectUnit3: '3', selectUnit4: '4', selectUnit5: '5',
 };
 

@@ -105,6 +105,7 @@ export class Hud {
     $('dbg-reseed').addEventListener('click', () => session.reseedRng());
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
     $('auto-run-toggle').addEventListener('click', () => session.toggleAutoRun());
+    $('undo').addEventListener('click', () => session.undo());
     $('banner-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
   }
 
@@ -181,6 +182,9 @@ export class Hud {
     $('ow-toggle').classList.toggle('is-active', this.session.showOverwatch);
     $('ow-legend').hidden = !this.session.showOverwatch;
     $('auto-run-toggle').classList.toggle('is-active', this.session.autoRun);
+    const undo = $('undo');
+    undo.setAttribute('aria-disabled', String(!this.session.canUndo()));
+    undo.querySelector('kbd')!.textContent = displayKey(keyFor('undo'));
 
     // aria-disabled + a class, not the disabled attribute: a truly disabled button can't be hovered or
     // focused in most browsers, which would make it impossible to show the tooltip explaining *why*.
