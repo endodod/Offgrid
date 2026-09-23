@@ -134,3 +134,33 @@ describe('end turn confirmation (10h)', () => {
     expect(session.state.phase).toBe('enemy');
   });
 });
+
+describe('touch: tap to preview, tap again to confirm (10k)', () => {
+  it('the first tap on a destination previews it; the second on the same tile moves', () => {
+    const session = makeSession(blank(10, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [8, 2] } });
+    selectFirstPlayer(session);
+    const u = session.selected()!;
+    session.tap({ x: 4, y: 2 });
+    expect(u.x).toBe(2); // not yet
+    expect(session.hoverInfo()?.[0]).toMatch(/Move here/); // the preview a hover would show
+    session.tap({ x: 4, y: 2 });
+    expect(u.x).toBe(4);
+  });
+
+  it('tapping somewhere else just moves the preview', () => {
+    const session = makeSession(blank(10, 5), { player: { soldier: [2, 2] }, enemy: { soldier: [8, 2] } });
+    selectFirstPlayer(session);
+    const u = session.selected()!;
+    session.tap({ x: 4, y: 2 });
+    session.tap({ x: 3, y: 3 });
+    expect(u.x).toBe(2);
+    session.tap({ x: 3, y: 3 });
+    expect([u.x, u.y]).toEqual([3, 3]);
+  });
+
+  it('selecting a squad member is immediate', () => {
+    const session = makeSession(blank(10, 5), { player: { soldier: [2, 2], medic: [2, 3] }, enemy: { soldier: [8, 2] } });
+    session.tap({ x: 2, y: 3 });
+    expect(session.selected()?.cls).toBe('medic');
+  });
+});

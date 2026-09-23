@@ -61,6 +61,9 @@ export class Viewport {
   private suppressClick = false;
   private held = new Set<string>();
   private panFrame = 0;
+  /** Fingers on the board (10k): two of them pinch-zoom. */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: number | null = null;
 
   /** `active` says whether the board is on screen and keys should reach it (not typing, no modal). */
   constructor(private canvas: HTMLCanvasElement, private wrap: HTMLElement, segEl: HTMLElement, private active: () => boolean) {
@@ -214,11 +217,30 @@ export class Viewport {
 
   // ---------- drag to pan ----------
   private onPointerDown = (e: PointerEvent) => {
+    if (e.pointerType === 'touch') {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size === 2) { // second finger: a pinch, not a drag or a tap
+        this.pinch = this.fingerSpread();
+        this.drag = null;
+        this.suppressClick = true;
+        return;
+      }
+    }
     if (this.drag || e.button !== 0) return; // left button, or a finger; right-click stays "cancel"
     this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: this.wrap.scrollLeft, top: this.wrap.scrollTop, panning: false };
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (this.touches.has(e.pointerId)) {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size === 2 && this.pinch) {
+        const spread = this.fingerSpread();
+        const [a, b] = [...this.touches.values()];
+        this.zoomAt(spread / this.pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        this.pinch = spread;
+        return;
+      }
+    }
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
@@ -229,6 +251,13 @@ export class Viewport {
   };
 
   private onPointerUp = (e: PointerEvent) => {
+    this.touches.delete(e.pointerId);
+    if (this.touches.size < 2 && this.pinch) {
+      this.pinch = null;
+      setTimeout(() => { this.suppressClick = false; }, 0); // the lift that ends a pinch is not a tap
+      this.drag = null;
+      return;
+    }
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     if (d.panning) {
@@ -238,6 +267,12 @@ export class Viewport {
     this.wrap.classList.remove('is-panning');
     this.drag = null;
   };
+
+  /** Distance between the two fingers on the board. */
+  private fingerSpread(): number {
+    const [a, b] = [...this.touches.values()];
+    return Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+  }
 
   // ---------- map-move keys ----------
   private panLoop = (then: number) => {

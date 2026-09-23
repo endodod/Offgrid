@@ -540,7 +540,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | done |
 | 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | done |
 | 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | done |
-| 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | |
+| 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | done |
 
 **Design sketch**
 - **10a.** *Done.* Also fixed on the way: the HUD only noticed a log reset when the new log was shorter than
@@ -645,6 +645,15 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
       supply-run complication. Tune per mission when Act 2 uses them.
 - **10k.** After 10b: pinch zoom, and on coarse pointers a first tap previews (path, hit chance) and a second
   confirms.
+  *Done as:*
+  - `Viewport` tracks fingers: one drags the map (15), two pinch-zoom around their midpoint, and the lift
+    that ends a pinch is not a tap.
+  - `Session.tap` handles a touch click (`pointerType === 'touch'`, or a coarse pointer). With nothing selected,
+    or on a squad member, it acts at once. Otherwise the first tap sets the hover, which shows the same preview
+    a mouse hover does, and a second tap on the same tile gives the order.
+  - Checked in emulated Pixel 7 Chromium with synthetic touch clicks. Playwright's own `touchscreen.tap`
+    landed 15 px low in that emulation, which is an emulation artifact: the game received the coordinates it
+    was sent.
 
 **Tests:** 10c's serialize/deserialize round-trip (a resumed game plays the same as the original for the same
 actions), 10h's undo eligibility rules and 10d's event-to-track conversion are pure and get unit tests. The rest

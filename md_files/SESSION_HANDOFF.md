@@ -23,7 +23,6 @@ console errors.
 
 ## Next up
 
-1. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
 3. **Balance pass on the roster economy** (feature 13): hire cost, candidate count and permadeath have not
    been simulated. Watch whether salvage is enough to replace losses and build stations too.
 4. The earlier queue still stands: Act 2 missions and the feature 9 visual rehaul.

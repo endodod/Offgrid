@@ -301,6 +301,21 @@ export class Session {
     this.onChange();
   }
 
+  /**
+   * Touch (10k): there is no hover on a touch screen, so an order's target is tapped twice - the first tap
+   * previews it exactly as hovering would (path, hit chance, blast area), the second, on the same tile, gives the
+   * order. Tapping a squad member to select it, or with nothing selected, happens at once.
+   */
+  tap(p: Pos) {
+    if (!inBounds(this.state, p.x, p.y)) return;
+    const sel = this.selected();
+    const at = this.visibleUnitAt(p);
+    const selecting = at?.team === 'player' && !at.downed && this.mode !== 'aid' && this.mode !== 'revive';
+    if (!sel || selecting) { this.hover = null; this.click(p); return; }
+    if (this.hover?.x === p.x && this.hover?.y === p.y) { this.hover = null; this.click(p); return; }
+    this.setHover(p);
+  }
+
   /** Every interact target `u` could legally use right now: the objective (undefined) and/or nearby doors/switches. */
   private interactTargets(u: Unit): (number | undefined)[] {
     const s = this.state;

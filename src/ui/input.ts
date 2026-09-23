@@ -32,6 +32,8 @@ export function resetBindings() {
   saveBindings(bindings);
 }
 
+const coarse = () => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+
 export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud, viewport: Viewport) {
   const tileAt = (ev: MouseEvent) => {
     const r = canvas.getBoundingClientRect();
@@ -40,7 +42,12 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud,
   };
   canvas.addEventListener('mousemove', (ev) => { hud.setMouse(ev.clientX, ev.clientY); session.setHover(tileAt(ev)); });
   canvas.addEventListener('mouseleave', () => session.setHover(null));
-  canvas.addEventListener('click', (ev) => session.click(tileAt(ev)));
+  // Touch (10k): preview on the first tap, confirm on the second (Session.tap). A mouse click acts at once.
+  canvas.addEventListener('click', (ev) => {
+    const touch = (ev as PointerEvent).pointerType === 'touch' || (!(ev as PointerEvent).pointerType && coarse());
+    if (touch) session.tap(tileAt(ev));
+    else session.click(tileAt(ev));
+  });
   canvas.addEventListener('contextmenu', (ev) => { ev.preventDefault(); session.cancel(); });
   canvas.addEventListener('wheel', (ev) => {
     if (session.mode !== 'gadget') return; // otherwise the wheel zooms (ui/viewport.ts)
