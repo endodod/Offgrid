@@ -16,7 +16,7 @@ The plan is ROADMAP.md feature 10 (table of 10a-10k with status). Each item is o
 | `facdc67` | 10h: end-turn confirmation, undo for a move that revealed nothing (`Z`) |
 | `7183f58` | 10i: soft fog-of-war overlay, time-of-day tint, animated weather (`Prefs.weatherFx`) |
 | `194d61a` | 11: base overhaul - ten stations, wounds carry over, squad pick + recon briefing, fabricator/parts |
-| (next) | 12: home page rework (two tiles, Settings top left) and the Lore screen |
+| `a86f091` | 12: home page rework (two tiles, Settings top left) and the Lore screen |
 
 427 tests pass, `tsc` clean, `npm run build` clean. Each item was also driven in headless Chromium with no
 console errors.
