@@ -4,9 +4,9 @@ import { icon } from './icons';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip';
+export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip' | 'briefing';
 
-const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip'];
+const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip', 'briefing'];
 
 /** Show exactly one screen. */
 export function showScreen(screen: Screen) {

@@ -623,6 +623,47 @@ is presentation, checked in a driven headless browser as before.
 
 ---
 
+## 11. Base overhaul: ten stations, a squad that carries its wounds, crafting
+
+**Status: done.**
+
+The base went from three flat bonuses to ten stations (`data/base.ts`, grouped Medical / Supply / Operations),
+and the squad became something to manage between missions.
+
+- **Wounds carry over** (`core/roster.ts`). `CampaignState.health` holds each class's HP after a won mission
+  (missing = full). Then one mission's worth of time passes. Soldiers who deployed and survived get patched up
+  for half the rest rate. Soldiers who sat it out rest at `REST_BASE` (20%), or 30-50% with the Barracks.
+  Soldiers in an Infirmary bed heal 60%, 80% or 100% and are discharged once full. A downed survivor comes home
+  on 1 HP. A fallen soldier's replacement starts at full HP (their class level resets as before).
+- **Pick the squad per mission.** Picking a campaign mission now opens a briefing screen (`ui/briefing.ts`).
+  Tick who deploys (at least one); anyone in a bed starts unticked. `deploySquad` drops the unpicked player
+  spawns and sets `MapDef.startingHp`, which `createGame` applies.
+- **Recon Uplink** feeds the briefing. Level 0 gives the hostile count only. Level 1 draws a map preview with
+  the conditions. Level 2 adds hostile positions, types and profile. Level 3 adds caches, chests, doors and the
+  objective tiles.
+- **Fabricator + parts.** A second currency, `parts`: 4 per story mission and 2 + tier per supply run. Recipes
+  are in `data/crafting.ts`, gated by fabricator tier. Scrapping returns half a recipe's cost, so crafting can
+  never loop for profit. There are three new pieces: Med Pouch (+1 medkit), Bandolier (+50% reserve) and
+  Ceramic Plate (+2 armor).
+- **Locker capacity.** 6 pieces by default; 10, 16 or 24 with upgrades. Crafting refuses when the locker is
+  full. After a mission, any overflow is scrapped, most duplicated pieces first (`trimLocker`).
+- **Training Room** gives benched soldiers 15, 30 or 50 XP per mission. **War Room** puts 4, 5 or 6 supply
+  runs on offer, and upgrading it adds the extra offers at once.
+- An "After action" modal on the campaign screen lists the parts earned, the healing, the drills and anything
+  scrapped.
+
+**Resolved**
+- *A loss changes nothing,* health included. The campaign already retried a loss from scratch (no XP or gear
+  changes), and health follows the same rule. Revisit if losses ever start to cost something.
+- *Time only passes on a won mission.* There is no "rest a day" button, because healing would then be free.
+- *Still one soldier per class.* Choosing a squad means leaving classes home, not picking between two snipers.
+  A per-instance roster (recruits, names, duplicates) remains the next step here; every map spawns exactly the
+  five classes, which `deploySquad` relies on.
+
+**Tests:** `core/roster.test.ts` covers health carry-over, rest, patch-up and infirmary rates, beds, discharge,
+deployment, training XP, crafting gates, scrap values, locker trimming, parts income, the War Room, migration,
+and the new gear's starting supplies.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

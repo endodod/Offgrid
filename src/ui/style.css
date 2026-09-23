@@ -622,3 +622,56 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .modal__body p:last-child { margin-bottom: 0; }
 .modal__rule { height: 1px; margin: var(--s-5) 0; background: linear-gradient(90deg, var(--accent), transparent); }
 .modal__foot { display: flex; justify-content: flex-end; gap: var(--s-3); margin-top: var(--s-5); }
+
+/* ==========================================================================
+   Base overhaul (11): squad, stations, fabricator, locker; mission briefing
+   ========================================================================== */
+.base-top { margin-bottom: var(--s-4); }
+.grid--soldiers { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.soldier__badge {
+  display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px;
+  font: 700 15px/1 var(--font-mono); color: #eaf3ec; background: var(--player-deep);
+  border: 1px solid var(--player); border-radius: var(--r-sm);
+}
+.soldier--infirmary { border-left: 3px solid var(--info); }
+.soldier--wounded { border-left: 3px solid var(--warn); }
+.hp-line { display: flex; align-items: center; gap: var(--s-2); font: 600 12px/1 var(--font-mono); color: var(--text-dim); }
+.hp-line .meter { flex: 1; height: 8px; }
+.pips { display: inline-flex; gap: 4px; }
+.pips i { width: 10px; height: 10px; border-radius: 2px; background: var(--surface-3); border: 1px solid var(--line-strong); }
+.pips i.on { background: var(--accent); border-color: var(--accent); }
+.station:not(.is-built) { opacity: 0.82; }
+.station.is-built { border-top: 2px solid var(--accent); }
+.tiers { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-faint); }
+.tiers li { display: flex; align-items: center; gap: 6px; }
+.tiers li svg { width: 14px; height: 14px; }
+.tiers li.done { color: var(--player); }
+.tiers li.next { color: var(--text); }
+.tiers li.next::before { content: "▸"; color: var(--accent); }
+.locker-cap { display: flex; align-items: center; gap: var(--s-3); max-width: 420px; font: 600 13px/1 var(--font-mono); color: var(--text-dim); }
+.locker-cap .meter { flex: 1; height: 8px; }
+.locker-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md); flex-wrap: wrap; }
+.locker-row__icon svg { width: 20px; height: 20px; color: var(--text-dim); }
+.locker-row__name { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 2px; font-weight: 600; }
+.locker-row__name small { font-weight: 400; color: var(--text-faint); font-size: 12px; }
+
+.briefing { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: var(--s-6); align-items: start; }
+@media (max-width: 900px) { .briefing { grid-template-columns: 1fr; } }
+.brief-map-wrap { overflow-x: auto; }
+#brief-map { display: block; max-width: 100%; height: auto; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: #0c0e0b; }
+.brief-legend { display: flex; flex-wrap: wrap; gap: var(--s-3); font-size: 12px; color: var(--text-dim); }
+.brief-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.brief-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.brief-intel { display: flex; flex-direction: column; gap: 6px; padding-left: 18px; font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+.pick {
+  display: flex; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3); text-align: left;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); opacity: 0.6;
+}
+.pick.is-on { opacity: 1; border-color: var(--player); background: linear-gradient(180deg, var(--surface-1), var(--surface-2)); }
+.pick__check { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--player); }
+.pick__check svg { width: 16px; height: 16px; }
+.pick__body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pick__name { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; font-weight: 700; }
+.pick__name small { color: var(--text-faint); font: 600 11px/1 var(--font-mono); }
+.pick__name .chip { padding: 2px 8px; font-size: 11px; }
+.pick__gear { color: var(--text-faint); font-size: 12px; }

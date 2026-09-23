@@ -13,12 +13,17 @@ import type { MapDef } from '../data/trainingGrounds';
 import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
 import { icon } from './icons';
 import { confirmModal, showModal } from './modal';
+import type { BriefingInfo } from './briefing';
+import { afterMission, deploySquad } from '../core/roster';
+import type { ClassId } from '../data/units';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface CampaignHooks {
   /** Launch `map` as a mission; `missionId` is reported back to `Campaign.reportWin` once it's won. */
   onPlay: (map: MapDef, missionId: string) => void;
+  /** Show the briefing (11) for a picked mission; it calls `Campaign.deploy` with the chosen squad. */
+  onBrief: (cs: CampaignState, info: BriefingInfo) => void;
   onBack: () => void;
 }
 
@@ -33,6 +38,10 @@ export interface CampaignHooks {
 export class Campaign {
   private state: CampaignState;
   private pendingDebrief: StoryMissionDef | null = null;
+  /** What happened at the base after the last win (11), shown once the screen opens. */
+  private pendingReport: string[] | null = null;
+  /** The mission on the briefing screen, waiting for a squad. */
+  private briefed: { map: MapDef; id: string } | null = null;
 
   constructor(private hooks: CampaignHooks) {
     this.state = loadCampaign() ?? newCampaign();
@@ -66,6 +75,9 @@ export class Campaign {
         cta: 'Back to the map',
       });
     }
+    const report = this.pendingReport;
+    this.pendingReport = null;
+    if (report?.length) await showModal({ eyebrow: 'After action', title: 'Back at base', body: report, cta: 'Continue' });
     for (const id of unseenIntros(this.state)) {
       const district = DISTRICTS.find((d) => d.id === id)!;
       await showModal({
@@ -88,6 +100,7 @@ export class Campaign {
   /** Called once a mission launched from here ends in a player win; `finalUnits` persists ending loadouts (7)
    *  and awards XP/levels (8). */
   reportWin(missionId: string, finalUnits: Unit[]) {
+    const partsBefore = this.state.parts;
     if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
     else {
       completeStoryMission(this.state, missionId);
@@ -95,6 +108,9 @@ export class Campaign {
     }
     recordMissionGear(this.state, finalUnits);
     applyMissionXp(this.state, finalUnits);
+    const partsEarned = this.state.parts - partsBefore;
+    const { lines } = afterMission(this.state, finalUnits);
+    this.pendingReport = [...(partsEarned ? [`Salvaged ${partsEarned} parts for the fabricator.`] : []), ...lines];
     saveCampaign(this.state);
   }
 
@@ -118,11 +134,25 @@ export class Campaign {
     const id = btn.dataset.play!;
     if (kind === 'story') {
       const m = availableStoryMissions(this.state).find((x) => x.id === id);
-      if (m) this.hooks.onPlay(this.applyBase(m.map), m.id);
+      if (m) this.brief(m.map, m.id, { name: m.name, sub: districtName(m.district), blurb: m.blurb, objective: m.objective });
     } else {
       const m = this.state.supplyRunPool.find((x) => x.id === id);
-      if (m) this.hooks.onPlay(this.applyBase(resolveSupplyRun(m)), m.id);
+      if (m) this.brief(resolveSupplyRun(m), m.id, { name: m.name, sub: `Supply run · +${m.reward} salvage`, blurb: m.blurb, objective: m.objective });
     }
+  }
+
+  private brief(map: MapDef, id: string, info: Omit<BriefingInfo, 'map'>) {
+    this.briefed = { map, id };
+    this.hooks.onBrief(this.state, { ...info, map });
+  }
+
+  /** Launch the briefed mission with `squad` (11): wounds carry in, beds empty for whoever goes. */
+  deploy(squad: ClassId[]) {
+    const b = this.briefed;
+    if (!b || !squad.length) return;
+    const map = deploySquad(this.state, b.map, squad);
+    saveCampaign(this.state);
+    this.hooks.onPlay(this.applyBase(map), b.id);
   }
 
   private render() {

@@ -6,6 +6,7 @@ import type { GameState } from './core/types';
 import { draw, hasAmbientMotion, RES, TILE } from './render/renderer';
 import { Base } from './ui/base';
 import { unlockAudio } from './ui/audio';
+import { Briefing } from './ui/briefing';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
 import { Equip } from './ui/equip';
@@ -177,8 +178,10 @@ el('home-resume').addEventListener('click', () => {
 
 const campaign = new Campaign({
   onPlay: (map, missionId) => { activeCampaignMissionId = missionId; returnScreen = 'campaign'; startGame(map, false, missionId); },
+  onBrief: (cs, info) => { briefing.open(cs, info); showScreen('briefing'); },
   onBack: () => goHome(),
 });
+const briefing = new Briefing({ onBack: () => showScreen('campaign'), onDeploy: (squad) => campaign.deploy(squad) });
 /** Campaign.open() is async (it may queue a debrief and a district briefing); nothing waits on it. */
 const toCampaign = () => { showScreen('campaign'); void campaign.open(); };
 el('home-campaign').addEventListener('click', toCampaign);

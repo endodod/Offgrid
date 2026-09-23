@@ -63,15 +63,41 @@
 
     <section id="base" class="screen" hidden>
       <header class="screen__header">
-        <h1 class="screen__title">Base<small>Facilities, funded by salvage</small></h1>
+        <h1 class="screen__title">Base<small>Squad, stations and workshop</small></h1>
         <div class="spacer"></div>
+        <span id="base-parts" class="currency"></span>
         <span id="base-currency" class="currency" data-icon="currency"></span>
         <button id="base-back" class="btn--ghost" data-icon="back">Back</button>
       </header>
       <div class="screen__body">
-        <p class="section__note">Every facility tier applies to every mission launched from the campaign screen. Nothing here affects single missions.</p>
-        <div id="base-facilities" class="grid grid--cards"></div>
-        <p id="base-msg" class="muted"></p>
+        <div class="cluster base-top"><div id="base-tabs" class="seg"></div><span id="base-msg" class="muted"></span></div>
+        <div id="base-body" class="stack stack--lg"></div>
+      </div>
+    </section>
+
+    <section id="briefing" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title" id="brief-title">Briefing</h1>
+        <div class="spacer"></div>
+        <button id="brief-back" class="btn--ghost" data-icon="back">Back</button>
+        <button id="brief-deploy" class="btn--primary">Deploy</button>
+      </header>
+      <div class="screen__body">
+        <div class="briefing">
+          <section class="stack">
+            <p id="brief-blurb" class="card__body"></p>
+            <p class="objective-line"><b>Objective</b> <span id="brief-objective"></span></p>
+            <h2 class="section__title">Recon</h2>
+            <div class="brief-map-wrap"><canvas id="brief-map"></canvas></div>
+            <div id="brief-legend" class="brief-legend"></div>
+            <ul id="brief-intel" class="brief-intel"></ul>
+          </section>
+          <section class="stack">
+            <h2 class="section__title">Squad</h2>
+            <div id="brief-squad" class="stack"></div>
+            <p id="brief-squad-note" class="muted"></p>
+          </section>
+        </div>
       </div>
     </section>
 

@@ -1,4 +1,4 @@
-import { FACILITIES, FACILITY_ORDER, type FacilityId } from '../data/base';
+import { FACILITIES, FACILITY_ORDER, INFIRMARY_HEAL, LOCKER_BASE, REST_BASE, type FacilityId } from '../data/base';
 
 /** Built facilities and their levels (6), persisted as part of the campaign save (5). 0 = not yet built. */
 export interface BaseState {
@@ -43,3 +43,24 @@ export function baseGameOptions(base: BaseState): { medkitBonus: number; reserve
     gadgetUsesBonus: facilityEffect(base, 'commsRelay'),
   };
 }
+
+// ---------- between-mission station effects (11) ----------
+/** Share of max HP a soldier who sat the mission out recovers (the barracks, else REST_BASE). */
+export const restRate = (base: BaseState): number => facilityEffect(base, 'barracks') || REST_BASE;
+/** Beds in the infirmary (0 unbuilt). */
+export const infirmaryBeds = (base: BaseState): number => facilityEffect(base, 'infirmary');
+/** Share of max HP a soldier in an infirmary bed recovers per mission. */
+export const infirmaryHeal = (base: BaseState): number => {
+  const level = facilityLevel(base, 'infirmary');
+  return level > 0 ? INFIRMARY_HEAL[Math.min(level, INFIRMARY_HEAL.length) - 1] : 0;
+};
+/** How many spare pieces the locker holds. */
+export const lockerCapacity = (base: BaseState): number => facilityEffect(base, 'locker') || LOCKER_BASE;
+/** 0 = no recon, 1 = layout, 2 = + hostiles, 3 = + caches and objective. */
+export const reconLevel = (base: BaseState): number => facilityEffect(base, 'reconUplink');
+/** The highest recipe tier the fabricator can make (0 = none). */
+export const fabricatorTier = (base: BaseState): number => facilityEffect(base, 'fabricator');
+/** XP a soldier who sat the mission out gains. */
+export const trainingXp = (base: BaseState): number => facilityEffect(base, 'trainingRoom');
+/** Extra supply runs on offer. */
+export const extraOffers = (base: BaseState): number => facilityEffect(base, 'warRoom');

@@ -10,7 +10,8 @@ import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import type { UnitLoadout, ClassProgress } from '../data/trainingGrounds';
 import type { PerkId } from '../data/perks';
-import { buildLevel, newBaseState, upgradeCost, type BaseState } from './base';
+import { buildLevel, extraOffers, newBaseState, upgradeCost, type BaseState } from './base';
+import { STORY_PARTS, supplyRunParts } from '../data/crafting';
 import { equipPerk, gainXp, newClassProgress, resetOnDeath, slotCount, unequipPerk, xpEarned } from './leveling';
 import { nextRandom } from './rng';
 
@@ -30,6 +31,9 @@ export interface CampaignState {
   loadouts: Partial<Record<ClassId, UnitLoadout>>; // equipment (7): what each class starts its next mission with
   inventory: GearInventory; // equipment (7): the locker - owned pieces that are *not* currently equipped
   levels: Partial<Record<ClassId, ClassProgress>>; // leveling (8): each class's XP/level/perks
+  parts: number; // base overhaul (11): the fabricator's material, from missions and scrapping
+  health: Partial<Record<ClassId, number>>; // (11) carried-over HP; missing = full (core/roster.ts)
+  infirmary: ClassId[]; // (11) soldiers in an infirmary bed
 }
 
 const POOL_SIZE = 3;
@@ -40,7 +44,7 @@ export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], seenIntros: [], completedStoryMissions: [],
     completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
-    loadouts: {}, inventory: newGearInventory(), levels: {},
+    loadouts: {}, inventory: newGearInventory(), levels: {}, parts: 0, health: {}, infirmary: [],
   };
   fillPool(cs);
   return cs;
@@ -250,6 +254,7 @@ export function upgradeFacility(cs: CampaignState, id: FacilityId): string | nul
   if (cs.currency < cost) return 'Not enough currency';
   cs.currency -= cost;
   buildLevel(cs.base, id);
+  if (id === 'warRoom') fillPool(cs); // more offers show up at once
   return null;
 }
 
@@ -304,9 +309,12 @@ export function resolveSupplyRun(def: GeneratedMissionDef): MapDef {
   };
 }
 
-/** Tops the pool back up to `POOL_SIZE` after a completion (or on a fresh campaign). */
+/** How many supply runs are on offer at once: three, plus the war room's contacts (11). */
+export const poolSize = (cs: CampaignState): number => POOL_SIZE + extraOffers(cs.base);
+
+/** Tops the pool back up to `poolSize` after a completion (or on a fresh campaign). */
 function fillPool(cs: CampaignState) {
-  while (cs.supplyRunPool.length < POOL_SIZE) cs.supplyRunPool.push(generateOne(cs));
+  while (cs.supplyRunPool.length < poolSize(cs)) cs.supplyRunPool.push(generateOne(cs));
 }
 
 /**
@@ -315,6 +323,10 @@ function fillPool(cs: CampaignState) {
  * offers is a far smaller cost than launching a mission whose stored map no longer matches anything.
  */
 export function migrateCampaign(cs: CampaignState): CampaignState {
+  // The base overhaul (11) added these; an older save starts with none of them.
+  if (typeof cs.parts !== 'number') cs.parts = 0;
+  if (!cs.health || typeof cs.health !== 'object') cs.health = {};
+  if (!Array.isArray(cs.infirmary)) cs.infirmary = [];
   cs.supplyRunPool = cs.supplyRunPool.filter((m) => !!m.templateId && !!supplyRunTemplate(m.templateId));
   fillPool(cs);
   migrateGear(cs);
@@ -372,6 +384,7 @@ export function completeStoryMission(cs: CampaignState, missionId: string): void
   const m = STORY_MISSIONS.find((x) => x.id === missionId);
   if (!m) return;
   cs.completedStoryMissions.push(missionId);
+  cs.parts += STORY_PARTS;
   if (districtStatus(cs, m.district) !== 'completed') return;
   const next = DISTRICT_ORDER[DISTRICT_ORDER.indexOf(m.district) + 1];
   if (next && !cs.unlockedDistricts.includes(next)) cs.unlockedDistricts.push(next);
@@ -382,6 +395,7 @@ export function completeSupplyRun(cs: CampaignState, missionId: string): void {
   const i = cs.supplyRunPool.findIndex((m) => m.id === missionId);
   if (i < 0) return;
   cs.currency += cs.supplyRunPool[i].reward;
+  cs.parts += supplyRunParts(cs.supplyRunPool[i].tier);
   cs.supplyRunPool.splice(i, 1);
   cs.completedSupplyRuns++;
   fillPool(cs);

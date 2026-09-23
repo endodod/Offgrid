@@ -84,6 +84,8 @@ export interface MapDef {
   /** Starting armor/equipment per player class (7), same "system-set MapDef field" trick as the base-building
    *  fields above - see ui/campaign.ts's `applyBase`. undefined (or a missing class entry) means no loadout. */
   startingLoadouts?: Partial<Record<ClassId, UnitLoadout>>;
+  /** Starting HP per player class (11): a campaign soldier carries wounds between missions. Missing = full. */
+  startingHp?: Partial<Record<ClassId, number>>;
   /** Starting level/XP/perks per player class (8), same trick as `startingLoadouts` above. */
   startingProgress?: Partial<Record<ClassId, ClassProgress>>;
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map

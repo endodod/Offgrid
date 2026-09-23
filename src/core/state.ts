@@ -3,6 +3,7 @@ import { CLASSES } from '../data/units';
 import { RULES } from '../data/rules';
 import { GADGETS } from '../data/gadgets';
 import { ITEMS } from '../data/items';
+import { EQUIPMENT } from '../data/equipment';
 import { refreshVision } from './vision';
 import { holdRounds, objectiveComplete } from './objectives';
 import { lootOnDeath } from './loot';
@@ -46,11 +47,16 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
       const loadout = forPlayer ? map.startingLoadouts?.[cls] : undefined;
       const progress = forPlayer ? map.startingProgress?.[cls] : undefined;
       const equippedPerks = progress ? [...progress.equippedPerks] : [];
+      // Carried items that change starting supplies (11): the med pouch and the bandolier.
+      const gear = (loadout?.equipment ?? []).flatMap((id) => (id ? [EQUIPMENT[id]] : []));
+      const gearMedkits = gear.reduce((n, e) => n + (e.medkitBonus ?? 0), 0);
+      const gearReserve = gear.reduce((n, e) => n + (e.reserveBonus ?? 0), 0);
+      const startHp = forPlayer ? map.startingHp?.[cls] : undefined;
       units.push({
         id: units.length, team, cls, x, y,
-        hp: def.hp, ammo: def.weapon.magazine,
-        reserve: Math.round(def.reserve * reserveMult * (forPlayer ? playerReserveMult : 1)),
-        medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0) + perkBonus(equippedPerks).medkitBonus,
+        hp: startHp === undefined ? def.hp : Math.max(1, Math.min(def.hp, startHp)), ammo: def.weapon.magazine,
+        reserve: Math.round(def.reserve * reserveMult * ((forPlayer ? playerReserveMult : 1) + gearReserve)),
+        medkits: RULES.medkitsPerUnit + (forPlayer ? medkitBonus : 0) + perkBonus(equippedPerks).medkitBonus + gearMedkits,
         actions: 0, alive: true, downed: false, bleedOut: 0, overwatch: false, exposed: false, moveBonus: 0,
         gadget: forPlayer ? { id: def.gadget, uses: RULES.gadgetUsesPerMission + gadgetUsesBonus, cooldown: 0 } : null,
         armor: loadout?.armor ?? null, equipment: loadout ? [...loadout.equipment] : [null, null],
