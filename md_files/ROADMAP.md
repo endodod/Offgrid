@@ -2,7 +2,7 @@
 
 Planned work, in the order I would tackle it. Features 1-4 come **before** the meta-game layer (5-8), because they are the vocabulary the levels and missions will be built from. Multiplayer (PvP and co-op) comes after that.
 
-Status: none of this is started. This file is for planning; the current rules are in [ASSUMPTIONS.md](ASSUMPTIONS.md).
+Status: 0a-8 and 10-17 are done; 9 (visual rehaul) is the one numbered feature left, and Acts 2-3 have no missions yet (`md_files/STORY.md`). Each feature below keeps its original design sketch for the record, with a Status line and, where the shipped version differs, a "Done as" or Resolved note. The current rules are in [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
 ## Suggested order
 
@@ -23,6 +23,14 @@ Status: none of this is started. This file is for planning; the current rules ar
 | 7 | Unit equipment screen (armor + 2 slots, loot system) | medium-large | 2 and 4 (chests and enemy drops need interactables and pickups), 6 for buying/crafting |
 | 8 | Unit leveling & perks (per-class paths, growing perk pool & slots) | medium-large | pairs with 7 (perks and equipment both modify a unit's effective stats) |
 | 9 | Visual rehaul (real art for units, items, tiles, base building, etc.) | large | 2-8 ideally done first, so meta-game screens (5-8) get first-pass art instead of a second pass |
+| 10 | Polish pass (10a-10k): camera, autosave, animation, sound, settings, results, undo, board visuals, AI depth, touch | large | done |
+| 11 | Base overhaul: stations, wounds, infirmary, fabricator, locker | large | done |
+| 12 | Home page rework and the Lore screen | small | done |
+| 13 | Unit rework: soldier roster, hiring, per-soldier gear/XP, permadeath | large | done |
+| 14 | Rebindable map-move keys | small | done |
+| 15 | Game-loop audit: retreats, pending missions, Locker Full screen, map view | medium | done |
+| 16 | Squad orders for auto-run (Explore, Rush, Defend) | medium | done |
+| 17 | Debug tools for the campaign | small | done |
 
 0a-0f go first: they are core game-feel, not content, and every feature after them (new hazards, objectives, pickups, mission generation) needs the clearer UI, the revive mechanic, a more capable AI, configurable controls and a way to teach all of it already in place instead of retrofitted later. 0d builds directly on 0c's AI rework, and 0f is easiest last among these since it can then cover 0b-0e as well as the base rules, so do them in roughly that order even though most of them can start immediately. Weather can slot in any time after that. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
 
@@ -189,6 +197,8 @@ Auto-starts once, the first time a player enters Training Grounds (dismissal per
 ---
 
 ## 1. Weather system
+
+**Status: done** (five weathers plus four times of day, each a set of vision/accuracy/move multipliers in `data/weather.ts` / `data/timeOfDay.ts`; set per mission, and rolled by supply-run complications; no mid-mission schedule yet). The board overlays came later in 10i.
 
 **Goal:** weather that changes fog (how far units see) and accuracy for all units.
 
@@ -417,7 +427,7 @@ Three small, additive `GameOptions`/`MapDef` fields carry a built base's bonuses
 
 ## 7. Unit equipment screen
 
-**Status: done** (loot acquisition only - buy/craft deferred, see Resolved).
+**Status: done** (loot acquisition shipped here; crafting came later with the Fabricator in #11, and gear became per-soldier in #13. Buying gear is still not a thing).
 
 **Goal:** each unit has an armor slot and two equipment slots that change its effective stats, filled from gear that's bought at base, crafted from found materials, or looted during a mission.
 
@@ -461,7 +471,7 @@ Persistence: `CampaignState` (5) gained `loadouts: Partial<Record<ClassId, UnitL
 
 ## 8. Unit leveling & perks
 
-**Status: done** (post-mission XP, not live per-event accrual; per-class progress, not per-instance - see Resolved).
+**Status: done** (post-mission XP, not live per-event accrual - see Resolved). Progress was per class here; #13 moved it onto each soldier, and a death now removes the soldier rather than resetting the class.
 
 **Goal:** each class follows its own leveling path. Units earn XP from missions and from what they do during them, leveling up along that path; each significant level adds 2 new perks to that unit's perk pool, and at intervals unlocks another active-perk slot (starting at 1, capping at 3 chosen at once).
 
