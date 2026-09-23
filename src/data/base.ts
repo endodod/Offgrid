@@ -46,6 +46,12 @@ export const ROSTER_PER_BARRACKS = 2;
  *  candidate arrives with per recruitment-office level (index = level). */
 export const RECRUIT_BASE_CANDIDATES = 2;
 export const HIRE_COST = 80;
+/** Balance pass (18): a campaign's opening salvage, what a won story mission pays on top of its parts, and the
+ *  roster floor - below it, volunteers from the relit districts join for free after a mission (level 1, no
+ *  gear), so one bad fight can't strand a campaign. Losing a veteran still costs their levels and kit. */
+export const STARTING_SALVAGE = 150;
+export const STORY_SALVAGE = 100;
+export const ROSTER_FLOOR = 4;
 export const RECRUIT_XP = [0, 0, 100, 250];
 
 export const FACILITIES: Record<FacilityId, FacilityDef> = {

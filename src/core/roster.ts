@@ -1,11 +1,11 @@
-import { HIRE_COST, PATCH_SHARE } from '../data/base';
+import { HIRE_COST, PATCH_SHARE, ROSTER_FLOOR } from '../data/base';
 import type { MapDef } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
 import { LEVEL_PATHS } from '../data/leveling';
 import { infirmaryBeds, infirmaryHeal, restRate, rosterCapacity, trainingXp } from './base';
 import {
   addGear, applyMissionXp, completeStoryMission, completeSupplyRun, onMission, recordMissionGear, rollRecruits,
-  soldierById, withdrawSupplyRun, type CampaignState, type Soldier,
+  rollSoldier, soldierById, withdrawSupplyRun, type CampaignState, type Soldier,
 } from './campaign';
 import { lockerCount } from './crafting';
 import { lockerCapacity } from './base';
@@ -171,8 +171,6 @@ export interface AfterAction {
   lines: string[];
 }
 
-/** How many volunteers turn up if the whole roster is lost, so a campaign can never be stranded. */
-const VOLUNTEERS = 2;
 
 /**
  * One mission's worth of time at the base (11, 13), won or lost - called by `endMission` after gear and XP. The
@@ -219,12 +217,11 @@ export function afterMission(cs: CampaignState, units: Pick<EndedUnit, 'team' | 
     for (const s of benched) gainXp(s.cls, s.progress, drill);
     lines.push(`Training room: ${benched.map(shortName).join(', ')} +${drill} XP.`);
   }
-  // 4. New candidates, and volunteers if nobody is left.
+  // 4. New candidates, and volunteers if the squad is down to almost nobody (18: ROSTER_FLOOR).
   rollRecruits(cs);
-  if (!cs.roster.length) {
-    for (const r of cs.recruits.splice(0, VOLUNTEERS)) cs.roster.push(r);
-    lines.push(`With the squad gone, ${cs.roster.map((s) => s.name).join(' and ')} step up to carry on.`);
-  }
+  const volunteers: Soldier[] = [];
+  while (cs.roster.length < ROSTER_FLOOR) { const v = rollSoldier(cs); cs.roster.push(v); volunteers.push(v); }
+  if (volunteers.length) lines.push(`Volunteers from the lit blocks join the squad: ${volunteers.map((v) => `${v.name} (${CLASSES[v.cls].name})`).join(', ')}.`);
   if (cs.recruits.length) lines.push(`${cs.recruits.length} new candidates at the recruitment office.`);
   return { lines };
 }

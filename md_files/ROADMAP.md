@@ -859,6 +859,47 @@ working as intended, not a bug. Rush beating Balanced this clearly on an objecti
 Note: `.env.local` decides debug mode for `npm run dev`. To test debug features without editing it, start
 the server with `VITE_DEBUG=true npx vite`: the process environment takes priority over `.env.local`.
 
+## 18. Balance pass: the campaign economy, and a campaign simulator
+
+**Status: in progress.** The economy changes and the tool are done. The difficulty curve they exposed is being
+fixed by the Act 1 rework (19).
+
+**The tool:** `npm run campaign-sim -- [--n 12] [--max-missions 45] [--verbose]` (`scripts/campaignSim.ts`)
+plays whole Act 1 campaigns. The Balanced squad AI fights; a scripted commander runs the base:
+- hires first, then builds stations in a fixed order;
+- puts the badly hurt in the infirmary and trims the locker;
+- takes story missions while 4+ soldiers are fit, supply runs otherwise;
+- retreats once only 2 of the squad are standing.
+
+**What it found, and what changed:**
+- **A death spiral with no way out.** The campaign started at 0 salvage, story missions paid none, and the
+  volunteer safety net only restored 2 soldiers. One bad mission left a squad too small to win anything, with
+  no money to hire.
+  - Now `STARTING_SALVAGE` 150 and `STORY_SALVAGE` 100 per won story mission.
+  - `ROSTER_FLOOR` 4: after any mission, free level-1 volunteers top the roster up to 4.
+- **A lost fight is a full wipe.** The enemy finishes downed units, so a loss killed the whole deployed squad.
+  Retreating (15) is what saves survivors. With the commander retreating, deaths fell from about 142 to 53 per
+  45-mission run. Players should be told this: see the Act 1 rework.
+- **The real problem: a jagged difficulty curve.** Balanced squad, level 1, full strength, 30 seeds each:
+
+  | Act 1 in order | Win | | Supply runs | Win |
+  |---|---|---|---|---|
+  | Lights Out | 60% | | Fuel Depot | 40% |
+  | Signal Fire | 90% | | Pharmacy Row | 23% |
+  | Cold Storage | 23% | | Rail Yard | 53% |
+  | Pumphouse | 43% | | Underpass | 3% |
+  | Tollgate | 70% | | Waterworks | 73% |
+  | Market Row | 97% | | | |
+  | Clinic | 73% | | | |
+  | Row Relay | 30% | | | |
+  | Night Market | 40% | | | |
+  | Jackals' Den | 0% (63% draws) | | | |
+
+  The story spikes at mission 3 and then eases off. Supply runs, meant to be the safe way to recover, are
+  often harder than the story. Even with the economy fixes, campaign-sim finishes Act 1 in 0 of 12 runs. The
+  target for 19 is a steady slope: about 85% at mission 1, easing down to about 55% at the finale, with
+  tier-0 supply runs around 75%. The AI plays worse than a person, so these are relative targets.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

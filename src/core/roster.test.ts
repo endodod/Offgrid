@@ -3,6 +3,7 @@ import { RECIPES } from '../data/crafting';
 import { STORY_MISSIONS } from '../data/campaign';
 import { CLASSES, type ClassId } from '../data/units';
 import { buildLevel, lockerCapacity, rosterCapacity } from './base';
+import { ROSTER_FLOOR } from '../data/base';
 import {
   addGear, completeStoryMission, completeSupplyRun, migrateCampaign, moveEquipped, newCampaign, onMission, poolSize,
   recordMissionGear, soldierById, unequipToInventory, upgradeFacility, type CampaignState,
@@ -71,10 +72,11 @@ describe('roster (11, 13): health between missions', () => {
     expect(loss.inventory.armor.heavyPlate).toBeUndefined();
   });
 
-  it('volunteers step up if the whole roster falls', () => {
+  it('volunteers keep the roster at its floor (18) if the squad falls', () => {
     const cs = newCampaign(1);
     afterMission(cs, cs.roster.map((s) => ended(s.cls, 0, { alive: false, soldierId: s.id })));
-    expect(cs.roster.length).toBe(2);
+    expect(cs.roster.length).toBe(ROSTER_FLOOR);
+    expect(cs.roster.every((s) => s.progress.level === 1)).toBe(true);
   });
 
   it('the infirmary needs building, has limited beds, and heals a lot', () => {
@@ -211,6 +213,7 @@ describe('recruitment (13)', () => {
   it('hiring costs salvage, needs room, and moves the candidate onto the roster', () => {
     const cs = newCampaign(1);
     const r = cs.recruits[0];
+    cs.currency = 0;
     expect(hire(cs, r.id)).toMatch(/salvage/);
     cs.currency = 1000;
     expect(hire(cs, r.id)).toBeNull();

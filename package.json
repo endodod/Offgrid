@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sim": "tsx scripts/sim.ts",
-    "map": "tsx scripts/mapPreview.ts"
+    "map": "tsx scripts/mapPreview.ts",
+    "campaign-sim": "tsx scripts/campaignSim.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

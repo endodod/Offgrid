@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STARTING_SALVAGE } from '../data/base';
 import { DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_COMPLICATIONS, SUPPLY_RUN_TEMPLATES, supplyRunComplication } from '../data/campaign';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
@@ -33,7 +34,7 @@ describe('campaign (feature 5)', () => {
     expect(districtStatus(cs, DISTRICT_ORDER[1])).toBe('locked');
     expect(cs.supplyRunPool).toHaveLength(3);
     expect(cs.completedStoryMissions).toEqual([]);
-    expect(cs.currency).toBe(0);
+    expect(cs.currency).toBe(STARTING_SALVAGE); // 18: a little to hire or build with from the start
   });
 
   it('supply-run pool generation is deterministic for a given seed, and differs for a different one', () => {
@@ -110,7 +111,7 @@ describe('campaign (feature 5)', () => {
     const cs = newCampaign(1);
     const target = cs.supplyRunPool[0];
     completeSupplyRun(cs, target.id);
-    expect(cs.currency).toBe(target.reward);
+    expect(cs.currency).toBe(STARTING_SALVAGE + target.reward);
     expect(cs.completedSupplyRuns).toBe(1);
     expect(cs.supplyRunPool).toHaveLength(3); // still topped up
     expect(cs.supplyRunPool.some((m) => m.id === target.id)).toBe(false); // the completed one is gone

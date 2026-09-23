@@ -13,6 +13,7 @@ import type { UnitLoadout, ClassProgress } from '../data/trainingGrounds';
 import type { PerkId } from '../data/perks';
 import { buildLevel, candidateCount, extraOffers, newBaseState, recruitXp, upgradeCost, type BaseState } from './base';
 import { STORY_PARTS, supplyRunParts } from '../data/crafting';
+import { STARTING_SALVAGE, STORY_SALVAGE } from '../data/base';
 import { equipPerk, gainXp, newClassProgress, slotCount, unequipPerk, xpEarned } from './leveling';
 import { nextRandom } from './rng';
 
@@ -74,17 +75,20 @@ const founders = (): Soldier[] => CLASS_ORDER.map((cls) => newSoldier(cls, FOUND
 
 const pickFrom = <T>(cs: CampaignState, list: readonly T[]): T => list[Math.floor(nextRandom(cs) * list.length)];
 
+/** A new, randomly rolled soldier (13): a fresh name nobody on the books has, a random class, `xp` to start. */
+export function rollSoldier(cs: CampaignState, xp = 0, taken = new Set(cs.roster.map((s) => s.name))): Soldier {
+  let name = '';
+  for (let tries = 0; tries < 8 && (!name || taken.has(name)); tries++) name = `${pickFrom(cs, FIRST_NAMES)} ${pickFrom(cs, LAST_NAMES)}`;
+  taken.add(name);
+  return newSoldier(`r${cs.nextSoldierSeq++}`, name, pickFrom(cs, CLASS_ORDER), xp);
+}
+
 /** A fresh set of candidates for the recruitment office (13), from the campaign's seeded RNG. */
 export function rollRecruits(cs: CampaignState): void {
   const taken = new Set(cs.roster.map((s) => s.name));
   const xp = recruitXp(cs.base);
   cs.recruits = [];
-  for (let i = 0; i < candidateCount(cs.base); i++) {
-    let name = '';
-    for (let tries = 0; tries < 8 && (!name || taken.has(name)); tries++) name = `${pickFrom(cs, FIRST_NAMES)} ${pickFrom(cs, LAST_NAMES)}`;
-    taken.add(name);
-    cs.recruits.push(newSoldier(`r${cs.nextSoldierSeq++}`, name, pickFrom(cs, CLASS_ORDER), xp));
-  }
+  for (let i = 0; i < candidateCount(cs.base); i++) cs.recruits.push(rollSoldier(cs, xp, taken));
 }
 
 const POOL_SIZE = 3;
@@ -94,7 +98,7 @@ const POOL_SIZE = 3;
 export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], seenIntros: [], completedStoryMissions: [],
-    completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
+    completedSupplyRuns: 0, currency: STARTING_SALVAGE, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
     inventory: newGearInventory(), parts: 0, roster: founders(), recruits: [], nextSoldierSeq: 0, infirmary: [],
   };
   fillPool(cs);
@@ -450,6 +454,7 @@ export function completeStoryMission(cs: CampaignState, missionId: string): void
   if (!m) return;
   cs.completedStoryMissions.push(missionId);
   cs.parts += STORY_PARTS;
+  cs.currency += STORY_SALVAGE;
   if (districtStatus(cs, m.district) !== 'completed') return;
   const next = DISTRICT_ORDER[DISTRICT_ORDER.indexOf(m.district) + 1];
   if (next && !cs.unlockedDistricts.includes(next)) cs.unlockedDistricts.push(next);
