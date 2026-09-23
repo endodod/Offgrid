@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { MapDef, Spawn } from '../data/trainingGrounds';
 import type { ClassId } from '../data/units';
 import { blank } from '../core/testkit';
@@ -162,5 +162,64 @@ describe('touch: tap to preview, tap again to confirm (10k)', () => {
     const session = makeSession(blank(10, 5), { player: { soldier: [2, 2], medic: [2, 3] }, enemy: { soldier: [8, 2] } });
     session.tap({ x: 2, y: 3 });
     expect(session.selected()?.cls).toBe('medic');
+  });
+});
+
+// Regression coverage for a bug found by driving a full mission through auto-run (0d) in a real browser: `aiTurn`
+// (core/ai.ts) always submits its own `endTurn` as the last action of a team's turn, exactly like the enemy's
+// turn always has. `runPlayerAuto`'s completion handler used to call the full `Session.endTurn()` again on top of
+// that - and since `validate` never checks whose phase it already is for `endTurn`, that silently flipped the
+// phase a *second* time. Previously untested (SESSION_HANDOFF.md notes this was "verified live in a driven
+// headless browser rather than with fake timers"), which is exactly how it slipped through.
+describe('auto-run phase chaining (0d regression)', () => {
+  // No LOS between the squads (wall column) and no search waypoints/objective, so every idle unit's only
+  // available action is the AI's own "hold overwatch" fallback (core/ai.ts) - a guaranteed, deterministic
+  // signal that a team's real phase actually ran, independent of any combat RNG.
+  const noLosRows = blank(12, 5, [[6, 0, '#'], [6, 1, '#'], [6, 2, '#'], [6, 3, '#'], [6, 4, '#']]);
+
+  it('runs the enemy phase exactly once per round, without skipping it via a duplicated endTurn', async () => {
+    vi.useFakeTimers();
+    try {
+      const session = makeSession(noLosRows, { player: { soldier: [2, 2] }, enemy: { soldier: [9, 2] } });
+      const enemy = session.state.units.find((u) => u.team === 'enemy')!;
+      expect(session.state.turn).toBe(1);
+
+      session.toggleAutoRun();
+      for (let i = 0; i < 300 && !(session.state.turn === 2 && session.state.phase === 'player'); i++) {
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      expect(session.state.turn).toBe(2);
+      expect(session.state.phase).toBe('player');
+      // If the bug were back, turn 2 arrives via a bogus extra flip before the enemy ever actually moved -
+      // the enemy's own real phase (and its overwatch fallback) would not have run yet.
+      expect(enemy.overwatch).toBe(true);
+
+      session.toggleAutoRun(); // stop the chain so the test doesn't run forever
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not soft-lock mid-enemy-phase when a casualty stops auto-run (0d)', async () => {
+    vi.useFakeTimers();
+    try {
+      // A single player unit (no adjacent ally that would revive it back up before the casualty check runs).
+      const session = makeSession(noLosRows, { player: { soldier: [2, 2] }, enemy: { soldier: [9, 2] } });
+      const victim = session.state.units.find((u) => u.team === 'player')!;
+
+      session.toggleAutoRun(); // captures the pre-casualty alive count synchronously
+      session.debugSetHp(victim.id, 0); // force the casualty auto-run's own step() checks for, deterministically
+
+      for (let i = 0; i < 300 && session.busy; i++) {
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      expect(session.autoRun).toBe(false); // handed control back, as designed
+      expect(session.busy).toBe(false);
+      // The bug: `phase` stayed 'enemy' forever here (busy already false, nothing left to advance it) because
+      // the enemy phase was the one thing gated on `autoRun`, which had just been switched off.
+      expect(session.state.phase).toBe('player');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -431,6 +431,19 @@ export class Session {
 
   endTurn() {
     if (!this.try({ type: 'endTurn' })) return;
+    this.runEnemyPhase();
+  }
+
+  /**
+   * Precondition: it is already the enemy's phase. Reached either from a manual end-turn click above (which just
+   * performed the player -> enemy flip itself) or from `runPlayerAuto`'s completion, where `aiTurn` already
+   * performed that same flip as its own last internal action (`aiTurn` always submits an `endTurn` once a team
+   * is done acting - see `core/ai.ts`) - calling `this.try({ type: 'endTurn' })` again there would flip the
+   * phase a second time (since `validate` never checks whose phase it already is for `endTurn`) and skip the
+   * entire enemy phase outright. This is the one place that starts the enemy's own stepped playback, so both
+   * callers funnel through it instead of each re-deriving the phase transition.
+   */
+  private runEnemyPhase() {
     this.mode = 'move';
     this.busy = true;
     const runId = ++this.runId;
@@ -510,7 +523,11 @@ export class Session {
         this.status = this.state.winner ? '' : this.autoRun ? 'Auto-run...' : 'Your turn.';
         this.onChange();
         this.onCheckpoint();
-        if (!this.state.winner && this.autoRun) this.endTurn(); // chain into the enemy phase, then loop back here
+        // `aiTurn` already flipped player -> enemy as its own last internal action (see runEnemyPhase's doc
+        // comment), so the enemy always plays its phase next regardless of autoRun - the enemy was never
+        // something autoRun controlled. autoRun only decides whether runPlayerAuto (via finishEnemyPhase) picks
+        // the *next* player phase back up once this one is over; toggling it off here just stops that re-chain.
+        if (!this.state.winner) this.runEnemyPhase();
         return;
       }
       setTimeout(step, this.aiDelay(220));
