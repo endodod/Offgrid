@@ -22,11 +22,10 @@ export function loadCampaign(): CampaignState | null {
     // Repair rather than reject a save from before a feature that added a new top-level field - a safe empty
     // default beats losing an otherwise-valid campaign save over one missing field.
     if (!parsed.base || typeof parsed.base !== 'object') parsed.base = newBaseState(); // base building (6)
-    if (!parsed.loadouts || typeof parsed.loadouts !== 'object') parsed.loadouts = {}; // equipment (7)
     if (!parsed.inventory || typeof parsed.inventory !== 'object') parsed.inventory = newGearInventory(); // equipment (7)
     if (!Array.isArray(parsed.seenIntros)) parsed.seenIntros = [...parsed.unlockedDistricts]; // story briefings: don't re-show for districts already reached
-    if (!parsed.levels || typeof parsed.levels !== 'object') parsed.levels = {}; // leveling (8)
-    // Supply runs became template-based, and gear became a counted locker: migrateCampaign does both.
+    // Supply runs became template-based, gear became a counted locker, and per-class loadouts/levels/health
+    // became a roster of soldiers (13): migrateCampaign does all of it.
     return migrateCampaign(parsed);
   } catch {
     return null;

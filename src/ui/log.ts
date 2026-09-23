@@ -8,7 +8,7 @@ import type { GameEvent, GameState, Unit } from '../core/types';
 /** `at`: when the line may be shown (performance.now() time) - event playback holds lines until their moment (10d). */
 export interface LogLine { text: string; kind: 'player' | 'enemy' | 'system' | 'fog'; at?: number }
 
-export const nameOf = (u: Unit) => `${u.team === 'enemy' ? 'Enemy ' : ''}${CLASSES[u.cls].name}`;
+export const nameOf = (u: Unit) => u.name ? `${u.name.split(' ')[0]} (${CLASSES[u.cls].name})` : `${u.team === 'enemy' ? 'Enemy ' : ''}${CLASSES[u.cls].name}`;
 
 /** Turns an engine event into a log line. Events the player could not see are hidden (fog applies to the log too). */
 export function describe(s: GameState, e: GameEvent): LogLine | null {

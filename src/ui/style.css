@@ -744,3 +744,9 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .lore-entry__mission { margin-top: var(--s-3); padding-left: var(--s-3); border-left: 2px solid var(--line-strong); }
 .lore-entry__mission b { font-size: 14px; color: var(--text); }
 .tile, .lore-strip { white-space: normal; }
+/* Unit rework (13): a roster can be much bigger than five, so soldiers tile and the locker stays in view. */
+#equip-classes { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--s-4); align-items: start; }
+.equip .locker { position: sticky; top: 76px; align-self: start; }
+.pick:disabled { opacity: 0.35; cursor: not-allowed; }
+.pick__check { font: 700 12px/1 var(--font-mono); }
+.r-top small { color: var(--text-faint); font-size: 10px; margin-left: 2px; }

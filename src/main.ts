@@ -124,6 +124,8 @@ const startGame = (map: MapDef | { resume: GameState }, fromBuilder: boolean, mi
   (el('dbg-fog') as HTMLInputElement).checked = true;
   el('to-builder').hidden = !fromBuilder;
   savable = !fromBuilder;
+  // A campaign mission can't be replayed from the end banner: its result is reported to the campaign (13).
+  el('banner-reset').hidden = activeCampaignMissionId !== null;
   activeMissionId = missionId ?? null;
   if ('resume' in map) session.resume(map.resume);
   else session.load(map);
@@ -200,7 +202,8 @@ el('campaign-to-equip').addEventListener('click', () => { equip.open(campaign.ca
 
 const toMenu = () => {
   session.leave();
-  if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId, session.state.units);
+  // 13: any finished campaign mission moves the campaign on - a loss (or a draw) is time passing too.
+  if (activeCampaignMissionId && session.state.winner) campaign.reportEnd(activeCampaignMissionId, session.state.units, session.state.winner === 'player');
   activeCampaignMissionId = null;
   if (returnScreen === 'campaign') toCampaign();
   else goHome();

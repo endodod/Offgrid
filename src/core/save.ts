@@ -7,7 +7,7 @@ import type { GameState } from './types';
  *
  * `rollSource` (a test-only hook) and pending `events` are deliberately not saved.
  */
-export const SAVE_VERSION = 2; // 2: Unit.shotsFired/shotsHit (10g)
+export const SAVE_VERSION = 3; // 2: Unit.shotsFired/shotsHit (10g); 3: Unit.soldierId/name (13)
 
 export function serializeGame(s: GameState): string {
   return JSON.stringify({ ...s, rollSource: undefined, events: [] }, (_k, v: unknown) => {

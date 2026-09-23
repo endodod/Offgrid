@@ -1,7 +1,7 @@
 import type { Hud } from './hud';
 import { isGameVisible } from './home';
 import {
-  BINDABLE_ACTIONS, DEFAULT_BINDINGS, RESERVED_KEY, keyOf, loadBindings, saveBindings,
+  BINDABLE_ACTIONS, DEFAULT_BINDINGS, PAN_ACTIONS, RESERVED_KEY, keyOf, loadBindings, saveBindings,
   type BindableAction, type KeyBindings,
 } from './keybindings';
 import type { ButtonId, Session } from './session';
@@ -19,7 +19,7 @@ export function actionUsing(key: string, except?: BindableAction): BindableActio
 
 /** Rebinds `action` to `key`. Returns null on success, or the reason it was refused. */
 export function rebindAction(action: BindableAction, key: string): 'reserved' | BindableAction | null {
-  if (key === RESERVED_KEY || key.startsWith('Arrow')) return 'reserved'; // arrows pan the camera (ui/viewport.ts)
+  if (key === RESERVED_KEY) return 'reserved';
   const conflict = actionUsing(key, action);
   if (conflict) return conflict;
   bindings = { ...bindings, [action]: key };
@@ -50,11 +50,10 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud,
 
   window.addEventListener('keydown', (ev) => {
     if (!isGameVisible() || ev.ctrlKey || ev.metaKey || ev.altKey || (ev.target as HTMLElement).tagName === 'INPUT') return;
-    if (ev.key.startsWith('Arrow')) return; // arrows pan the camera (ui/viewport.ts) and are never bound
     if (ev.key === RESERVED_KEY) return session.cancel(); // always cancel, never rebindable
     const key = keyOf(ev) === '+' ? '=' : keyOf(ev); // Shift+= is still "zoom in" on most layouts
     const action = BINDABLE_ACTIONS.find((a) => bindings[a] === key);
-    if (!action) return;
+    if (!action || action in PAN_ACTIONS) return; // pan keys are held, and ui/viewport.ts reads them itself
     ev.preventDefault();
     if (action === 'zoomIn' || action === 'zoomOut') return viewport.zoomBy(action === 'zoomIn' ? 1 : -1);
     if (action === 'centerCamera') {

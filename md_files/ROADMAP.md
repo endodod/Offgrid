@@ -680,6 +680,44 @@ and the new gear's starting supplies.
 - **Spoilers are kept out on purpose.** Halcyon's part in the Blackout is Act 3's reveal (STORY.md §2), so the
   Lore screen never names Halcyon, and it only hints at the Cinder Wardens.
 
+## 13. Unit rework: a roster of soldiers, hiring, and losses that cost time
+
+**Status: done.**
+
+- **Soldiers, not classes.** `CampaignState.roster` is a list of `Soldier`s (id, name, class, loadout,
+  progress, carried-over HP). A roster can hold any number of any class. The five founders use their class id
+  as their soldier id (`sniper`, `medic`...), and that is how older saves migrate: `migrateRoster` turns the
+  old per-class `loadouts` / `levels` / `health` into those five.
+- **Deploying.** The briefing picks up to as many soldiers as the map has player spawns (5 on every current
+  map), in pick order. `deploySquad` sets `MapDef.squad`, and `createGame` puts the i-th member on the i-th
+  player spawn tile whatever class that tile was authored as, so two snipers work. Units carry `soldierId`
+  and `name`; the log, roster strip and results table show names. `SAVE_VERSION` is 3.
+- **Gear moves between any soldiers** on the Loadout screen (drag and drop by soldier id). Perks stay with
+  their soldier.
+- **Recruitment Office** (the 11th station) and a Recruit tab. There are 2 candidates after every mission
+  (3, 4 or 5 with upgrades); at levels 2 and 3 candidates arrive at level 2 or 3. A hire costs 80 salvage
+  plus XP / 5. The Barracks now also sets roster size (8, +2 per level). Soldiers can be dismissed, and their
+  gear goes back to the locker.
+- **Permadeath per soldier.** A soldier killed in action leaves the roster. Their gear is recovered to the
+  locker on a win and lost on a loss. If nobody is left, two volunteers join so a campaign can never be
+  stranded.
+- **A loss (or a draw) is time passing.** `Campaign.reportEnd` runs for every finished campaign mission.
+  - On a loss: no completion, no XP, no rewards. Survivors keep what they carried out, and wounds, rest,
+    the infirmary, training and new candidates all advance.
+  - "Play again" is hidden for campaign missions, since the result has been reported.
+- **Also:** a gear-accounting fix. Previously, finding a piece on a mission also removed a copy of it from the
+  locker; that no longer happens.
+
+**Tests:** `core/roster.test.ts` covers deployment order, duplicate classes, slot limits, hiring, capacity,
+recruitment upgrades, dismissal, migration from per-class saves, loss handling, recovering gear from the fallen
+and volunteers. `campaign.test.ts` now works per soldier.
+
+## 14. Rebindable map-move keys
+
+**Status: done.** Move map up / down / left / right are ordinary bindable actions (`panUp`...), defaulting
+to the arrow keys; the arrows are no longer reserved. `Viewport` reads the bindings while a key is held. The key
+help shows the current keys, and the Settings screen shows arrows as ↑ ↓ ← →.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

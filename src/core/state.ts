@@ -40,18 +40,23 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
   const units: Unit[] = [];
   for (const team of TEAMS) {
     const forPlayer = team === 'player';
-    for (const [cls, x, y, aiProfile] of map.spawns[team]) {
+    // The campaign squad (13) takes the player spawn tiles in order, whatever class they were authored as.
+    const spawns = forPlayer && map.squad
+      ? map.squad.slice(0, map.spawns.player.length).map((m, i) => [m.cls, map.spawns.player[i][1], map.spawns.player[i][2]] as const)
+      : map.spawns[team];
+    for (const [i, [cls, x, y, aiProfile]] of spawns.map((sp, i) => [i, sp] as const)) {
       const def = CLASSES[cls];
       // Equipment (7) and leveling (8): only the player squad starts with a loadout/progress (enemies never
       // carry gear or perks in v1).
-      const loadout = forPlayer ? map.startingLoadouts?.[cls] : undefined;
-      const progress = forPlayer ? map.startingProgress?.[cls] : undefined;
+      const member = forPlayer ? map.squad?.[i] : undefined;
+      const loadout = member?.loadout;
+      const progress = member?.progress;
       const equippedPerks = progress ? [...progress.equippedPerks] : [];
       // Carried items that change starting supplies (11): the med pouch and the bandolier.
       const gear = (loadout?.equipment ?? []).flatMap((id) => (id ? [EQUIPMENT[id]] : []));
       const gearMedkits = gear.reduce((n, e) => n + (e.medkitBonus ?? 0), 0);
       const gearReserve = gear.reduce((n, e) => n + (e.reserveBonus ?? 0), 0);
-      const startHp = forPlayer ? map.startingHp?.[cls] : undefined;
+      const startHp = member?.hp;
       units.push({
         id: units.length, team, cls, x, y,
         hp: startHp === undefined ? def.hp : Math.max(1, Math.min(def.hp, startHp)), ammo: def.weapon.magazine,
@@ -62,6 +67,7 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
         armor: loadout?.armor ?? null, equipment: loadout ? [...loadout.equipment] : [null, null],
         xp: progress?.xp ?? 0, level: progress?.level ?? 1, perkPool: progress ? [...progress.perkPool] : [], equippedPerks,
         dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, shotsFired: 0, shotsHit: 0, aiProfile,
+        ...(member ? { soldierId: member.soldierId, name: member.name } : {}),
       });
     }
   }

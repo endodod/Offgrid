@@ -19,9 +19,12 @@ describe('rebinding (0e)', () => {
     expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move); // unchanged
   });
 
-  it('refuses the arrow keys, which always pan the camera (10b)', () => {
-    for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) expect(rebindAction('move', k)).toBe('reserved');
-    expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move);
+  it('the arrow keys start bound to moving the map, and can be rebound like any key', () => {
+    // the arrows are the map-move keys by default: taken, but not reserved
+    expect(rebindAction('move', 'ArrowUp')).toBe('panUp');
+    expect(keyFor('move')).toBe(DEFAULT_BINDINGS.move);    expect(rebindAction('panUp', 'w')).toBeNull();
+    expect(keyFor('panUp')).toBe('w');
+    expect(rebindAction('move', 'ArrowUp')).toBeNull(); // freed once pan-up moved off it
   });
 
   it('refuses a key already bound to a different action, and reports which one', () => {

@@ -8,12 +8,12 @@
 export type FacilityId =
   | 'infirmary' | 'barracks' | 'medstation'
   | 'workbench' | 'locker' | 'fabricator'
-  | 'commsRelay' | 'reconUplink' | 'trainingRoom' | 'warRoom';
+  | 'commsRelay' | 'reconUplink' | 'trainingRoom' | 'warRoom' | 'recruitment';
 
 export const FACILITY_ORDER: FacilityId[] = [
   'infirmary', 'barracks', 'medstation',
   'workbench', 'locker', 'fabricator',
-  'commsRelay', 'reconUplink', 'trainingRoom', 'warRoom',
+  'commsRelay', 'reconUplink', 'trainingRoom', 'warRoom', 'recruitment',
 ];
 
 export type FacilityGroup = 'Medical' | 'Supply' | 'Operations';
@@ -39,6 +39,14 @@ export const INFIRMARY_HEAL = [0.6, 0.8, 1]; // per infirmary level, for a soldi
 export const PATCH_SHARE = 0.5;
 /** Locker capacity with no locker upgrades. */
 export const LOCKER_BASE = 6;
+/** Roster size: this many soldiers with no barracks, plus ROSTER_PER_BARRACKS per barracks level. */
+export const ROSTER_BASE = 8;
+export const ROSTER_PER_BARRACKS = 2;
+/** Hiring (unit rework): candidates on offer with no recruitment office, what one costs, and the XP a
+ *  candidate arrives with per recruitment-office level (index = level). */
+export const RECRUIT_BASE_CANDIDATES = 2;
+export const HIRE_COST = 80;
+export const RECRUIT_XP = [0, 0, 100, 250];
 
 export const FACILITIES: Record<FacilityId, FacilityDef> = {
   // effect = beds. How much a bed heals is INFIRMARY_HEAL[level - 1].
@@ -54,11 +62,11 @@ export const FACILITIES: Record<FacilityId, FacilityDef> = {
   // effect = the share of max HP a benched soldier recovers per mission (REST_BASE unbuilt).
   barracks: {
     id: 'barracks', name: 'Barracks', group: 'Medical',
-    blurb: 'Proper bunks. Everyone not in a bed recovers faster between missions.',
+    blurb: 'Proper bunks. Everyone not in a bed recovers faster, and there is room for more soldiers.',
     tiers: [
-      { cost: 100, effect: 0.3, blurb: 'Rest heals 30% (from 20%)' },
-      { cost: 200, effect: 0.4, blurb: 'Rest heals 40%' },
-      { cost: 350, effect: 0.5, blurb: 'Rest heals 50%' },
+      { cost: 100, effect: 0.3, blurb: 'Rest heals 30% (from 20%) · 10 soldiers' },
+      { cost: 200, effect: 0.4, blurb: 'Rest heals 40% · 12 soldiers' },
+      { cost: 350, effect: 0.5, blurb: 'Rest heals 50% · 14 soldiers' },
     ],
   },
   // effect = extra medkits per unit.
@@ -139,6 +147,16 @@ export const FACILITIES: Record<FacilityId, FacilityDef> = {
       { cost: 150, effect: 1, blurb: '4 supply runs on offer' },
       { cost: 300, effect: 2, blurb: '5 supply runs on offer' },
       { cost: 500, effect: 3, blurb: '6 supply runs on offer' },
+    ],
+  },
+  // effect = candidates on offer (RECRUIT_BASE_CANDIDATES unbuilt); their starting XP is RECRUIT_XP[level].
+  recruitment: {
+    id: 'recruitment', name: 'Recruitment Office', group: 'Operations',
+    blurb: 'Word goes out that the Lamplighters are hiring. More candidates, and better ones, after every mission.',
+    tiers: [
+      { cost: 100, effect: 3, blurb: '3 candidates per mission (from 2)' },
+      { cost: 220, effect: 4, blurb: '4 candidates · they arrive at level 2' },
+      { cost: 400, effect: 5, blurb: '5 candidates · they arrive at level 3' },
     ],
   },
 };

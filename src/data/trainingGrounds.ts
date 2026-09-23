@@ -36,14 +36,24 @@ export interface PickupDef {
 }
 
 /** A unit's armor/equipment loadout (7): both an in-mission `Unit`'s live fields and what a campaign mission
- *  (5) starts a unit with - see `MapDef.startingLoadouts` below and core/campaign.ts's `CampaignState.loadouts`. */
+ *  (5) starts a unit with - see `MapDef.squad` below and core/campaign.ts's `Soldier`. */
+/** One deploying campaign soldier (13): see `MapDef.squad`. */
+export interface SquadMember {
+  soldierId: string;
+  name: string;
+  cls: ClassId;
+  loadout: UnitLoadout;
+  progress: ClassProgress;
+  hp?: number; // missing = full
+}
+
 export interface UnitLoadout {
   armor: ArmorId | null;
   equipment: [EquipmentId | null, EquipmentId | null];
 }
 
 /** A class's leveling progress (8): both an in-mission `Unit`'s live fields and what a campaign mission (5)
- *  starts a class at - see `MapDef.startingProgress` below and core/campaign.ts's `CampaignState.levels`. */
+ *  starts a soldier at - see `MapDef.squad` below and core/campaign.ts's `Soldier`. */
 export interface ClassProgress {
   xp: number;
   level: number;
@@ -81,13 +91,11 @@ export interface MapDef {
   playerReserveMult?: number;
   medkitBonus?: number;
   gadgetUsesBonus?: number;
-  /** Starting armor/equipment per player class (7), same "system-set MapDef field" trick as the base-building
-   *  fields above - see ui/campaign.ts's `applyBase`. undefined (or a missing class entry) means no loadout. */
-  startingLoadouts?: Partial<Record<ClassId, UnitLoadout>>;
-  /** Starting HP per player class (11): a campaign soldier carries wounds between missions. Missing = full. */
-  startingHp?: Partial<Record<ClassId, number>>;
-  /** Starting level/XP/perks per player class (8), same trick as `startingLoadouts` above. */
-  startingProgress?: Partial<Record<ClassId, ClassProgress>>;
+  /** The campaign squad (13), same "system-set MapDef field" trick as the base-building fields above - see
+   *  core/roster.ts's `deploySquad`. When set, the i-th member takes the i-th player spawn tile, whatever class
+   *  that spawn was authored as, and brings their own class, gear, progress and HP. Missing = the map's own
+   *  spawns, bare. */
+  squad?: SquadMember[];
   /** The mission's primary objective (3); undefined = the legacy default (hold the single 'O' tile if the map
    *  has one, else no primary objective - just the always-on team-wipeout win/loss). */
   objective?: ObjectiveDef;

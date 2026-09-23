@@ -1,5 +1,7 @@
 import { RES, TILE } from '../render/renderer';
 import { seg } from './seg';
+import { keyOf, PAN_ACTIONS } from './keybindings';
+import { getBindings } from './input';
 
 /** Tile size, in CSS pixels, for each zoom step. 'fit' scales the whole board into the column instead. */
 const ZOOMS: { value: string; label: string; px: number | 'fit'; title: string }[] = [
@@ -14,7 +16,12 @@ const KEY = 'offgrid.zoom';
 const DRAG_THRESHOLD = 6;
 /** Arrow-key pan speed, CSS px per second. */
 const PAN_SPEED = 900;
-const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+/** The pan direction a key is bound to right now (defaults: the arrow keys), or null. */
+function panDir(key: string): [number, number] | null {
+  const b = getBindings();
+  for (const [action, dir] of Object.entries(PAN_ACTIONS)) if (b[action as keyof typeof PAN_ACTIONS] === key) return dir;
+  return null;
+}
 
 /**
  * Board zoom, scrolling and camera controls.
@@ -68,12 +75,13 @@ export class Viewport {
       this.zoomBy(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
     }, { passive: false });
     window.addEventListener('keydown', (e) => {
-      if (!(e.key in ARROWS) || !this.active() || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!panDir(keyOf(e)) || !this.active() || e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.target as HTMLElement).tagName === 'INPUT') return;
       e.preventDefault();
-      this.held.add(e.key);
+      this.held.add(keyOf(e));
       if (!this.panFrame) this.panLoop(performance.now());
     });
-    window.addEventListener('keyup', (e) => this.held.delete(e.key));
+    window.addEventListener('keyup', (e) => this.held.delete(keyOf(e)));
     window.addEventListener('blur', () => this.held.clear());
   }
 
@@ -193,7 +201,7 @@ export class Viewport {
       if (!this.held.size || !this.active()) { this.panFrame = 0; this.held.clear(); return; }
       const step = (PAN_SPEED * Math.min(50, now - then)) / 1000;
       let dx = 0, dy = 0;
-      for (const k of this.held) { dx += ARROWS[k][0]; dy += ARROWS[k][1]; }
+      for (const k of this.held) { const d = panDir(k); if (d) { dx += d[0]; dy += d[1]; } }
       this.wrap.scrollBy(dx * step, dy * step);
       this.panLoop(now);
     });

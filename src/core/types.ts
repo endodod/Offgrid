@@ -51,6 +51,8 @@ export interface Unit {
   ranDry: boolean; // ammo (4): true once this unit has ever had both ammo and reserve at 0 simultaneously
   shotsFired: number; // results screen (10g): every shot of every burst, overwatch included
   shotsHit: number;
+  soldierId?: string; // unit rework (13): the campaign soldier this unit is
+  name?: string; // (13) their name, for the HUD and the log
 }
 
 /** Last-seen marker. `hidden` becomes true once its tile has been out of sight, so a fresh look can clear it. */

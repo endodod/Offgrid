@@ -1,12 +1,13 @@
-import { facilityLevel, infirmaryBeds, infirmaryHeal, lockerCapacity, restRate, upgradeCost, fabricatorTier } from '../core/base';
-import { gearStock, upgradeFacility, type CampaignState } from '../core/campaign';
+import { candidateCount, facilityLevel, infirmaryBeds, infirmaryHeal, lockerCapacity, restRate, rosterCapacity, upgradeCost, fabricatorTier } from '../core/base';
+import { gearStock, upgradeFacility, type CampaignState, type Soldier } from '../core/campaign';
 import { craft, craftBlocker, lockerCount, scrap, scrapValue } from '../core/crafting';
-import { admit, currentHp, discharge, maxHp, soldierStatus } from '../core/roster';
+import { admit, discharge, dismiss, hire, hireCost, maxHp, soldierHp, soldierStatus } from '../core/roster';
+import { confirmModal } from './modal';
 import { ARMOR, ARMOR_ORDER, type ArmorId } from '../data/armor';
 import { FACILITIES, FACILITY_ORDER, type FacilityGroup, type FacilityId } from '../data/base';
 import { RECIPES, type RecipeKind } from '../data/crafting';
 import { EQUIPMENT, EQUIPMENT_ORDER, type EquipmentId } from '../data/equipment';
-import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
+import { CLASSES } from '../data/units';
 import { saveCampaign } from './campaignStore';
 import { icon } from './icons';
 import { seg } from './seg';
@@ -17,9 +18,10 @@ export interface BaseHooks {
   onBack: () => void;
 }
 
-type Tab = 'squad' | 'stations' | 'fabricator' | 'locker';
+type Tab = 'squad' | 'recruit' | 'stations' | 'fabricator' | 'locker';
 const TABS = [
   { value: 'squad', label: 'Squad' },
+  { value: 'recruit', label: 'Recruit' },
   { value: 'stations', label: 'Stations' },
   { value: 'fabricator', label: 'Fabricator' },
   { value: 'locker', label: 'Locker' },
@@ -31,8 +33,8 @@ const gearBlurb = (kind: RecipeKind, id: string): string =>
   kind === 'armor' ? ARMOR[id as ArmorId].blurb : EQUIPMENT[id as EquipmentId].blurb;
 
 /** A soldier's carried-over HP as a meter (11), shared with the briefing screen. */
-export function hpMeter(cs: CampaignState, cls: ClassId): string {
-  const hp = currentHp(cs, cls), max = maxHp(cls);
+export function hpMeter(s: Soldier): string {
+  const hp = soldierHp(s), max = maxHp(s.cls);
   const f = hp / max;
   return `<div class="hp-line"><div class="meter ${f <= 0.34 ? 'is-critical' : f < 1 ? 'is-low' : ''}"><i style="width:${f * 100}%"></i></div><span>${hp}/${max} HP</span></div>`;
 }
@@ -64,15 +66,26 @@ export class Base {
     this.render();
   }
 
-  private onClick(e: Event) {
+  private async onClick(e: Event) {
     const cs = this.cs;
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
     if (!cs || !btn || btn.disabled) return;
     const [act, a, b] = btn.dataset.act!.split(':');
     let err: string | null = null;
     if (act === 'build') err = upgradeFacility(cs, a as FacilityId);
-    else if (act === 'admit') err = admit(cs, a as ClassId);
-    else if (act === 'discharge') discharge(cs, a as ClassId);
+    else if (act === 'admit') err = admit(cs, a);
+    else if (act === 'discharge') discharge(cs, a);
+    else if (act === 'hire') err = hire(cs, a);
+    else if (act === 'dismiss') {
+      const s = cs.roster.find((r) => r.id === a);
+      if (!s) return;
+      const ok = await confirmModal({
+        title: `Dismiss ${s.name}?`, body: ['They leave the squad for good, along with their level and perks. Their gear goes back to the locker.'],
+        cta: 'Dismiss', danger: true,
+      });
+      if (!ok) return;
+      err = dismiss(cs, a);
+    }
     else if (act === 'craft') err = craft(cs, RECIPES.find((r) => r.kind === a && r.id === b)!);
     else if (act === 'scrap') err = scrap(cs, a as RecipeKind, b);
     saveCampaign(cs);
@@ -86,6 +99,7 @@ export class Base {
     $('base-currency').innerHTML = `${icon('currency')}${cs.currency}`;
     $('base-parts').innerHTML = `${icon('bolt')}${cs.parts} parts`;
     $('base-body').innerHTML = this.tab === 'squad' ? squadTab(cs)
+      : this.tab === 'recruit' ? recruitTab(cs)
       : this.tab === 'stations' ? stationsTab(cs)
       : this.tab === 'fabricator' ? fabricatorTab(cs)
       : lockerTab(cs);
@@ -98,28 +112,46 @@ function squadTab(cs: CampaignState): string {
   const note = beds
     ? `Infirmary: ${used}/${beds} beds, heals ${Math.round(infirmaryHeal(cs.base) * 100)}% of max HP per mission.`
     : 'No infirmary yet: build one under Stations to heal the badly wounded fast.';
-  const cards = CLASS_ORDER.map((cls) => {
-    const st = soldierStatus(cs, cls);
-    const lvl = cs.levels[cls]?.level ?? 1;
+  const cards = cs.roster.map((s) => {
+    const st = soldierStatus(cs, s);
     const action = st === 'infirmary'
-      ? `<button class="btn--ghost btn--block" data-act="discharge:${cls}">Discharge</button>`
+      ? `<button class="btn--ghost btn--block" data-act="discharge:${s.id}">Discharge</button>`
       : st === 'wounded'
-        ? `<button class="btn--primary btn--block" data-act="admit:${cls}" ${beds && used < beds ? '' : 'disabled'} title="${beds ? (used < beds ? 'Sits missions out and heals fast' : 'Every bed is taken') : 'Build the infirmary first'}">${icon('medkit')}Admit to infirmary</button>`
+        ? `<button class="btn--primary btn--block" data-act="admit:${s.id}" ${beds && used < beds ? '' : 'disabled'} title="${beds ? (used < beds ? 'Sits missions out and heals fast' : 'Every bed is taken') : 'Build the infirmary first'}">${icon('medkit')}Admit to infirmary</button>`
         : '';
     return `<article class="card soldier soldier--${st}">
       <div class="card__head">
-        <div class="soldier__badge">${CLASSES[cls].letter}</div>
-        <div><h3 class="card__title">${CLASSES[cls].name}</h3><span class="card__sub">Level ${lvl}</span></div>
+        <div class="soldier__badge">${CLASSES[s.cls].letter}</div>
+        <div><h3 class="card__title">${s.name}</h3><span class="card__sub">${CLASSES[s.cls].name} · level ${s.progress.level}</span></div>
         <div class="spacer"></div>${STATUS_CHIP[st]}
       </div>
-      ${hpMeter(cs, cls)}
-      ${action ? `<div class="card__foot">${action}</div>` : ''}
+      ${hpMeter(s)}
+      <div class="card__foot">${action}<button class="btn--ghost btn--sm" data-act="dismiss:${s.id}" ${cs.roster.length <= 1 ? 'disabled' : ''}>Dismiss</button></div>
     </article>`;
   }).join('');
-  return `<p class="section__note">Soldiers keep their wounds between missions. Whoever sits a mission out rests
-      (${Math.round(restRate(cs.base) * 100)}% of max HP); whoever deploys and survives is patched up for half that.
-      ${note} You choose who deploys on each mission's briefing.</p>
+  return `<p class="section__note">${cs.roster.length}/${rosterCapacity(cs.base)} soldiers. Everyone keeps their wounds between missions, won or lost.
+      Whoever sits a mission out rests (${Math.round(restRate(cs.base) * 100)}% of max HP); whoever deploys and survives is patched up for half that.
+      ${note} The fallen are gone for good. Pick who deploys on each mission's briefing; swap gear under Loadout.</p>
     <div class="grid grid--soldiers">${cards}</div>`;
+}
+
+function recruitTab(cs: CampaignState): string {
+  const full = cs.roster.length >= rosterCapacity(cs.base);
+  const cards = cs.recruits.map((s) => {
+    const cost = hireCost(s);
+    const def = CLASSES[s.cls];
+    return `<article class="card soldier">
+      <div class="card__head">
+        <div class="soldier__badge">${def.letter}</div>
+        <div><h3 class="card__title">${s.name}</h3><span class="card__sub">${def.name} · level ${s.progress.level}</span></div>
+      </div>
+      <p class="card__body">${def.hp} HP · move ${def.move} · vision ${def.vision} · range ${def.weapon.range}</p>
+      <div class="card__foot"><button class="btn--primary btn--block" data-act="hire:${s.id}" ${full || cs.currency < cost ? 'disabled' : ''} title="${full ? 'The barracks are full' : cs.currency < cost ? 'Not enough salvage' : ''}">${icon('currency')}${cost} · Hire</button></div>
+    </article>`;
+  }).join('');
+  return `<p class="section__note">${candidateCount(cs.base)} candidates after every mission; whoever you don't hire moves on.
+      Room for ${rosterCapacity(cs.base)} soldiers (${cs.roster.length} now) - the Barracks adds more. Build the Recruitment Office for more, and more experienced, candidates.</p>
+    ${cards ? `<div class="grid grid--soldiers">${cards}</div>` : '<p class="muted">Nobody is waiting. New candidates arrive after the next mission.</p>'}`;
 }
 
 function stationsTab(cs: CampaignState): string {

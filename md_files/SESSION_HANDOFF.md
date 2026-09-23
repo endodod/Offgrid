@@ -26,10 +26,8 @@ console errors.
 1. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
 2. **10j** gameplay depth (AI opens doors, retreat to real cover, enemy pods/reinforcements). Each needs a sim
    knob; see the notes below on doors.
-3. **A per-instance roster** now matters more. Feature 11 (ROADMAP.md) keeps one soldier per class, so picking
-   a squad means leaving classes at home. Recruits, names and duplicate classes would need `loadouts`, `levels`
-   and `health` re-keyed from `ClassId` to a soldier id. Maps would also need spawn slots rather than per-class
-   spawns: `deploySquad` filters spawns by class.
+3. **Balance pass on the roster economy** (feature 13): hire cost, candidate count and permadeath have not
+   been simulated. Watch whether salvage is enough to replace losses and build stations too.
 4. The earlier queue still stands: Act 2 missions and the feature 9 visual rehaul.
 
 ## Gotchas from this session
@@ -50,10 +48,14 @@ console errors.
 
 ## Things that are worth knowing and are not obvious from the code
 
-- **Campaign health only moves on a win** (feature 11). A loss is retried from scratch, as before, so it
-  changes no HP. `afterMission` in `core/roster.ts` runs after `recordMissionGear` and `applyMissionXp` in
-  `Campaign.reportWin`; the order matters, because the death reset happens in `applyMissionXp`.
-- **Every campaign map spawns exactly the five classes**, one each. `deploySquad` relies on that.
+- **`afterMission` in `core/roster.ts` runs last in `Campaign.reportEnd`,** after `recordMissionGear` (which
+  needs the dead soldier still on the roster to recover their gear) and `applyMissionXp`.
+- **A campaign squad ignores the classes the map's player spawns were authored with** (13): members take the
+  spawn *tiles* in order. The squad is capped at the number of player spawns.
+- **Soldier ids:** founders are `sniper`, `assault`, `soldier`, `medic` and `tank`; recruits are `r<n>`. Tests
+  lean on the founder ids.
+- **Campaign missions report on every ending, a loss included** (`Campaign.reportEnd`). Leaving mid-mission
+  through Menu reports nothing, and the mission can be resumed.
 - **Weather animation is a ~30 fps `setTimeout` in main.ts's `frame`**, and only runs while weather is moving,
   the game screen is visible and nothing else is animating. It is a pure function of time, so there is no
   particle state to save.

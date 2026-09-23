@@ -15,7 +15,6 @@ import { icon } from './icons';
 import { confirmModal, showModal } from './modal';
 import type { BriefingInfo } from './briefing';
 import { afterMission, deploySquad } from '../core/roster';
-import type { ClassId } from '../data/units';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -78,6 +77,7 @@ export class Campaign {
     const report = this.pendingReport;
     this.pendingReport = null;
     if (report?.length) await showModal({ eyebrow: 'After action', title: 'Back at base', body: report, cta: 'Continue' });
+    this.render();
     for (const id of unseenIntros(this.state)) {
       const district = DISTRICTS.find((d) => d.id === id)!;
       await showModal({
@@ -102,25 +102,30 @@ export class Campaign {
     return this.state;
   }
 
-  /** Called once a mission launched from here ends in a player win; `finalUnits` persists ending loadouts (7)
-   *  and awards XP/levels (8). */
-  reportWin(missionId: string, finalUnits: Unit[]) {
+  /**
+   * Called once a mission launched from here is over, won or not (13: a loss is time passing too). A win
+   * completes the mission, persists ending loadouts (7) and awards XP (8); a loss only keeps what the
+   * survivors carried out. Either way the fallen are gone and the base moves one mission on.
+   */
+  reportEnd(missionId: string, finalUnits: Unit[], won: boolean) {
     const partsBefore = this.state.parts;
-    if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
-    else {
-      completeStoryMission(this.state, missionId);
-      this.pendingDebrief = STORY_MISSIONS.find((m) => m.id === missionId) ?? null;
+    if (won) {
+      if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
+      else {
+        completeStoryMission(this.state, missionId);
+        this.pendingDebrief = STORY_MISSIONS.find((m) => m.id === missionId) ?? null;
+      }
     }
-    recordMissionGear(this.state, finalUnits);
-    applyMissionXp(this.state, finalUnits);
+    recordMissionGear(this.state, finalUnits, won);
+    if (won) applyMissionXp(this.state, finalUnits);
     const partsEarned = this.state.parts - partsBefore;
-    const { lines } = afterMission(this.state, finalUnits);
+    const { lines } = afterMission(this.state, finalUnits, won);
     this.pendingReport = [...(partsEarned ? [`Salvaged ${partsEarned} parts for the fabricator.`] : []), ...lines];
     saveCampaign(this.state);
   }
 
-  /** Layers a built base's meta-progression bonuses (6), the campaign's current per-class loadouts (7) and
-   *  levels/perks (8) onto a mission's own map - see core/base.ts and core/campaign.ts's `CampaignState`. */
+  /** Layers a built base's meta-progression bonuses (6) onto a mission's map. The squad itself - gear,
+   *  levels, wounds - is already on the map from `deploySquad` (13). */
   private applyBase(map: MapDef): MapDef {
     const bonus = baseGameOptions(this.state.base);
     return {
@@ -128,8 +133,6 @@ export class Campaign {
       playerReserveMult: 1 + bonus.reserveMultBonus,
       ...(bonus.medkitBonus ? { medkitBonus: bonus.medkitBonus } : {}),
       ...(bonus.gadgetUsesBonus ? { gadgetUsesBonus: bonus.gadgetUsesBonus } : {}),
-      startingLoadouts: this.state.loadouts,
-      startingProgress: this.state.levels,
     };
   }
 
@@ -152,7 +155,7 @@ export class Campaign {
   }
 
   /** Launch the briefed mission with `squad` (11): wounds carry in, beds empty for whoever goes. */
-  deploy(squad: ClassId[]) {
+  deploy(squad: string[]) {
     const b = this.briefed;
     if (!b || !squad.length) return;
     const map = deploySquad(this.state, b.map, squad);

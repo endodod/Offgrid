@@ -3,6 +3,7 @@ import type { ButtonId } from './session';
 /** Every action a key can be bound to: the action-bar buttons plus a handful of extra UI actions. */
 export type BindableAction = ButtonId
   | 'toggleOverwatchView' | 'toggleAutoRun' | 'rotateCoverCW' | 'centerCamera' | 'zoomIn' | 'zoomOut' | 'undo'
+  | 'panUp' | 'panDown' | 'panLeft' | 'panRight'
   | 'selectUnit1' | 'selectUnit2' | 'selectUnit3' | 'selectUnit4' | 'selectUnit5';
 
 /** Human-readable label for the settings screen. */
@@ -11,6 +12,7 @@ export const ACTION_LABEL: Record<BindableAction, string> = {
   aid: 'First aid', revive: 'Revive', interact: 'Interact', endTurn: 'End turn',
   toggleOverwatchView: 'Overwatch view', toggleAutoRun: 'Auto-run', rotateCoverCW: 'Rotate cover',
   centerCamera: 'Centre camera', zoomIn: 'Zoom in', zoomOut: 'Zoom out', undo: 'Undo move',
+  panUp: 'Move map up', panDown: 'Move map down', panLeft: 'Move map left', panRight: 'Move map right',
   selectUnit1: 'Select unit 1', selectUnit2: 'Select unit 2', selectUnit3: 'Select unit 3',
   selectUnit4: 'Select unit 4', selectUnit5: 'Select unit 5',
 };
@@ -29,6 +31,7 @@ export type KeyBindings = Record<BindableAction, string>;
 export const DEFAULT_BINDINGS: KeyBindings = {
   move: 'm', attack: 'a', reload: 'r', gadget: 'g', overwatch: 'o', aid: 'f', revive: 'u', interact: 'i', endTurn: 'e',
   toggleOverwatchView: 'v', toggleAutoRun: 'p', rotateCoverCW: 'q', centerCamera: 'c', zoomIn: '=', zoomOut: '-', undo: 'z',
+  panUp: 'ArrowUp', panDown: 'ArrowDown', panLeft: 'ArrowLeft', panRight: 'ArrowRight',
   selectUnit1: '1', selectUnit2: '2', selectUnit3: '3', selectUnit4: '4', selectUnit5: '5',
 };
 
@@ -58,4 +61,10 @@ export function saveBindings(b: KeyBindings) {
 export const keyOf = (ev: KeyboardEvent): string => (ev.key.length === 1 ? ev.key.toLowerCase() : ev.key);
 
 /** 'm' -> 'M', 'Escape'/'Enter' etc. stay as-is - for showing a bound key in the UI. */
-export const displayKey = (key: string): string => (key.length === 1 ? key.toUpperCase() : key);
+export const displayKey = (key: string): string =>
+  key.length === 1 ? key.toUpperCase() : ({ ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ' ': 'Space' } as Record<string, string>)[key] ?? key;
+
+/** Held pan actions (camera keys) and the direction each one moves the map view. */
+export const PAN_ACTIONS: Record<'panUp' | 'panDown' | 'panLeft' | 'panRight', [number, number]> = {
+  panUp: [0, -1], panDown: [0, 1], panLeft: [-1, 0], panRight: [1, 0],
+};

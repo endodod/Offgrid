@@ -7,12 +7,13 @@ import type { MapDef } from '../data/trainingGrounds';
 import type { FacilityId } from '../data/base';
 import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
-import type { ClassId } from '../data/units';
+import { CLASS_ORDER, type ClassId } from '../data/units';
+import { FIRST_NAMES, FOUNDERS, LAST_NAMES } from '../data/names';
 import type { UnitLoadout, ClassProgress } from '../data/trainingGrounds';
 import type { PerkId } from '../data/perks';
-import { buildLevel, extraOffers, newBaseState, upgradeCost, type BaseState } from './base';
+import { buildLevel, candidateCount, extraOffers, newBaseState, recruitXp, upgradeCost, type BaseState } from './base';
 import { STORY_PARTS, supplyRunParts } from '../data/crafting';
-import { equipPerk, gainXp, newClassProgress, resetOnDeath, slotCount, unequipPerk, xpEarned } from './leveling';
+import { equipPerk, gainXp, newClassProgress, slotCount, unequipPerk, xpEarned } from './leveling';
 import { nextRandom } from './rng';
 
 /** Persistent progress between missions (5), independent of any single mission's GameState. Mutated in place,
@@ -28,12 +29,51 @@ export interface CampaignState {
   nextSupplyRunSeq: number; // monotonic, so regenerated pool slots never reuse an id within a campaign
   supplyRunPool: GeneratedMissionDef[];
   base: BaseState; // home-base facilities (6)
-  loadouts: Partial<Record<ClassId, UnitLoadout>>; // equipment (7): what each class starts its next mission with
   inventory: GearInventory; // equipment (7): the locker - owned pieces that are *not* currently equipped
-  levels: Partial<Record<ClassId, ClassProgress>>; // leveling (8): each class's XP/level/perks
   parts: number; // base overhaul (11): the fabricator's material, from missions and scrapping
-  health: Partial<Record<ClassId, number>>; // (11) carried-over HP; missing = full (core/roster.ts)
-  infirmary: ClassId[]; // (11) soldiers in an infirmary bed
+  roster: Soldier[]; // unit rework (13): everyone on the books, any number per class
+  recruits: Soldier[]; // (13) candidates the recruitment office is offering right now
+  nextSoldierSeq: number; // (13) monotonic, for soldier ids
+  infirmary: string[]; // (11) soldier ids in an infirmary bed
+}
+
+/**
+ * One person on the squad's books (13). Gear, XP, perks and wounds belong to the soldier, not the class, so
+ * a campaign can field two snipers or none. The five founders use their class id as their soldier id, which
+ * is also how a save from before the rework maps onto them.
+ */
+export interface Soldier {
+  id: string;
+  name: string;
+  cls: ClassId;
+  loadout: UnitLoadout;
+  progress: ClassProgress;
+  hp?: number; // carried-over HP; missing = full (core/roster.ts)
+}
+
+export const soldierById = (cs: CampaignState, id: string): Soldier | undefined => cs.roster.find((s) => s.id === id);
+
+export function newSoldier(id: string, name: string, cls: ClassId, xp = 0): Soldier {
+  const progress = newClassProgress();
+  if (xp) gainXp(cls, progress, xp);
+  return { id, name, cls, loadout: emptyLoadout(), progress };
+}
+
+const founders = (): Soldier[] => CLASS_ORDER.map((cls) => newSoldier(cls, FOUNDERS[cls], cls));
+
+const pickFrom = <T>(cs: CampaignState, list: readonly T[]): T => list[Math.floor(nextRandom(cs) * list.length)];
+
+/** A fresh set of candidates for the recruitment office (13), from the campaign's seeded RNG. */
+export function rollRecruits(cs: CampaignState): void {
+  const taken = new Set(cs.roster.map((s) => s.name));
+  const xp = recruitXp(cs.base);
+  cs.recruits = [];
+  for (let i = 0; i < candidateCount(cs.base); i++) {
+    let name = '';
+    for (let tries = 0; tries < 8 && (!name || taken.has(name)); tries++) name = `${pickFrom(cs, FIRST_NAMES)} ${pickFrom(cs, LAST_NAMES)}`;
+    taken.add(name);
+    cs.recruits.push(newSoldier(`r${cs.nextSoldierSeq++}`, name, pickFrom(cs, CLASS_ORDER), xp));
+  }
 }
 
 const POOL_SIZE = 3;
@@ -44,9 +84,10 @@ export function newCampaign(seed = Date.now()): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], seenIntros: [], completedStoryMissions: [],
     completedSupplyRuns: 0, currency: 0, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
-    loadouts: {}, inventory: newGearInventory(), levels: {}, parts: 0, health: {}, infirmary: [],
+    inventory: newGearInventory(), parts: 0, roster: founders(), recruits: [], nextSoldierSeq: 0, infirmary: [],
   };
   fillPool(cs);
+  rollRecruits(cs);
   return cs;
 }
 
@@ -56,7 +97,11 @@ export function newCampaign(seed = Date.now()): CampaignState {
 interface EndedUnit {
   team: 'player' | 'enemy'; cls: ClassId; armor: ArmorId | null; equipment: [EquipmentId | null, EquipmentId | null];
   dmgDealt: number; kills: number; revives: number; alive: boolean;
+  soldierId?: string; // which soldier this was (13); missing = the founder of that class
 }
+
+/** The soldier an ended unit was, if they're on the books. */
+const soldierOf = (cs: CampaignState, u: EndedUnit): Soldier | undefined => soldierById(cs, u.soldierId ?? u.cls);
 
 /**
  * Owned gear that is not on anybody: a count per id, for both slot kinds. Counts rather than a flat "ever
@@ -101,13 +146,9 @@ export function gearStock(inv: GearInventory, kind: GearKind, order: readonly st
 
 const emptyLoadout = (): UnitLoadout => ({ armor: null, equipment: [null, null] });
 
-/** A class's loadout, created in place if it has none yet, so callers can mutate it directly. */
-export function loadoutFor(cs: CampaignState, cls: ClassId): UnitLoadout {
-  const existing = cs.loadouts[cls];
-  if (existing) return existing;
-  const fresh = emptyLoadout();
-  cs.loadouts[cls] = fresh;
-  return fresh;
+/** A soldier's loadout, mutable in place. An unknown id gets a throwaway empty one. */
+export function loadoutFor(cs: CampaignState, id: string): UnitLoadout {
+  return soldierById(cs, id)?.loadout ?? emptyLoadout();
 }
 
 export const gearInSlot = (lo: UnitLoadout, slot: GearSlot): ArmorId | EquipmentId | null =>
@@ -119,7 +160,7 @@ function writeSlot(lo: UnitLoadout, slot: GearSlot, id: ArmorId | EquipmentId | 
 }
 
 /** Takes whatever is in `slot` off the class and puts it back in the locker. No-op on an empty slot. */
-export function unequipToInventory(cs: CampaignState, cls: ClassId, slot: GearSlot): void {
+export function unequipToInventory(cs: CampaignState, cls: string, slot: GearSlot): void {
   const lo = loadoutFor(cs, cls);
   const current = gearInSlot(lo, slot);
   if (!current) return;
@@ -129,7 +170,7 @@ export function unequipToInventory(cs: CampaignState, cls: ClassId, slot: GearSl
 
 /** Moves one `id` out of the locker into `slot`, displacing whatever was there back into the locker.
  *  Returns null on success, or why it was refused (nothing changes then). */
-export function equipFromInventory(cs: CampaignState, cls: ClassId, slot: GearSlot, id: ArmorId | EquipmentId): string | null {
+export function equipFromInventory(cs: CampaignState, cls: string, slot: GearSlot, id: ArmorId | EquipmentId): string | null {
   const kind = SLOT_KIND[slot];
   if (gearInSlot(loadoutFor(cs, cls), slot) === id) return null; // already there
   if (!takeGear(cs.inventory, kind, id)) return 'Not in the locker';
@@ -141,7 +182,7 @@ export function equipFromInventory(cs: CampaignState, cls: ClassId, slot: GearSl
 /** Drag from one equipped slot to another (same class or not): unequip, then equip, so the locker bookkeeping
  *  is the same code either way. Dropping onto the slot it came from is a no-op. */
 export function moveEquipped(
-  cs: CampaignState, from: { cls: ClassId; slot: GearSlot }, to: { cls: ClassId; slot: GearSlot },
+  cs: CampaignState, from: { cls: string; slot: GearSlot }, to: { cls: string; slot: GearSlot },
 ): string | null {
   if (from.cls === to.cls && from.slot === to.slot) return null;
   if (SLOT_KIND[from.slot] !== SLOT_KIND[to.slot]) return 'Wrong kind of slot';
@@ -158,60 +199,52 @@ function loadoutKeys(lo: UnitLoadout): string[] {
 }
 
 /**
- * Called once a campaign-launched mission ends in a win (see ui/campaign.ts's `reportWin`): persists each
- * player unit's ending loadout back to `cs.loadouts` (so "what the soldier is wearing" carries into the next
- * mission), and reconciles the locker with what changed.
- *
- * The reconciliation is a multiset diff per class rather than a blanket "unlock what you see". A piece the
- * unit stopped carrying goes back in the locker; a piece it started carrying is taken out of the locker if
- * one is there, and otherwise was simply found on the mission (a chest, an enemy drop) and needs nothing
- * taken. That keeps locker counts honest without the mission layer having to know the locker exists.
+ * Called once a campaign mission ends (13: a loss too): each surviving soldier keeps what they ended the
+ * mission wearing - pieces they dropped or swapped go back to the locker, pieces they picked up are simply
+ * theirs now. A soldier who died leaves their gear behind: recovered into the locker on a win (the squad
+ * holds the field), lost on a loss.
  */
-export function recordMissionGear(cs: CampaignState, units: EndedUnit[]): void {
+export function recordMissionGear(cs: CampaignState, units: EndedUnit[], won = true): void {
   for (const u of units) {
     if (u.team !== 'player') continue;
-    const before = loadoutKeys(loadoutFor(cs, u.cls));
+    const soldier = soldierOf(cs, u);
+    if (!soldier) continue;
     const after = loadoutKeys({ armor: u.armor, equipment: [...u.equipment] });
-    const remaining = [...after];
-    for (const key of before) {
-      const i = remaining.indexOf(key);
-      if (i >= 0) remaining.splice(i, 1); // still carried: nothing to do
+    for (const key of loadoutKeys(soldier.loadout)) { // no longer carried: back on the shelf
+      const i = after.indexOf(key);
+      if (i >= 0) after.splice(i, 1);
       else { const [kind, id] = key.split(':'); addGear(cs.inventory, kind as GearKind, id); }
     }
-    for (const key of remaining) { // newly carried: consume one from the locker if we had one
-      const [kind, id] = key.split(':');
-      takeGear(cs.inventory, kind as GearKind, id);
+    soldier.loadout = { armor: u.armor, equipment: [...u.equipment] };
+    if (!u.alive) {
+      if (won) for (const key of loadoutKeys(soldier.loadout)) { const [kind, id] = key.split(':'); addGear(cs.inventory, kind as GearKind, id); }
+      soldier.loadout = emptyLoadout();
     }
-    cs.loadouts[u.cls] = { armor: u.armor, equipment: [...u.equipment] };
   }
 }
 
 /**
- * Called alongside `recordMissionGear` once a campaign-launched mission ends in a win: awards each player
- * unit's class the XP it earned this mission (from its own final stat counters - see core/leveling.ts's
- * `xpEarned`), resolving any level-up and granting newly-unlocked perks to the pool. A unit that died for
- * good instead resets its class to level 1 (permadeath - see ROADMAP.md's Resolved for why the perk pool
- * itself survives this).
+ * Called alongside `recordMissionGear` once a campaign mission is won: each surviving soldier earns the XP
+ * from their own final stat counters (see core/leveling.ts's `xpEarned`), resolving any level-up. The dead
+ * earn nothing; they leave the roster in core/roster.ts's `afterMission` (13: permadeath is per soldier now).
  */
 export function applyMissionXp(cs: CampaignState, units: EndedUnit[]): void {
   for (const u of units) {
-    if (u.team !== 'player') continue;
-    const progress = cs.levels[u.cls] ?? newClassProgress();
-    if (u.alive) gainXp(u.cls, progress, xpEarned(u));
-    else resetOnDeath(progress);
-    cs.levels[u.cls] = progress;
+    if (u.team !== 'player' || !u.alive) continue;
+    const soldier = soldierOf(cs, u);
+    if (soldier) gainXp(soldier.cls, soldier.progress, xpEarned(u));
   }
 }
 
 /** Toggles perk `id` equipped/unequipped for `cls`, or returns why it can't be equipped (unequipping never fails). */
-export function togglePerk(cs: CampaignState, cls: ClassId, id: PerkId): string | null {
-  const progress = cs.levels[cls] ?? newClassProgress();
-  cs.levels[cls] = progress;
-  if (progress.equippedPerks.includes(id)) {
-    unequipPerk(progress, id);
+export function togglePerk(cs: CampaignState, soldierId: string, id: PerkId): string | null {
+  const soldier = soldierById(cs, soldierId);
+  if (!soldier) return 'No such soldier';
+  if (soldier.progress.equippedPerks.includes(id)) {
+    unequipPerk(soldier.progress, id);
     return null;
   }
-  return equipPerk(cls, progress, id);
+  return equipPerk(soldier.cls, soldier.progress, id);
 }
 
 /**
@@ -219,18 +252,19 @@ export function togglePerk(cs: CampaignState, cls: ClassId, id: PerkId): string 
  * `ClassProgress.equippedPerks` stays a dense list (everything else - `perkBonus`, `createGame` - reads it
  * that way). These two translate: read the dense list into `slotCount` slots, write it back compacted.
  */
-export function perkSlots(cs: CampaignState, cls: ClassId): (PerkId | null)[] {
-  const progress = progressFor(cs, cls);
+export function perkSlots(cs: CampaignState, soldierId: string): (PerkId | null)[] {
+  const progress = progressFor(cs, soldierId);
+  const cls = soldierById(cs, soldierId)?.cls ?? 'soldier';
   const slots: (PerkId | null)[] = Array.from({ length: slotCount(cls, progress.level) }, () => null);
   progress.equippedPerks.forEach((id, i) => { if (i < slots.length) slots[i] = id; });
   return slots;
 }
 
 /** Puts `id` (or nothing, to clear) in slot `index`, removing it from any slot it already occupied. */
-export function setPerkSlot(cs: CampaignState, cls: ClassId, index: number, id: PerkId | null): string | null {
-  const progress = progressFor(cs, cls);
+export function setPerkSlot(cs: CampaignState, soldierId: string, index: number, id: PerkId | null): string | null {
+  const progress = progressFor(cs, soldierId);
   if (id && !progress.perkPool.includes(id)) return 'Not unlocked yet';
-  const slots = perkSlots(cs, cls);
+  const slots = perkSlots(cs, soldierId);
   if (index < 0 || index >= slots.length) return 'No open perk slots';
   const next = slots.map((p) => (p === id ? null : p));
   next[index] = id;
@@ -238,13 +272,9 @@ export function setPerkSlot(cs: CampaignState, cls: ClassId, index: number, id: 
   return null;
 }
 
-/** A class's progress, created in place if it has none yet. */
-export function progressFor(cs: CampaignState, cls: ClassId): ClassProgress {
-  const existing = cs.levels[cls];
-  if (existing) return existing;
-  const fresh = newClassProgress();
-  cs.levels[cls] = fresh;
-  return fresh;
+/** A soldier's progress, mutable in place. An unknown id gets a throwaway fresh one. */
+export function progressFor(cs: CampaignState, soldierId: string): ClassProgress {
+  return soldierById(cs, soldierId)?.progress ?? newClassProgress();
 }
 
 /** Spends currency to build/upgrade a facility one level, or returns why it can't (nothing is charged then). */
@@ -255,6 +285,7 @@ export function upgradeFacility(cs: CampaignState, id: FacilityId): string | nul
   cs.currency -= cost;
   buildLevel(cs.base, id);
   if (id === 'warRoom') fillPool(cs); // more offers show up at once
+  if (id === 'recruitment') rollRecruits(cs); // and so do better candidates
   return null;
 }
 
@@ -325,8 +356,9 @@ function fillPool(cs: CampaignState) {
 export function migrateCampaign(cs: CampaignState): CampaignState {
   // The base overhaul (11) added these; an older save starts with none of them.
   if (typeof cs.parts !== 'number') cs.parts = 0;
-  if (!cs.health || typeof cs.health !== 'object') cs.health = {};
   if (!Array.isArray(cs.infirmary)) cs.infirmary = [];
+  migrateRoster(cs);
+  if (!cs.nextSoldierSeq) rollRecruits(cs); // a save from before hiring existed: open the office
   cs.supplyRunPool = cs.supplyRunPool.filter((m) => !!m.templateId && !!supplyRunTemplate(m.templateId));
   fillPool(cs);
   migrateGear(cs);
@@ -345,12 +377,31 @@ function migrateGear(cs: CampaignState): void {
   if (!legacy) return;
   for (const id of legacy.armor ?? []) addGear(cs.inventory, 'armor', id);
   for (const id of legacy.equipment ?? []) addGear(cs.inventory, 'equipment', id);
-  for (const lo of Object.values(cs.loadouts)) {
-    if (!lo) continue;
+  for (const lo of cs.roster.map((s) => s.loadout)) {
     if (lo.armor) takeGear(cs.inventory, 'armor', lo.armor);
     for (const e of lo.equipment) if (e) takeGear(cs.inventory, 'equipment', e);
   }
   delete (cs as unknown as { unlockedGear?: unknown }).unlockedGear;
+}
+
+/**
+ * Before the unit rework (13), gear, levels and wounds were kept per class. Those become the five founders:
+ * each keeps their class's loadout, progress and HP, under the class id as their soldier id.
+ */
+function migrateRoster(cs: CampaignState): void {
+  if (!Array.isArray(cs.recruits)) cs.recruits = [];
+  if (typeof cs.nextSoldierSeq !== 'number') cs.nextSoldierSeq = 0;
+  if (Array.isArray(cs.roster)) return;
+  const old = cs as unknown as {
+    loadouts?: Partial<Record<ClassId, UnitLoadout>>; levels?: Partial<Record<ClassId, ClassProgress>>; health?: Partial<Record<ClassId, number>>;
+  };
+  cs.roster = founders().map((s) => ({
+    ...s,
+    loadout: old.loadouts?.[s.cls] ?? s.loadout,
+    progress: old.levels?.[s.cls] ?? s.progress,
+    ...(old.health?.[s.cls] !== undefined ? { hp: old.health[s.cls] } : {}),
+  }));
+  delete old.loadouts; delete old.levels; delete old.health;
 }
 
 /** Districts that are unlocked but whose briefing has not been shown yet, in play order. */

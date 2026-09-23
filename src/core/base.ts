@@ -1,4 +1,4 @@
-import { FACILITIES, FACILITY_ORDER, INFIRMARY_HEAL, LOCKER_BASE, REST_BASE, type FacilityId } from '../data/base';
+import { FACILITIES, FACILITY_ORDER, INFIRMARY_HEAL, LOCKER_BASE, RECRUIT_BASE_CANDIDATES, RECRUIT_XP, REST_BASE, ROSTER_BASE, ROSTER_PER_BARRACKS, type FacilityId } from '../data/base';
 
 /** Built facilities and their levels (6), persisted as part of the campaign save (5). 0 = not yet built. */
 export interface BaseState {
@@ -64,3 +64,9 @@ export const fabricatorTier = (base: BaseState): number => facilityEffect(base, 
 export const trainingXp = (base: BaseState): number => facilityEffect(base, 'trainingRoom');
 /** Extra supply runs on offer. */
 export const extraOffers = (base: BaseState): number => facilityEffect(base, 'warRoom');
+/** How many soldiers the base can house (unit rework). */
+export const rosterCapacity = (base: BaseState): number => ROSTER_BASE + ROSTER_PER_BARRACKS * facilityLevel(base, 'barracks');
+/** Candidates the recruitment office offers after each mission. */
+export const candidateCount = (base: BaseState): number => facilityEffect(base, 'recruitment') || RECRUIT_BASE_CANDIDATES;
+/** XP a candidate arrives with. */
+export const recruitXp = (base: BaseState): number => RECRUIT_XP[Math.min(facilityLevel(base, 'recruitment'), RECRUIT_XP.length - 1)];

@@ -1,12 +1,12 @@
 import { reconLevel } from '../core/base';
 import type { CampaignState } from '../core/campaign';
-import { currentHp, defaultSquad, maxHp, soldierStatus } from '../core/roster';
+import { defaultSquad, maxHp, soldierHp, soldierStatus } from '../core/roster';
 import { AI_PROFILES } from '../data/aiProfiles';
 import { ARMOR } from '../data/armor';
 import { EQUIPMENT } from '../data/equipment';
 import { TIMES_OF_DAY } from '../data/timeOfDay';
 import type { MapDef } from '../data/trainingGrounds';
-import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
+import { CLASSES, type ClassId } from '../data/units';
 import { WEATHERS } from '../data/weather';
 import { hpMeter, STATUS_CHIP } from './base';
 import { icon } from './icons';
@@ -23,7 +23,7 @@ export interface BriefingInfo {
 
 export interface BriefingHooks {
   onBack: () => void;
-  onDeploy: (squad: ClassId[]) => void;
+  onDeploy: (squad: string[]) => void;
 }
 
 /**
@@ -34,19 +34,19 @@ export interface BriefingHooks {
 export class Briefing {
   private cs: CampaignState | null = null;
   private info: BriefingInfo | null = null;
-  private squad = new Set<ClassId>();
+  private squad: string[] = []; // soldier ids, in pick order (the order they take the spawn tiles)
 
   constructor(hooks: BriefingHooks) {
     $('brief-back').addEventListener('click', () => hooks.onBack());
     $('brief-deploy').addEventListener('click', () => {
-      if (this.squad.size) hooks.onDeploy(CLASS_ORDER.filter((c) => this.squad.has(c)));
+      if (this.squad.length) hooks.onDeploy([...this.squad]);
     });
     $('brief-squad').addEventListener('click', (e) => {
       const card = (e.target as HTMLElement).closest<HTMLElement>('[data-pick]');
       if (!card) return;
-      const cls = card.dataset.pick as ClassId;
-      if (this.squad.has(cls)) this.squad.delete(cls);
-      else this.squad.add(cls);
+      const id = card.dataset.pick!;
+      if (this.squad.includes(id)) this.squad = this.squad.filter((s) => s !== id);
+      else if (this.squad.length < this.slots()) this.squad.push(id);
       this.renderSquad();
     });
   }
@@ -54,8 +54,7 @@ export class Briefing {
   open(cs: CampaignState, info: BriefingInfo) {
     this.cs = cs;
     this.info = info;
-    const offered = new Set(info.map.spawns.player.map(([c]) => c));
-    this.squad = new Set(defaultSquad(cs).filter((c) => offered.has(c)));
+    this.squad = defaultSquad(cs, info.map.spawns.player.length);
     $('brief-title').innerHTML = `${info.name}<small>${info.sub}</small>`;
     $('brief-blurb').textContent = info.blurb;
     $('brief-objective').textContent = info.objective;
@@ -63,29 +62,36 @@ export class Briefing {
     this.renderSquad();
   }
 
+  private slots(): number {
+    return this.info?.map.spawns.player.length ?? 5;
+  }
+
   private renderSquad() {
     const cs = this.cs, info = this.info;
     if (!cs || !info) return;
-    const offered = CLASS_ORDER.filter((c) => info.map.spawns.player.some(([k]) => k === c));
-    $('brief-squad').innerHTML = offered.map((cls) => {
-      const on = this.squad.has(cls);
-      const st = soldierStatus(cs, cls);
-      const lo = cs.loadouts[cls];
-      const gear = lo ? [lo.armor && ARMOR[lo.armor].name, ...lo.equipment.map((e) => e && EQUIPMENT[e].name)].filter(Boolean).join(', ') : '';
-      return `<button type="button" class="pick ${on ? 'is-on' : ''}" data-pick="${cls}" aria-pressed="${on}">
-        <span class="pick__check">${on ? icon('check') : ''}</span>
-        <span class="soldier__badge">${CLASSES[cls].letter}</span>
+    const full = this.squad.length >= this.slots();
+    $('brief-squad').innerHTML = cs.roster.map((s) => {
+      const on = this.squad.includes(s.id);
+      const st = soldierStatus(cs, s);
+      const lo = s.loadout;
+      const gear = [lo.armor && ARMOR[lo.armor].name, ...lo.equipment.map((e) => e && EQUIPMENT[e].name)].filter(Boolean).join(', ');
+      return `<button type="button" class="pick ${on ? 'is-on' : ''}" data-pick="${s.id}" aria-pressed="${on}" ${!on && full ? 'disabled title="The squad is full"' : ''}>
+        <span class="pick__check">${on ? this.squad.indexOf(s.id) + 1 : ''}</span>
+        <span class="soldier__badge">${CLASSES[s.cls].letter}</span>
         <span class="pick__body">
-          <span class="pick__name">${CLASSES[cls].name} <small>Lv ${cs.levels[cls]?.level ?? 1}</small> ${STATUS_CHIP[st]}</span>
-          ${hpMeter(cs, cls)}
+          <span class="pick__name">${s.name} <small>${CLASSES[s.cls].name} · Lv ${s.progress.level}</small> ${STATUS_CHIP[st]}</span>
+          ${hpMeter(s)}
           <small class="pick__gear">${gear || 'No gear'}</small>
         </span>
       </button>`;
     }).join('');
-    const n = this.squad.size;
-    const weak = [...this.squad].filter((c) => currentHp(cs, c) / maxHp(c) < 0.5).map((c) => CLASSES[c].name);
+    const n = this.squad.length;
+    const picked = this.squad.map((id) => cs.roster.find((s) => s.id === id)!);
+    const weak = picked.filter((s) => soldierHp(s) / maxHp(s.cls) < 0.5).map((s) => s.name.split(' ')[0]);
+    const classes = new Map<ClassId, number>();
+    for (const s of picked) classes.set(s.cls, (classes.get(s.cls) ?? 0) + 1);
     $('brief-squad-note').textContent = !n ? 'Pick at least one soldier.'
-      : `${n} of ${offered.length} deploying.${weak.length ? ` ${weak.join(', ')} ${weak.length === 1 ? 'is' : 'are'} below half health.` : ''} Whoever stays behind rests.`;
+      : `${n} of ${this.slots()} slots: ${[...classes].map(([c, k]) => `${k} ${CLASSES[c].name.toLowerCase()}${k > 1 ? 's' : ''}`).join(', ')}.${weak.length ? ` ${weak.join(', ')} ${weak.length === 1 ? 'is' : 'are'} below half health.` : ''} Whoever stays behind rests.`;
     const deploy = $<HTMLButtonElement>('brief-deploy');
     deploy.disabled = !n;
     deploy.innerHTML = `${icon('play')}Deploy ${n || ''}`;

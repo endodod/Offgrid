@@ -6,13 +6,18 @@ import type { ClassId } from '../data/units';
 import {
   applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
   addGear, equipFromInventory, markIntroSeen, migrateCampaign, moveEquipped, perkSlots, progressFor,
-  recordMissionGear, resolveSupplyRun, setPerkSlot, stockOf, togglePerk, unequipToInventory, unseenIntros,
+  recordMissionGear, resolveSupplyRun, setPerkSlot, soldierById, stockOf, togglePerk, unequipToInventory, unseenIntros,
+  type CampaignState,
 } from './campaign';
+
+/** A founder's loadout / progress (13: the five founders use their class id as their soldier id). */
+const lo = (cs: CampaignState, id: string) => soldierById(cs, id)!.loadout;
+const lv = (cs: CampaignState, id: string) => soldierById(cs, id)!.progress;
 
 /** A minimal EndedUnit for recordMissionGear/applyMissionXp tests - fills in stat defaults not under test. */
 const endedUnit = (over: {
   team?: 'player' | 'enemy'; cls: ClassId; armor?: ArmorId | null; equipment?: [EquipmentId | null, EquipmentId | null];
-  dmgDealt?: number; kills?: number; revives?: number; alive?: boolean;
+  dmgDealt?: number; kills?: number; revives?: number; alive?: boolean; soldierId?: string;
 }) => ({
   team: 'player' as const, armor: null, equipment: [null, null] as [EquipmentId | null, EquipmentId | null],
   dmgDealt: 0, kills: 0, revives: 0, alive: true, ...over,
@@ -190,20 +195,21 @@ describe('campaign (feature 5)', () => {
   });
 
   describe('gear: recordMissionGear and the locker (feature 7)', () => {
-    it('a fresh campaign starts with no loadouts and an empty locker', () => {
+    it('a fresh campaign starts with five bare founders and an empty locker', () => {
       const cs = newCampaign(1);
-      expect(cs.loadouts).toEqual({});
+      expect(cs.roster.map((s) => s.cls).sort()).toEqual(['assault', 'medic', 'sniper', 'soldier', 'tank']);
+      for (const sol of cs.roster) expect(sol.loadout).toEqual({ armor: null, equipment: [null, null] });
       expect(cs.inventory).toEqual({ armor: {}, equipment: {} });
     });
 
-    it("persists a player unit's ending loadout by class, and never the enemy's", () => {
+    it("persists a player unit's ending loadout on its soldier, and never the enemy's", () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [
         endedUnit({ cls: 'soldier', armor: 'heavyPlate', equipment: ['boots', null] }),
         endedUnit({ team: 'enemy', cls: 'soldier', armor: 'lightVest' }), // enemy gear never persists
       ]);
-      expect(cs.loadouts.soldier).toEqual({ armor: 'heavyPlate', equipment: ['boots', null] });
-      expect(cs.loadouts.sniper).toBeUndefined();
+      expect(lo(cs, 'soldier')).toEqual({ armor: 'heavyPlate', equipment: ['boots', null] });
+      expect(lo(cs, 'sniper')).toEqual({ armor: null, equipment: [null, null] });
       // found on the mission and still worn: on the unit, not in the locker
       expect(stockOf(cs.inventory, 'armor', 'heavyPlate')).toBe(0);
     });
@@ -212,7 +218,7 @@ describe('campaign (feature 5)', () => {
       const cs = newCampaign(1);
       recordMissionGear(cs, [endedUnit({ cls: 'medic', armor: 'lightVest' })]);
       recordMissionGear(cs, [endedUnit({ cls: 'medic', equipment: ['nvg', 'flashlight'] })]);
-      expect(cs.loadouts.medic).toEqual({ armor: null, equipment: ['nvg', 'flashlight'] });
+      expect(lo(cs, 'medic')).toEqual({ armor: null, equipment: ['nvg', 'flashlight'] });
       expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(1); // back on the shelf, not lost
     });
 
@@ -235,14 +241,14 @@ describe('campaign (feature 5)', () => {
       expect(equipFromInventory(cs, 'soldier', 'armor', 'lightVest')).toBeNull();
       expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(0);
       expect(equipFromInventory(cs, 'soldier', 'armor', 'heavyPlate')).toBeNull();
-      expect(cs.loadouts.soldier!.armor).toBe('heavyPlate');
+      expect(lo(cs, 'soldier').armor).toBe('heavyPlate');
       expect(stockOf(cs.inventory, 'armor', 'lightVest')).toBe(1); // displaced, not deleted
     });
 
     it('refuses to equip something the squad does not own, and changes nothing', () => {
       const cs = newCampaign(1);
       expect(equipFromInventory(cs, 'soldier', 'armor', 'heavyPlate')).toBe('Not in the locker');
-      expect(cs.loadouts.soldier?.armor ?? null).toBeNull();
+      expect(lo(cs, 'soldier').armor ?? null).toBeNull();
     });
 
     it('moves a piece straight from one squadmate to another without leaking a copy', () => {
@@ -250,8 +256,8 @@ describe('campaign (feature 5)', () => {
       addGear(cs.inventory, 'equipment', 'boots');
       equipFromInventory(cs, 'assault', 'equip0', 'boots');
       expect(moveEquipped(cs, { cls: 'assault', slot: 'equip0' }, { cls: 'sniper', slot: 'equip1' })).toBeNull();
-      expect(cs.loadouts.assault!.equipment[0]).toBeNull();
-      expect(cs.loadouts.sniper!.equipment[1]).toBe('boots');
+      expect(lo(cs, 'assault').equipment[0]).toBeNull();
+      expect(lo(cs, 'sniper').equipment[1]).toBe('boots');
       expect(stockOf(cs.inventory, 'equipment', 'boots')).toBe(0); // exactly one pair still exists
     });
 
@@ -260,13 +266,13 @@ describe('campaign (feature 5)', () => {
       addGear(cs.inventory, 'armor', 'lightVest');
       equipFromInventory(cs, 'tank', 'armor', 'lightVest');
       expect(moveEquipped(cs, { cls: 'tank', slot: 'armor' }, { cls: 'tank', slot: 'equip0' })).toBe('Wrong kind of slot');
-      expect(cs.loadouts.tank!.armor).toBe('lightVest');
+      expect(lo(cs, 'tank').armor).toBe('lightVest');
     });
 
     it('converts a save from before the locker existed, minus what is already worn', () => {
       const cs = newCampaign(1);
       // the old shape: a flat "ever found" list, with one of them equipped
-      cs.loadouts.soldier = { armor: 'heavyPlate', equipment: [null, null] };
+      soldierById(cs, 'soldier')!.loadout = { armor: 'heavyPlate', equipment: [null, null] };
       (cs as unknown as { unlockedGear: unknown }).unlockedGear = { armor: ['heavyPlate', 'lightVest'], equipment: ['boots'] };
       cs.inventory = { armor: {}, equipment: {} };
       migrateCampaign(cs);
@@ -309,9 +315,9 @@ describe('campaign (feature 5)', () => {
   });
 
   describe('applyMissionXp and togglePerk (feature 8)', () => {
-    it('a fresh campaign has no per-class progress', () => {
+    it('a fresh campaign starts every founder at level 1 with no XP', () => {
       const cs = newCampaign(1);
-      expect(cs.levels).toEqual({});
+      for (const sol of cs.roster) expect(sol.progress).toMatchObject({ xp: 0, level: 1 });
     });
 
     it('awards XP from a unit\'s own final stats, only for surviving player units', () => {
@@ -320,44 +326,44 @@ describe('campaign (feature 5)', () => {
         endedUnit({ cls: 'soldier', dmgDealt: 20, kills: 1 }), // 20*1 + 1*15 + 5 (survived) = 40
         endedUnit({ team: 'enemy', cls: 'soldier', dmgDealt: 999, kills: 99 }), // enemy XP never recorded
       ]);
-      expect(cs.levels.soldier?.xp).toBe(40);
-      expect(cs.levels.soldier?.level).toBe(1); // below the level-2 threshold (100)
+      expect(lv(cs, 'soldier').xp).toBe(40);
+      expect(lv(cs, 'soldier').level).toBe(1); // below the level-2 threshold (100)
     });
 
     it('levels up and grants exactly 2 perks at a significant level', () => {
       const cs = newCampaign(1);
       applyMissionXp(cs, [endedUnit({ cls: 'sniper', dmgDealt: 100 })]); // 100 + 5 = 105 xp -> level 2
-      expect(cs.levels.sniper?.level).toBe(2);
-      expect(cs.levels.sniper?.perkPool).toHaveLength(2);
-      expect(cs.levels.sniper?.equippedPerks).toEqual([]); // granted, not auto-equipped
+      expect(lv(cs, 'sniper').level).toBe(2);
+      expect(lv(cs, 'sniper').perkPool).toHaveLength(2);
+      expect(lv(cs, 'sniper').equippedPerks).toEqual([]); // granted, not auto-equipped
     });
 
     it('XP accumulates across missions rather than resetting each time', () => {
       const cs = newCampaign(1);
       applyMissionXp(cs, [endedUnit({ cls: 'tank', dmgDealt: 50 })]); // 55 xp
       applyMissionXp(cs, [endedUnit({ cls: 'tank', dmgDealt: 50 })]); // +55 = 110 xp -> level 2
-      expect(cs.levels.tank?.xp).toBe(110);
-      expect(cs.levels.tank?.level).toBe(2);
+      expect(lv(cs, 'tank').xp).toBe(110);
+      expect(lv(cs, 'tank').level).toBe(2);
     });
 
-    it('permadeath resets XP/level/equipped perks but keeps the unlocked pool (institutional knowledge)', () => {
+    it('the dead earn no XP (13: they leave the roster in afterMission instead)', () => {
       const cs = newCampaign(1);
-      applyMissionXp(cs, [endedUnit({ cls: 'medic', dmgDealt: 100 })]); // -> level 2, 2 perks unlocked
-      const unlockedId = cs.levels.medic!.perkPool[0];
-      expect(togglePerk(cs, 'medic', unlockedId)).toBeNull(); // equip it
-      expect(cs.levels.medic?.equippedPerks).toContain(unlockedId);
+      applyMissionXp(cs, [endedUnit({ cls: 'medic', dmgDealt: 100, alive: false })]);
+      expect(lv(cs, 'medic').xp).toBe(0);
+    });
 
-      applyMissionXp(cs, [endedUnit({ cls: 'medic', alive: false })]); // died for good this time
-      expect(cs.levels.medic?.xp).toBe(0);
-      expect(cs.levels.medic?.level).toBe(1);
-      expect(cs.levels.medic?.equippedPerks).toEqual([]);
-      expect(cs.levels.medic?.perkPool).toContain(unlockedId); // still unlocked, just not equipped
+    it('two soldiers of the same class level separately', () => {
+      const cs = newCampaign(1);
+      cs.roster.push({ ...cs.roster.find((x) => x.id === 'sniper')!, id: 'r9', name: 'Second Sniper', progress: { xp: 0, level: 1, perkPool: [], equippedPerks: [] } });
+      applyMissionXp(cs, [endedUnit({ cls: 'sniper', soldierId: 'r9', dmgDealt: 100 })]);
+      expect(lv(cs, 'r9').level).toBe(2);
+      expect(lv(cs, 'sniper').level).toBe(1);
     });
 
     it('togglePerk respects the slot cap and refuses a locked perk', () => {
       const cs = newCampaign(1);
       applyMissionXp(cs, [endedUnit({ cls: 'assault', dmgDealt: 100 })]); // level 2, 1 slot (from level 1), 2 unlocked perks
-      const [a, b] = cs.levels.assault!.perkPool;
+      const [a, b] = lv(cs, 'assault').perkPool;
       expect(togglePerk(cs, 'assault', a)).toBeNull();
       expect(togglePerk(cs, 'assault', b)).toBe('No open perk slots'); // only 1 slot until level 3
       expect(togglePerk(cs, 'assault', 'tankPlating')).toBe('Not unlocked yet'); // a different class's perk
