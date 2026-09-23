@@ -1,6 +1,7 @@
 import { GADGETS } from '../data/gadgets';
 import type { GameEvent, GameState, Pos } from '../core/types';
 import type { Floater } from '../render/renderer';
+import type { Sound } from './audio';
 
 /**
  * Event playback (10d). The core resolves an action instantly and emits `GameEvent`s; this turns those events
@@ -66,8 +67,9 @@ const WALK_EVENTS = new Set<GameEvent['t']>(['shot', 'pickup', 'downed', 'died',
 
 const eq = (a: Pos, b: Pos) => a.x === b.x && a.y === b.y;
 
-/** `times[i]` is when `events[i]` is seen to happen - its log line waits for it. */
-export interface Built { tracks: Track[]; floaters: Floater[]; times: number[]; end: number }
+export interface Cue { at: number; sound: Sound }
+/** `times[i]` is when `events[i]` is seen to happen - its log line waits for it. `cues`: sounds, timed the same way (10e). */
+export interface Built { tracks: Track[]; floaters: Floater[]; times: number[]; cues: Cue[]; end: number }
 
 /**
  * Lays `events` out on a timeline starting at `t0`. Pure: exported for tests. `visible(p)` is the player's
@@ -77,6 +79,8 @@ export function buildTracks(events: GameEvent[], s: GameState, t0: number, speed
   const tracks: Track[] = [];
   const floaters: Floater[] = [];
   const times: number[] = [];
+  const cues: Cue[] = [];
+  const cue = (sound: Sound, at = t) => cues.push({ at, sound });
   let t = t0;
   const d = (ms: number) => ms / speed;
   const float = (p: Pos, text: string, color: string, at: number) => floaters.push({ x: p.x, y: p.y, text, color, born: at });
@@ -86,6 +90,7 @@ export function buildTracks(events: GameEvent[], s: GameState, t0: number, speed
   const walkTo = (j: number) => {
     if (!walk || j <= walk.idx) return;
     const end = t + d(TIMING.step) * (j - walk.idx);
+    for (let k = 1; k <= j - walk.idx; k++) cue('step', t + d(TIMING.step) * k);
     tracks.push({ k: 'walk', unit: walk.unit, pts: walk.pts, start: t, end, from: walk.idx, to: j });
     walk.idx = j;
     t = end;
@@ -129,6 +134,8 @@ export function buildTracks(events: GameEvent[], s: GameState, t0: number, speed
           tracks.push({ k: 'shake', power: e.damage >= 6 ? 3 : 1.5, start: end, end: end + d(160) });
         }
         float(e.at, e.finishing ? 'FINISHED' : e.hit ? `-${e.damage}` : 'MISS', e.hit ? '#ff7a63' : '#b8b8a8', end);
+        cue(e.damage >= 6 ? 'shotHeavy' : 'shot');
+        cue(e.hit ? 'hit' : 'miss', end);
         t = end + d(e.shot < e.shots ? TIMING.shotGap : TIMING.after);
         break;
       }
@@ -139,11 +146,14 @@ export function buildTracks(events: GameEvent[], s: GameState, t0: number, speed
           const land = t + d(TIMING.throw);
           times[times.length - 1] = land;
           tracks.push({ k: 'arc', from: u, to: e.target, start: t, end: land });
+          cue('throw');
+          cue('blast', land);
           tracks.push({ k: 'blast', at: e.target, radius: def.radius ?? 1, start: land, end: land + d(TIMING.blast) });
           tracks.push({ k: 'shake', power: 5, start: land, end: land + d(300) });
           t = land;
         } else if (e.gadget === 'scan' && e.target) {
           tracks.push({ k: 'pulse', at: e.target, radius: def.radius ?? 3, start: t, end: t + d(TIMING.pulse) });
+          cue('scan');
           t += d(TIMING.pulse / 2);
         }
         break;
@@ -154,26 +164,43 @@ export function buildTracks(events: GameEvent[], s: GameState, t0: number, speed
         break;
       case 'downed':
         tracks.push({ k: 'fall', unit: e.unit, dies: false, start: t, end: t + 1 });
+        cue('down');
         float(e.at, 'DOWN', '#e6a23a', t + d(120));
         break;
       case 'died':
         tracks.push({ k: 'fall', unit: e.unit, dies: true, start: t, end: t + d(TIMING.death) });
+        cue('death');
         float(e.at, 'DEAD', '#e6e0c8', t + d(120));
         break;
       case 'heal':
       case 'revive':
         float(e.at, `+${e.amount}`, '#8fd19a', t);
+        cue('heal');
         t += d(TIMING.after);
         break;
       case 'pickup':
         float(e.at, 'PICKED UP', '#c9a5d9', t);
+        cue('pickup');
+        break;
+      case 'door':
+      case 'chest':
+        cue('door');
+        break;
+      case 'switch':
+        cue('switch');
+        break;
+      case 'reload':
+        cue('reload');
+        break;
+      case 'overwatch':
+        cue('overwatch');
         break;
     }
   }
   closeWalk();
   // A grenade's blast outlasts the moment its damage lands; the timeline ends when every track has.
   const end = Math.max(t, ...tracks.map((k) => k.end));
-  return { tracks, floaters, times, end };
+  return { tracks, floaters, times, cues, end };
 }
 
 const ease = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
@@ -185,8 +212,11 @@ export class Animator {
 
   /** Queue `events` after whatever is still playing. Returns the floaters they produce and when each event
    *  plays, both timed to match. */
-  push(events: GameEvent[], s: GameState, now: number, speed: number, visible: (p: Pos) => boolean): { floaters: Floater[]; times: number[] } {
-    if (speed <= 0) return buildTracks(events, s, now, Infinity, visible); // instant: numbers only, nothing to wait for
+  push(events: GameEvent[], s: GameState, now: number, speed: number, visible: (p: Pos) => boolean): Pick<Built, 'floaters' | 'times' | 'cues'> {
+    if (speed <= 0) { // instant: numbers and sounds only, nothing to wait for - and no pile of footsteps at one instant
+      const b = buildTracks(events, s, now, Infinity, visible);
+      return { ...b, cues: b.cues.filter((c) => c.sound !== 'step') };
+    }
     this.tracks = this.tracks.filter((k) => k.end > now);
     const b = buildTracks(events, s, Math.max(now, this.until), speed, visible);
     this.tracks.push(...b.tracks);

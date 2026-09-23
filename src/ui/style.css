@@ -70,6 +70,15 @@
   color-scheme: dark;
 }
 
+/* Colour-blind palette (10f): blue vs orange instead of green vs red. The canvas swaps its own copy
+   (render/renderer.ts setColorblind). */
+:root[data-palette="cb"] {
+  --player: #5d9be0;
+  --player-deep: #203d5e;
+  --enemy: #e8932f;
+  --enemy-deep: #5e3610;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -552,6 +561,11 @@ textarea {
 textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Keybinding rows */
+.settings-group { margin-bottom: var(--s-6); }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
+.set-row > span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.set-row > span small { color: var(--text-faint); font-size: 12px; }
+.set-row input[type="range"] { width: min(260px, 100%); accent-color: var(--accent); }
 .kb-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
   padding: var(--s-2) var(--s-3); background: var(--surface-1);

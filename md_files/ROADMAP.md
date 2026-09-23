@@ -534,8 +534,8 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10b | Camera: drag to pan, arrow keys pan, Ctrl+wheel / keys zoom at the cursor, re-centre key | small | done |
 | 10c | Mid-mission autosave and "Resume mission" | small-medium | done |
 | 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | done |
-| 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | |
-| 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | |
+| 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | done |
+| 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | done |
 | 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | |
 | 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | |
 | 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | |
@@ -580,8 +580,14 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
   overlay (`#phase-banner`, `Hud.announcePhase`). Speed/shake live in `ui/prefs.ts`; 10f adds their controls.
 - **10e.** A tiny WebAudio synth (noise bursts and envelopes) for select, step, shot, hit, miss, blast, door, UI
   click, phase change, win/lose. No files to license or load. Audio starts on the first user gesture.
+  *Done as:* `ui/audio.ts` (23 recipes). Board sounds are `cues` from the same `buildTracks` timeline as the
+  animation and are scheduled on the audio clock, so a hit sounds when the tracer lands. At instant speed the
+  footstep cues are dropped (they'd all fire in the same instant).
 - **10f.** Settings gains a "Game" section next to keybindings, stored like the bindings. The colour-blind
   palette swaps team colours to blue/orange in both CSS tokens and the renderer's palette.
+  *Done as:* `ui/prefs.ts` + a "Game" group on the Settings screen. Colour-blind mode is
+  `:root[data-palette="cb"]` for the DOM and `setColorblind` for the canvas (team fills, rings, overwatch zones,
+  ghosts). Not covered yet: the HP-bar green/amber/red ramp, which reads by length as well as colour.
 - **10g.** Replace the banner's two buttons with a debrief panel: per-unit kills, shots and hit rate, damage dealt and
   taken, XP gained and level-ups, and loot picked up. All of it is already on `Unit` or in the event stream.
 - **10h.** End turn with units that still have actions asks first (a "don't ask again" toggle). Undo: only the last

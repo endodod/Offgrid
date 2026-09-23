@@ -5,6 +5,7 @@ import type { MapDef } from './data/trainingGrounds';
 import type { GameState } from './core/types';
 import { draw, RES, TILE } from './render/renderer';
 import { Base } from './ui/base';
+import { unlockAudio } from './ui/audio';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
 import { Equip } from './ui/equip';
@@ -14,7 +15,7 @@ import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
 import { clearMission, loadMission, saveMission } from './ui/missionStore';
-import { initSettings } from './ui/settings';
+import { applyPalette, initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
 import { Viewport } from './ui/viewport';
@@ -23,6 +24,10 @@ import { Viewport } from './ui/viewport';
 const TUTORIAL_MISSION_ID = 'training-grounds';
 
 const el = (id: string) => document.getElementById(id)!;
+applyPalette();
+
+// Browsers only start audio after a gesture (10e): the first press anywhere creates the audio context.
+for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, unlockAudio, { capture: true });
 
 // Static markup asks for its icon with data-icon rather than inlining SVG; fill them in once at boot.
 for (const node of document.querySelectorAll<HTMLElement>('[data-icon]')) {
@@ -184,7 +189,7 @@ el('banner-menu').addEventListener('click', toMenu);
 
 // Settings can be opened from the home screen or mid-mission; remember which to return to.
 let settingsReturnTo: Screen = 'home';
-initSettings({ onBack: () => (settingsReturnTo === 'home' ? goHome() : showScreen(settingsReturnTo)) });
+initSettings({ onBack: () => (settingsReturnTo === 'home' ? goHome() : showScreen(settingsReturnTo)), onPaletteChange: () => request() });
 el('home-settings').addEventListener('click', () => { settingsReturnTo = 'home'; showScreen('settings'); });
 el('game-settings').addEventListener('click', () => { settingsReturnTo = 'game'; showScreen('settings'); });
 

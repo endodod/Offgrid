@@ -7,6 +7,10 @@ export interface Prefs {
   animSpeed: number;
   /** Screen shake on hits and blasts (10d). */
   shake: boolean;
+  /** Sound effects volume, 0..1 (10e). */
+  volume: number;
+  /** Blue/orange team colours instead of green/red (10f). */
+  colorblind: boolean;
 }
 
 const KEY = 'offgrid.prefs';
@@ -16,7 +20,7 @@ const reducedMotion = (): boolean => {
 };
 
 /** Reduced-motion users start with instant playback and no shake; everyone can change it in Settings. */
-export const defaultPrefs = (): Prefs => (reducedMotion() ? { animSpeed: 0, shake: false } : { animSpeed: 1, shake: true });
+export const defaultPrefs = (): Prefs => ({ ...(reducedMotion() ? { animSpeed: 0, shake: false } : { animSpeed: 1, shake: true }), volume: 0.7, colorblind: false });
 
 let prefs: Prefs = load();
 
@@ -29,6 +33,8 @@ function load(): Prefs {
     return {
       animSpeed: typeof o.animSpeed === 'number' && o.animSpeed >= 0 ? o.animSpeed : d.animSpeed,
       shake: typeof o.shake === 'boolean' ? o.shake : d.shake,
+      colorblind: typeof o.colorblind === 'boolean' ? o.colorblind : d.colorblind,
+      volume: typeof o.volume === 'number' && o.volume >= 0 && o.volume <= 1 ? o.volume : d.volume,
     };
   } catch {
     return d;

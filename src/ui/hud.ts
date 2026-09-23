@@ -16,6 +16,7 @@ import { keyFor } from './input';
 import { displayKey, type BindableAction } from './keybindings';
 import { icon, type IconName } from './icons';
 import { seg } from './seg';
+import { play } from './audio';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
 
@@ -240,6 +241,7 @@ export class Hud {
     $('seed').textContent = String(this.session.seed);
     this.renderKeyHelp();
     const banner = $('banner');
+    if (s.winner && banner.hidden) play(s.winner === 'player' ? 'win' : 'lose');
     banner.hidden = !s.winner;
     if (s.winner) {
       banner.className = s.winner;
@@ -259,6 +261,7 @@ export class Hud {
     if (first || s.winner) { el.hidden = true; return; }
     el.className = s.phase;
     el.innerHTML = `${s.phase === 'player' ? 'Your turn' : 'Enemy activity'}<small>Turn ${s.turn}</small>`;
+    play(s.phase === 'player' ? 'phasePlayer' : 'phaseEnemy');
     el.hidden = false;
     // restart the CSS animation, then hide once it's done so it never sits over the board
     el.style.animation = 'none';

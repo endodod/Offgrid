@@ -18,6 +18,7 @@ import type { Floater, View } from '../render/renderer';
 import { Animator } from './anim';
 import { describe, nameOf, type LogLine } from './log';
 import { getPrefs } from './prefs';
+import { play } from './audio';
 
 export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive' | 'interact';
 export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'revive' | 'interact' | 'endTurn';
@@ -140,6 +141,7 @@ export class Session {
     this.selectedId = id;
     this.mode = 'move';
     this.focus = { x: u.x, y: u.y };
+    play('select');
     this.onChange();
   }
 
@@ -438,6 +440,7 @@ export class Session {
     const r = perform(this.state, a);
     this.flush();
     this.status = r.ok ? '' : r.error;
+    if (!r.ok) play('error');
     if (r.ok) this.lastAction = a; // a manually-performed action, for 0f's tutorial to react to - never set by AI turns
     if (r.ok) this.onCheckpoint();
     return r.ok;
@@ -455,7 +458,8 @@ export class Session {
     const events = s.events.splice(0);
     const visible = (p: Pos) => !s.fogEnabled || s.visible.player[idx(s, p.x, p.y)] === 1;
     const speed = getPrefs().animSpeed;
-    const { floaters, times } = this.anim.push(events, s, now, speed, visible);
+    const { floaters, times, cues } = this.anim.push(events, s, now, speed, visible);
+    for (const c of cues) play(c.sound, c.at - now);
     events.forEach((e, i) => {
       const line = describe(s, e);
       if (line) this.log.push({ ...line, at: times[i] });

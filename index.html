@@ -98,15 +98,24 @@
 
     <section id="settings" class="screen" hidden>
       <header class="screen__header">
-        <h1 class="screen__title">Settings<small>Keybindings</small></h1>
+        <h1 class="screen__title">Settings<small>Game, sound and keys</small></h1>
         <div class="spacer"></div>
-        <button id="kb-reset" class="btn--ghost">Reset to defaults</button>
         <button id="kb-back" class="btn--ghost" data-icon="back">Back</button>
       </header>
       <div class="screen__body screen__body--narrow">
-        <p class="section__note">Click a binding, then press the key you want. Escape always cancels and can't be rebound.</p>
-        <div id="kb-list" class="stack"></div>
-        <p id="kb-msg" class="muted"></p>
+        <div class="settings-group">
+          <h2 class="section__title">Game</h2>
+          <div class="set-row"><span>Sound volume<small>Effects are generated in the browser - no downloads.</small></span><input type="range" id="set-volume" min="0" max="100" step="5" /></div>
+          <div class="set-row"><span>Animation speed<small>How fast moves, shots and the enemy phase play out.</small></span><div id="set-speed" class="seg"></div></div>
+          <div class="set-row"><span>Screen shake<small>On hits and explosions.</small></span><label class="switch"><input type="checkbox" id="set-shake" /><i></i></label></div>
+          <div class="set-row"><span>Colour-blind palette<small>Blue squad, orange hostiles, instead of green and red.</small></span><label class="switch"><input type="checkbox" id="set-cb" /><i></i></label></div>
+        </div>
+        <div class="settings-group">
+          <h2 class="section__title">Keybindings</h2>
+          <p class="section__note">Click a binding, then press the key you want. Escape always cancels and the arrow keys always pan; neither can be rebound.</p>
+          <div id="kb-list" class="stack"></div>
+          <div class="cluster" style="margin-top:var(--s-3)"><button id="kb-reset" class="btn--ghost btn--sm">Reset keys to defaults</button><span id="kb-msg" class="muted"></span></div>
+        </div>
       </div>
     </section>
 

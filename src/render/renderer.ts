@@ -40,9 +40,25 @@ const C = {
   wall: '#2b2724', wallLine: '#403a33',
   bush: '#4c6a3a', bushDark: '#38512c',
   lowFill: '#8a7148', lowDark: '#5f4b2c', highFill: '#5d5346', highTop: '#8d8171', highDark: '#3a332b',
-  player: '#5f8f6b', playerDark: '#3a5c45', enemy: '#a5482f', enemyDark: '#6b2c1b',
   objective: '#7fb7a4', accent: '#ffd23f', overwatch: '#d64533', ink: '#101410', text: '#d8d8c8',
+  ...teamColors(false),
 };
+
+/**
+ * Team colours, the one place red-vs-green carries meaning. The colour-blind set (10f) is blue vs orange,
+ * which stays distinct under every common form of colour blindness.
+ */
+function teamColors(colorblind: boolean) {
+  return colorblind
+    ? { player: '#4f8fd6', playerDark: '#274a73', enemy: '#e08a2e', enemyDark: '#7a4510', friendRing: '#8cc2f2', foeRing: '#f0a64a',
+        friendZone: 'rgba(79,143,214,0.24)', foeZone: 'rgba(224,138,46,0.24)', ghost: 'rgba(224,138,46,0.8)', ghostText: 'rgba(240,180,110,0.9)' }
+    : { player: '#5f8f6b', playerDark: '#3a5c45', enemy: '#a5482f', enemyDark: '#6b2c1b', friendRing: '#8fd19a', foeRing: '#e0553f',
+        friendZone: 'rgba(95,160,120,0.22)', foeZone: 'rgba(214,69,51,0.22)', ghost: 'rgba(165,72,47,0.8)', ghostText: 'rgba(190,120,100,0.9)' };
+}
+
+export function setColorblind(on: boolean) {
+  Object.assign(C, teamColors(on));
+}
 
 const greyCache = new Map<string, string>();
 function grey(hex: string): string {
@@ -216,14 +232,14 @@ function drawHighlights(ctx: CanvasRenderingContext2D, v: View) {
     for (const u of s.units) {
       if (!u.alive || !u.overwatch || (u.team === 'enemy' && !s.seenUnits.player.has(u.id))) continue;
       const tiles = coveredTiles(s, u).filter((i) => u.team === 'player' || s.visible.player[i]);
-      fillTiles(ctx, s, tiles, u.team === 'player' ? 'rgba(95,160,120,0.22)' : 'rgba(214,69,51,0.22)');
+      fillTiles(ctx, s, tiles, u.team === 'player' ? C.friendZone : C.foeZone);
     }
   }
   // Attack mode: the tiles the selected unit can actually shoot at (range and line of sight), not a circle.
   if (v.selected && v.mode === 'attack') fillTiles(ctx, s, coveredTiles(s, v.selected), 'rgba(224,130,90,0.18)');
   for (const id of v.ringed) {
     const u = s.units[id];
-    ring(ctx, u, u.team === 'enemy' ? '#e0553f' : '#8fd19a', 1, 2);
+    ring(ctx, u, u.team === 'enemy' ? C.foeRing : C.friendRing, 1, 2);
   }
 }
 
@@ -384,12 +400,12 @@ function drawGhosts(ctx: CanvasRenderingContext2D, v: View) {
     const u = s.units[Number(id)];
     if (!u.alive || s.seenUnits.player.has(u.id)) continue;
     const px = g.x * TILE, py = g.y * TILE;
-    ctx.strokeStyle = 'rgba(165,72,47,0.8)';
+    ctx.strokeStyle = C.ghost;
     ctx.lineWidth = 2;
     ctx.setLineDash([4, 3]);
     ctx.strokeRect(px + 6, py + 6, TILE - 12, TILE - 12);
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(190,120,100,0.9)';
+    ctx.fillStyle = C.ghostText;
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(`${CLASSES[u.cls].letter}?`, px + TILE / 2, py + TILE / 2 + 4);
