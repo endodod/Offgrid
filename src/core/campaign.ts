@@ -35,7 +35,18 @@ export interface CampaignState {
   recruits: Soldier[]; // (13) candidates the recruitment office is offering right now
   nextSoldierSeq: number; // (13) monotonic, for soldier ids
   infirmary: string[]; // (11) soldier ids in an infirmary bed
+  /** What the campaign screen still has to tell the player about the last mission: the story debrief (a story
+   *  mission id) and the after-action lines. Saved, so closing the tab between a mission and the campaign
+   *  screen doesn't lose them. */
+  inbox?: { debrief?: string; report?: string[] };
+  /** Soldier ids out on the campaign mission in progress (14). Their gear, bed and place on the roster are
+   *  frozen until it ends, or gear could be duplicated: the mission still has them wearing what they left in. */
+  deployed?: string[];
 }
+
+/** Whether soldier `id` is away on the mission in progress (14) - and so can't be re-equipped or dismissed. */
+export const onMission = (cs: CampaignState, id: string): boolean => !!cs.deployed?.includes(id);
+const AWAY = 'Away on a mission';
 
 /**
  * One person on the squad's books (13). Gear, XP, perks and wounds belong to the soldier, not the class, so
@@ -161,6 +172,7 @@ function writeSlot(lo: UnitLoadout, slot: GearSlot, id: ArmorId | EquipmentId | 
 
 /** Takes whatever is in `slot` off the class and puts it back in the locker. No-op on an empty slot. */
 export function unequipToInventory(cs: CampaignState, cls: string, slot: GearSlot): void {
+  if (onMission(cs, cls)) return;
   const lo = loadoutFor(cs, cls);
   const current = gearInSlot(lo, slot);
   if (!current) return;
@@ -172,6 +184,7 @@ export function unequipToInventory(cs: CampaignState, cls: string, slot: GearSlo
  *  Returns null on success, or why it was refused (nothing changes then). */
 export function equipFromInventory(cs: CampaignState, cls: string, slot: GearSlot, id: ArmorId | EquipmentId): string | null {
   const kind = SLOT_KIND[slot];
+  if (onMission(cs, cls)) return AWAY;
   if (gearInSlot(loadoutFor(cs, cls), slot) === id) return null; // already there
   if (!takeGear(cs.inventory, kind, id)) return 'Not in the locker';
   unequipToInventory(cs, cls, slot);
@@ -185,6 +198,7 @@ export function moveEquipped(
   cs: CampaignState, from: { cls: string; slot: GearSlot }, to: { cls: string; slot: GearSlot },
 ): string | null {
   if (from.cls === to.cls && from.slot === to.slot) return null;
+  if (onMission(cs, from.cls) || onMission(cs, to.cls)) return AWAY;
   if (SLOT_KIND[from.slot] !== SLOT_KIND[to.slot]) return 'Wrong kind of slot';
   const id = gearInSlot(loadoutFor(cs, from.cls), from.slot);
   if (!id) return null;
@@ -439,6 +453,15 @@ export function completeStoryMission(cs: CampaignState, missionId: string): void
   if (districtStatus(cs, m.district) !== 'completed') return;
   const next = DISTRICT_ORDER[DISTRICT_ORDER.indexOf(m.district) + 1];
   if (next && !cs.unlockedDistricts.includes(next)) cs.unlockedDistricts.push(next);
+}
+
+/** A supply run that was lost or abandoned: the client finds someone else. The job leaves the board and a new
+ *  one takes its place - no reward, and the difficulty tier doesn't advance. */
+export function withdrawSupplyRun(cs: CampaignState, missionId: string): void {
+  const i = cs.supplyRunPool.findIndex((m) => m.id === missionId);
+  if (i < 0) return;
+  cs.supplyRunPool.splice(i, 1);
+  fillPool(cs);
 }
 
 /** Marks a generated mission won: banks its reward, retires it, and regenerates the pool back up to size. */

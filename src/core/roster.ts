@@ -1,11 +1,15 @@
 import { HIRE_COST, PATCH_SHARE } from '../data/base';
-import { ARMOR } from '../data/armor';
-import { EQUIPMENT } from '../data/equipment';
 import type { MapDef } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
 import { infirmaryBeds, infirmaryHeal, restRate, rosterCapacity, trainingXp } from './base';
-import { addGear, rollRecruits, soldierById, type CampaignState, type Soldier } from './campaign';
-import { trimLocker } from './crafting';
+import {
+  addGear, applyMissionXp, completeStoryMission, completeSupplyRun, onMission, recordMissionGear, rollRecruits,
+  soldierById, withdrawSupplyRun, type CampaignState, type Soldier,
+} from './campaign';
+import { lockerCount } from './crafting';
+import { lockerCapacity } from './base';
+import type { ArmorId } from '../data/armor';
+import type { EquipmentId } from '../data/equipment';
 import { gainXp } from './leveling';
 
 /**
@@ -21,8 +25,9 @@ export const inInfirmary = (cs: CampaignState, id: string): boolean => cs.infirm
 /** "Mara Quill" -> "Mara"; the log and HUD use the short form. */
 export const shortName = (s: { name: string }): string => s.name.split(' ')[0];
 
-export type SoldierStatus = 'ready' | 'wounded' | 'infirmary';
+export type SoldierStatus = 'ready' | 'wounded' | 'infirmary' | 'away';
 export function soldierStatus(cs: CampaignState, s: Soldier): SoldierStatus {
+  if (onMission(cs, s.id)) return 'away';
   if (inInfirmary(cs, s.id)) return 'infirmary';
   return soldierHp(s) < maxHp(s.cls) ? 'wounded' : 'ready';
 }
@@ -31,6 +36,7 @@ export function soldierStatus(cs: CampaignState, s: Soldier): SoldierStatus {
 export function admit(cs: CampaignState, id: string): string | null {
   const s = soldierById(cs, id);
   if (!s) return 'No such soldier';
+  if (onMission(cs, id)) return 'Away on a mission';
   if (inInfirmary(cs, id)) return null;
   const beds = infirmaryBeds(cs.base);
   if (!beds) return 'Build the infirmary first';
@@ -41,6 +47,7 @@ export function admit(cs: CampaignState, id: string): string | null {
 }
 
 export function discharge(cs: CampaignState, id: string): void {
+  if (onMission(cs, id)) return;
   cs.infirmary = cs.infirmary.filter((c) => c !== id);
 }
 
@@ -64,6 +71,7 @@ export function defaultSquad(cs: CampaignState, slots: number): string[] {
 export function deploySquad(cs: CampaignState, map: MapDef, ids: string[]): MapDef {
   const squad = ids.map((id) => soldierById(cs, id)).filter((s): s is Soldier => !!s).slice(0, map.spawns.player.length);
   for (const s of squad) discharge(cs, s.id);
+  cs.deployed = squad.map((s) => s.id);
   return {
     ...map,
     spawns: { ...map.spawns, player: map.spawns.player.slice(0, squad.length) },
@@ -98,6 +106,7 @@ export function hire(cs: CampaignState, id: string): string | null {
 export function dismiss(cs: CampaignState, id: string): string | null {
   const s = soldierById(cs, id);
   if (!s) return 'No such soldier';
+  if (onMission(cs, id)) return 'Away on a mission';
   if (cs.roster.length <= 1) return 'The squad needs at least one soldier';
   if (s.loadout.armor) addGear(cs.inventory, 'armor', s.loadout.armor);
   for (const e of s.loadout.equipment) if (e) addGear(cs.inventory, 'equipment', e);
@@ -109,7 +118,52 @@ export function dismiss(cs: CampaignState, id: string): string | null {
 // ---------- after a mission ----------
 
 /** The minimal shape of a mission's ending unit this module needs (core/types.ts `Unit` fits). */
-interface EndedUnit { team: 'player' | 'enemy'; cls: ClassId; hp: number; alive: boolean; downed: boolean; soldierId?: string }
+interface EndedUnit {
+  team: 'player' | 'enemy'; cls: ClassId; hp: number; alive: boolean; downed: boolean; soldierId?: string;
+  armor: ArmorId | null; equipment: [EquipmentId | null, EquipmentId | null]; dmgDealt: number; kills: number; revives: number;
+}
+
+/** How a campaign mission ended. A retreat is a loss the player chose (the Menu button mid-mission). */
+export type MissionOutcome = 'won' | 'lost' | 'retreat';
+
+/** Salvage an evacuation costs. Without it, retreating on turn 1 would be a free way to pass time (healing,
+ *  training, new candidates). Never takes the campaign below zero. */
+export const RETREAT_FEE = 40;
+
+/**
+ * Everything a finished campaign mission does to the campaign (13, 14), in order. A win completes the mission
+ * (reward, parts, story progress) and pays XP. A loss or retreat completes nothing; a supply run is withdrawn
+ * from the board, and a retreat also pays the evacuation fee. Either way survivors keep what they carried out,
+ * the fallen are gone and one mission's worth of time passes. Returns the after-action lines.
+ */
+export function endMission(cs: CampaignState, missionId: string, units: EndedUnit[], outcome: MissionOutcome): string[] {
+  const won = outcome === 'won';
+  const partsBefore = cs.parts;
+  const lines: string[] = [];
+  const isSupplyRun = cs.supplyRunPool.some((m) => m.id === missionId);
+  if (won) {
+    if (isSupplyRun) completeSupplyRun(cs, missionId);
+    else { completeStoryMission(cs, missionId); cs.inbox = { ...cs.inbox, debrief: missionId }; }
+  } else {
+    lines.push(outcome === 'retreat'
+      ? 'The squad retreated. Nothing was gained, and time has passed.'
+      : 'The mission failed. Nothing was gained, and time has passed.');
+    if (outcome === 'retreat') {
+      const fee = Math.min(cs.currency, RETREAT_FEE);
+      cs.currency -= fee;
+      if (fee) lines.push(`The evacuation cost ${fee} salvage.`);
+    }
+    if (isSupplyRun) { withdrawSupplyRun(cs, missionId); lines.push('The client has found someone else: the job is off the board.'); }
+  }
+  cs.deployed = undefined; // back (or not): the roster is theirs to manage again
+  recordMissionGear(cs, units, won);
+  if (won) applyMissionXp(cs, units);
+  if (cs.parts > partsBefore) lines.push(`Salvaged ${cs.parts - partsBefore} parts for the fabricator.`);
+  lines.push(...afterMission(cs, units).lines);
+  const over = lockerCount(cs.inventory) - lockerCapacity(cs.base);
+  if (over > 0) lines.push(`The locker is ${over} over capacity. Scrap or equip gear before the next deployment.`);
+  return lines;
+}
 
 /** What happened at the base after a mission, for the after-action modal. */
 export interface AfterAction {
@@ -120,13 +174,14 @@ export interface AfterAction {
 const VOLUNTEERS = 2;
 
 /**
- * Called once per campaign mission that ended - won or lost (13) - after gear and XP are recorded. The
+ * One mission's worth of time at the base (11, 13), won or lost - called by `endMission` after gear and XP. The
  * player units in `units` are the ones that deployed; everyone else sat it out. Order matters: HP from the
- * mission first (and the fallen leave the roster), then time passes, then drills, the locker and new
- * candidates, so the report reads in the order things happened.
+ * mission first (and the fallen leave the roster), then time passes, then drills and new candidates, so the
+ * report reads in the order things happened. The locker is not touched: over capacity, the player chooses what
+ * goes (the Locker screen, ui/stash.ts), and the campaign won't deploy until they have.
  */
-export function afterMission(cs: CampaignState, units: EndedUnit[], won = true): AfterAction {
-  const lines: string[] = won ? [] : ['The squad pulled back. The mission is still open, but time has passed.'];
+export function afterMission(cs: CampaignState, units: Pick<EndedUnit, 'team' | 'cls' | 'hp' | 'alive' | 'downed' | 'soldierId'>[]): AfterAction {
+  const lines: string[] = [];
   const mine = units.filter((u) => u.team === 'player');
   const deployed = new Set<string>();
   // 1. HP from the mission. A downed survivor comes home on 1 HP; the fallen are gone for good.
@@ -163,12 +218,7 @@ export function afterMission(cs: CampaignState, units: EndedUnit[], won = true):
     for (const s of benched) gainXp(s.cls, s.progress, drill);
     lines.push(`Training room: ${benched.map(shortName).join(', ')} +${drill} XP.`);
   }
-  // 4. The locker.
-  for (const g of trimLocker(cs)) {
-    const name = g.kind === 'armor' ? ARMOR[g.id as keyof typeof ARMOR].name : EQUIPMENT[g.id as keyof typeof EQUIPMENT].name;
-    lines.push(`Locker full: scrapped ${name} for ${g.parts} parts.`);
-  }
-  // 5. New candidates, and volunteers if nobody is left.
+  // 4. New candidates, and volunteers if nobody is left.
   rollRecruits(cs);
   if (!cs.roster.length) {
     for (const r of cs.recruits.splice(0, VOLUNTEERS)) cs.roster.push(r);

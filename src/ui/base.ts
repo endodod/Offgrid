@@ -43,6 +43,7 @@ export const STATUS_CHIP: Record<ReturnType<typeof soldierStatus>, string> = {
   ready: '<span class="chip chip--ok">Ready</span>',
   wounded: '<span class="chip chip--warn">Wounded</span>',
   infirmary: '<span class="chip chip--info">In the infirmary</span>',
+  away: '<span class="chip">On a mission</span>',
 };
 
 /**
@@ -114,7 +115,8 @@ function squadTab(cs: CampaignState): string {
     : 'No infirmary yet: build one under Stations to heal the badly wounded fast.';
   const cards = cs.roster.map((s) => {
     const st = soldierStatus(cs, s);
-    const action = st === 'infirmary'
+    const action = st === 'away' ? ''
+      : st === 'infirmary'
       ? `<button class="btn--ghost btn--block" data-act="discharge:${s.id}">Discharge</button>`
       : st === 'wounded'
         ? `<button class="btn--primary btn--block" data-act="admit:${s.id}" ${beds && used < beds ? '' : 'disabled'} title="${beds ? (used < beds ? 'Sits missions out and heals fast' : 'Every bed is taken') : 'Build the infirmary first'}">${icon('medkit')}Admit to infirmary</button>`
@@ -122,7 +124,7 @@ function squadTab(cs: CampaignState): string {
     return `<article class="card soldier soldier--${st}">
       ${soldierHead(s, STATUS_CHIP[st])}
       ${hpMeter(s)}
-      <div class="card__foot">${action}<button class="btn--ghost btn--sm" data-act="dismiss:${s.id}" ${cs.roster.length <= 1 ? 'disabled' : ''}>Dismiss</button></div>
+      <div class="card__foot">${action}<button class="btn--ghost btn--sm" data-act="dismiss:${s.id}" ${cs.roster.length <= 1 || st === 'away' ? 'disabled' : ''}>Dismiss</button></div>
     </article>`;
   }).join('');
   return `<p class="section__note">${cs.roster.length}/${rosterCapacity(cs.base)} soldiers. Everyone keeps their wounds between missions, won or lost.
@@ -222,7 +224,7 @@ function lockerTab(cs: CampaignState): string {
       <span class="badge">x${e.count}</span>
       <button class="btn--ghost btn--sm" data-act="scrap:${e.kind}:${e.id}">Scrap +${scrapValue(e.kind, e.id)}</button>
     </div>`).join('') : '<p class="muted">Empty. Gear the squad takes off goes here, and so does everything the fabricator makes.</p>';
-  return `<p class="section__note">Spare gear, not counting what the squad is wearing. Over capacity after a mission, the most duplicated pieces are scrapped for parts automatically.</p>
+  return `<p class="section__note">Spare gear, not counting what the squad is wearing. Over capacity, the campaign won't deploy until you scrap or equip the surplus.</p>
     <div class="locker-cap"><div class="meter ${n > cap ? 'is-critical' : n === cap ? 'is-low' : ''}"><i style="width:${Math.min(100, (n / cap) * 100)}%"></i></div><span>${n}/${cap}</span></div>
     <div class="stack">${list}</div>`;
 }

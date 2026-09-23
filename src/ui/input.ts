@@ -43,8 +43,9 @@ export function bindInput(canvas: HTMLCanvasElement, session: Session, hud: Hud,
   canvas.addEventListener('click', (ev) => session.click(tileAt(ev)));
   canvas.addEventListener('contextmenu', (ev) => { ev.preventDefault(); session.cancel(); });
   canvas.addEventListener('wheel', (ev) => {
-    if (session.mode !== 'gadget') return; // only hijack the wheel while placing cover
+    if (session.mode !== 'gadget') return; // otherwise the wheel zooms (ui/viewport.ts)
     ev.preventDefault();
+    (ev as WheelEvent & { rotatesCover?: boolean }).rotatesCover = true; // tells the viewport not to zoom as well
     session.rotateCover(ev.deltaY > 0 ? 1 : -1);
   }, { passive: false });
 

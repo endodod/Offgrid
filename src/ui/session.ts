@@ -543,7 +543,7 @@ export class Session {
     const s = this.state;
     const u = this.selected();
     this.floaters = this.floaters.filter((f) => now - f.born < 1400);
-    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, path: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now, anim: this.anim.frame(now), shake: getPrefs().shake, ambient: getPrefs().weatherFx };
+    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, path: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now, anim: this.anim.frame(now), shake: getPrefs().shake, ambient: getPrefs().weatherFx, edgeFog: true };
     if (!u || !this.ready || this.animating(now)) return view;
     if (this.mode === 'move' && u.actions > 0) {
       const reach = reachable(s, u, moveRange(s, u));

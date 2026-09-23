@@ -92,7 +92,7 @@ export const FACILITIES: Record<FacilityId, FacilityDef> = {
   // effect = locker capacity (LOCKER_BASE unbuilt).
   locker: {
     id: 'locker', name: 'Locker', group: 'Supply',
-    blurb: 'Shelving for spare gear. Anything over capacity after a mission is scrapped for parts.',
+    blurb: 'Shelving for spare gear. Over capacity, you choose what to scrap or equip before the next deployment.',
     tiers: [
       { cost: 80, effect: 10, blurb: 'Holds 10 pieces (from 6)' },
       { cost: 160, effect: 16, blurb: 'Holds 16 pieces' },

@@ -4,15 +4,18 @@ import { STORY_MISSIONS } from '../data/campaign';
 import { CLASSES, type ClassId } from '../data/units';
 import { buildLevel, lockerCapacity, rosterCapacity } from './base';
 import {
-  addGear, completeStoryMission, completeSupplyRun, migrateCampaign, newCampaign, poolSize, recordMissionGear,
-  soldierById, upgradeFacility, type CampaignState,
+  addGear, completeStoryMission, completeSupplyRun, migrateCampaign, moveEquipped, newCampaign, onMission, poolSize,
+  recordMissionGear, soldierById, unequipToInventory, upgradeFacility, type CampaignState,
 } from './campaign';
 import { craft, craftBlocker, lockerCount, scrap, scrapValue, trimLocker } from './crafting';
-import { admit, afterMission, defaultSquad, deploySquad, dismiss, hire, hireCost, maxHp, soldierHp, soldierStatus } from './roster';
+import { admit, afterMission, endMission, RETREAT_FEE, defaultSquad, deploySquad, dismiss, hire, hireCost, maxHp, soldierHp, soldierStatus } from './roster';
 import { createGame } from './state';
 
 const ended = (cls: ClassId, hp: number, extra: Partial<{ alive: boolean; downed: boolean; soldierId: string }> = {}) =>
   ({ team: 'player' as const, cls, hp, alive: true, downed: false, ...extra });
+
+/** An ended unit with the gear/stat fields endMission also reads. */
+const gear = <T extends object>(u: T) => ({ ...u, armor: null, equipment: [null, null] as [null, null], dmgDealt: 0, kills: 0, revives: 0 });
 
 const build = (cs: CampaignState, id: Parameters<typeof buildLevel>[1], n = 1) => { for (let i = 0; i < n; i++) buildLevel(cs.base, id); };
 const sol = (cs: CampaignState, id: string) => soldierById(cs, id)!;
@@ -51,11 +54,12 @@ describe('roster (11, 13): health between missions', () => {
     const cs = newCampaign(1);
     const before = cs.recruits.map((r) => r.id).join();
     sol(cs, 'sniper').hp = 2;
-    const r = afterMission(cs, [ended('medic', 3)], false);
+    const lines = endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 3))], 'lost');
     expect(hp(cs, 'sniper')).toBeGreaterThan(2);
     expect(hp(cs, 'medic')).toBeGreaterThan(3);
     expect(cs.recruits.map((x) => x.id).join()).not.toBe(before);
-    expect(r.lines[0]).toMatch(/pulled back/);
+    expect(cs.completedStoryMissions).toEqual([]);
+    expect(lines[0]).toMatch(/failed/);
   });
 
   it('gear on the fallen is recovered on a win and lost on a loss', () => {
@@ -69,7 +73,7 @@ describe('roster (11, 13): health between missions', () => {
 
   it('volunteers step up if the whole roster falls', () => {
     const cs = newCampaign(1);
-    afterMission(cs, cs.roster.map((s) => ended(s.cls, 0, { alive: false, soldierId: s.id })), false);
+    afterMission(cs, cs.roster.map((s) => ended(s.cls, 0, { alive: false, soldierId: s.id })));
     expect(cs.roster.length).toBe(2);
   });
 
@@ -104,6 +108,65 @@ describe('roster (11, 13): health between missions', () => {
     afterMission(cs, [ended('medic', maxHp('medic'))]);
     expect(sol(cs, 'sniper').progress.xp).toBe(15);
     expect(sol(cs, 'medic').progress.xp).toBe(0);
+  });
+});
+
+describe('ending a campaign mission (14)', () => {
+  it('a win completes the mission, pays out and queues the debrief', () => {
+    const cs = newCampaign(1);
+    endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'won');
+    expect(cs.completedStoryMissions).toEqual([STORY_MISSIONS[0].id]);
+    expect(cs.parts).toBe(4);
+    expect(cs.inbox?.debrief).toBe(STORY_MISSIONS[0].id);
+  });
+
+  it('a retreat costs the evacuation fee (never below zero) and pays nothing', () => {
+    const cs = newCampaign(1);
+    cs.currency = 100;
+    const lines = endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'retreat');
+    expect(cs.currency).toBe(100 - RETREAT_FEE);
+    expect(cs.parts).toBe(0);
+    expect(lines.join(' ')).toMatch(/retreated/);
+    cs.currency = 10;
+    endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'retreat');
+    expect(cs.currency).toBe(0);
+  });
+
+  it('a lost or abandoned supply run leaves the board without advancing the tier', () => {
+    const cs = newCampaign(1);
+    const run = cs.supplyRunPool[0];
+    endMission(cs, run.id, [gear(ended('medic', 9))], 'lost');
+    expect(cs.supplyRunPool.some((m) => m.id === run.id)).toBe(false);
+    expect(cs.supplyRunPool).toHaveLength(3);
+    expect(cs.completedSupplyRuns).toBe(0);
+  });
+
+  it('never scraps the locker on its own; it reports the overflow instead', () => {
+    const cs = newCampaign(1);
+    addGear(cs.inventory, 'armor', 'lightVest', 9);
+    const lines = endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'won');
+    expect(lockerCount(cs.inventory)).toBe(9);
+    expect(lines.join(' ')).toMatch(/over capacity/);
+  });
+});
+
+describe('soldiers away on a mission (14)', () => {
+  it('are locked: no re-equipping, dismissing or admitting until the mission ends', () => {
+    const cs = newCampaign(1);
+    build(cs, 'infirmary');
+    sol(cs, 'tank').loadout.armor = 'heavyPlate';
+    sol(cs, 'tank').hp = 3;
+    deploySquad(cs, STORY_MISSIONS[0].map, ['tank']);
+    expect(onMission(cs, 'tank')).toBe(true);
+    unequipToInventory(cs, 'tank', 'armor');
+    expect(sol(cs, 'tank').loadout.armor).toBe('heavyPlate'); // not moved: the mission still has it
+    expect(moveEquipped(cs, { cls: 'tank', slot: 'armor' }, { cls: 'medic', slot: 'armor' })).toMatch(/mission/);
+    expect(dismiss(cs, 'tank')).toMatch(/mission/);
+    expect(admit(cs, 'tank')).toMatch(/mission/);
+    endMission(cs, STORY_MISSIONS[0].id, [{ ...gear(ended('tank', 3)), armor: 'heavyPlate' as const }], 'won');
+    expect(onMission(cs, 'tank')).toBe(false);
+    expect(cs.inventory.armor.heavyPlate).toBeUndefined(); // exactly one plate still exists, on the tank
+    expect(sol(cs, 'tank').loadout.armor).toBe('heavyPlate');
   });
 });
 

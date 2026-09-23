@@ -8,7 +8,7 @@ import { Base } from './ui/base';
 import { unlockAudio } from './ui/audio';
 import { Briefing } from './ui/briefing';
 import { Builder } from './ui/builder';
-import { Campaign } from './ui/campaign';
+import { Campaign, confirmRetreat } from './ui/campaign';
 import { Equip } from './ui/equip';
 import { initHome, isGameVisible, renderCampaignTile, showScreen, type Screen } from './ui/home';
 import { Lore } from './ui/lore';
@@ -16,7 +16,8 @@ import { Hud } from './ui/hud';
 import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
-import { clearMission, loadMission, saveMission } from './ui/missionStore';
+import { clearMission, loadMission, saveMission, type SaveSlot } from './ui/missionStore';
+import { Stash } from './ui/stash';
 import { confirmModal } from './ui/modal';
 import { getPrefs } from './ui/prefs';
 import { applyPalette, initSettings } from './ui/settings';
@@ -111,12 +112,25 @@ session.confirmEndTurn = (idle) => confirmModal({
   cta: 'End turn', cancel: 'Keep playing',
 });
 
-// 10c: keep the current mission resumable. Every checkpoint either saves it or, once it's over, clears it.
+/** Whether the active campaign mission's result has gone to the campaign yet (14): exactly once per mission. */
+let reported = false;
+
+/**
+ * 10c: keep the current mission resumable. Every checkpoint either saves it or, once it's over, clears it.
+ * 14: a campaign mission is reported the moment it's decided - not when the player leaves the results
+ * screen - so closing the tab on a loss can't erase it.
+ */
 session.onCheckpoint = () => {
   if (!savable) return;
   const s = session.state;
-  if (s.winner) clearMission();
-  else if (s.phase === 'player') saveMission({ missionId: activeMissionId, campaignMissionId: activeCampaignMissionId, state: s });
+  const slot = activeCampaignMissionId ? 'campaign' : 'single';
+  if (s.winner) {
+    clearMission(slot);
+    if (activeCampaignMissionId && !reported) {
+      reported = true;
+      campaign.reportEnd(activeCampaignMissionId, s.units, s.winner === 'player' ? 'won' : 'lost');
+    }
+  } else if (s.phase === 'player') saveMission({ missionId: activeMissionId, campaignMissionId: activeCampaignMissionId, state: s });
 };
 
 /** Starts `map` fresh, or continues a saved `GameState` (10c). */
@@ -126,6 +140,10 @@ const startGame = (map: MapDef | { resume: GameState }, fromBuilder: boolean, mi
   savable = !fromBuilder;
   // A campaign mission can't be replayed from the end banner: its result is reported to the campaign (13).
   el('banner-reset').hidden = activeCampaignMissionId !== null;
+  // ...and can't be left for free: the mission's Menu button is a retreat (14).
+  el('menu').querySelector('.lbl')!.textContent = activeCampaignMissionId ? 'Retreat' : 'Menu';
+  el('banner-menu').textContent = activeCampaignMissionId ? 'Continue' : 'Main menu';
+  reported = false;
   activeMissionId = missionId ?? null;
   if ('resume' in map) session.resume(map.resume);
   else session.load(map);
@@ -162,28 +180,50 @@ refreshHome = initHome(MISSIONS, {
 });
 el('tutorial-replay').addEventListener('click', () => tutorial.start());
 
-/** The home screen, with its "Resume mission" button reflecting whatever is saved right now. */
+/** The home screen, with a Resume button for each save slot that holds a mission right now. */
 function goHome() {
   refreshHome();
   renderCampaignTile(campaign.hasStarted() ? campaign.campaignState() : null);
-  const save = loadMission();
-  const btn = el('home-resume');
-  btn.hidden = !save;
-  if (save) btn.querySelector('.lbl')!.textContent = `Resume ${save.state.map.name} · turn ${save.state.turn}`;
+  for (const [id, slot, label] of [['home-resume', 'campaign', 'Resume campaign mission'], ['home-resume-single', 'single', 'Resume']] as const) {
+    const save = loadMission(slot);
+    const btn = el(id);
+    btn.hidden = !save;
+    if (save) btn.querySelector('.lbl')!.textContent = `${label}: ${save.state.map.name} · turn ${save.state.turn}`;
+  }
   showScreen('home');
 }
-el('home-resume').addEventListener('click', () => {
-  const save = loadMission();
+/** Continues the mission in `slot`, if there still is one. */
+function resumeSlot(slot: SaveSlot) {
+  const save = loadMission(slot);
   if (!save) return goHome();
   activeCampaignMissionId = save.campaignMissionId;
   returnScreen = save.campaignMissionId ? 'campaign' : 'home';
   startGame({ resume: save.state }, false, save.missionId ?? undefined);
-});
+}
+el('home-resume').addEventListener('click', () => resumeSlot('campaign'));
+el('home-resume-single').addEventListener('click', () => resumeSlot('single'));
 
 const campaign = new Campaign({
   onPlay: (map, missionId) => { activeCampaignMissionId = missionId; returnScreen = 'campaign'; startGame(map, false, missionId); },
   onBrief: (cs, info) => { briefing.open(cs, info); showScreen('briefing'); },
   onBack: () => goHome(),
+  pending: () => {
+    const save = loadMission('campaign');
+    return save ? { name: save.state.map.name, turn: save.state.turn } : null;
+  },
+  onResume: () => resumeSlot('campaign'),
+  onRetreatPending: () => {
+    const save = loadMission('campaign');
+    clearMission('campaign');
+    if (save?.campaignMissionId) campaign.reportEnd(save.campaignMissionId, save.state.units, 'retreat');
+    toCampaign();
+  },
+  onLockerFull: () => { stash.open(campaign.campaignState()); showScreen('stash'); },
+  onReset: () => clearMission('campaign'),
+});
+const stash = new Stash({
+  onDone: () => toCampaign(),
+  onLoadout: () => { equip.open(campaign.campaignState()); showScreen('equip'); },
 });
 const briefing = new Briefing({ onBack: () => showScreen('campaign'), onDeploy: (squad) => campaign.deploy(squad) });
 /** Campaign.open() is async (it may queue a debrief and a district briefing); nothing waits on it. */
@@ -200,15 +240,32 @@ el('campaign-to-base').addEventListener('click', () => { base.open(campaign.camp
 const equip = new Equip({ onBack: toCampaign });
 el('campaign-to-equip').addEventListener('click', () => { equip.open(campaign.campaignState()); showScreen('equip'); });
 
+/** Leaves the mission screen. A finished campaign mission has already been reported (see onCheckpoint). */
 const toMenu = () => {
   session.leave();
-  // 13: any finished campaign mission moves the campaign on - a loss (or a draw) is time passing too.
-  if (activeCampaignMissionId && session.state.winner) campaign.reportEnd(activeCampaignMissionId, session.state.units, session.state.winner === 'player');
   activeCampaignMissionId = null;
   if (returnScreen === 'campaign') toCampaign();
   else goHome();
 };
-el('menu').addEventListener('click', toMenu);
+/**
+ * The mission's Menu button. A single mission just saves and leaves (resumable). A campaign mission still
+ * being fought is a retreat (14): asked first, then reported as one - unless playing out the enemy phase
+ * that was running decides the mission first, in which case that result stands.
+ */
+el('menu').addEventListener('click', async () => {
+  const id = activeCampaignMissionId;
+  if (id && !session.state.winner) {
+    if (!(await confirmRetreat())) return;
+    session.leave();
+    if (!session.state.winner && !reported) {
+      reported = true;
+      savable = false; // leaving the screen must not save the mission we just retreated from
+      clearMission('campaign');
+      campaign.reportEnd(id, session.state.units, 'retreat');
+    }
+  }
+  toMenu();
+});
 el('banner-menu').addEventListener('click', toMenu);
 
 // Settings can be opened from the home screen or mid-mission; remember which to return to.

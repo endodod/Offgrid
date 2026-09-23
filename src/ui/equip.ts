@@ -3,6 +3,7 @@ import {
   unequipToInventory, type CampaignState, type GearSlot, type Soldier,
 } from '../core/campaign';
 import { soldierHp } from '../core/roster';
+import { onMission } from '../core/campaign';
 import { slotCount } from '../core/leveling';
 import { ARMOR, ARMOR_ORDER, type ArmorId } from '../data/armor';
 import { EQUIPMENT, EQUIPMENT_ORDER, type EquipmentId } from '../data/equipment';
@@ -160,6 +161,11 @@ export class Equip {
     const equippedPerks = perkSlots(cs, id);
     const loose = progress.perkPool.filter((id) => !equippedPerks.includes(id));
 
+    if (onMission(cs, id)) {
+      return `<article class="card card--player card--locked"><div class="card__head"><div>
+        <h3 class="card__title">${soldier.name}</h3><span class="card__sub">${CLASSES[cls].name} · on a mission</span>
+      </div></div><p class="muted">Their gear can't change until the mission in progress ends.</p></article>`;
+    }
     return `<article class="card card--player">
       <div class="card__head">
         <div>

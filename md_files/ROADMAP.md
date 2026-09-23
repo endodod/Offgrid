@@ -718,6 +718,48 @@ and volunteers. `campaign.test.ts` now works per soldier.
 to the arrow keys; the arrows are no longer reserved. `Viewport` reads the bindings while a key is held. The key
 help shows the current keys, and the Settings screen shows arrows as ↑ ↓ ← →.
 
+## 15. Game-loop audit: retreats, pending missions, the locker, and the map view
+
+**Status: done.** A pass over the whole loop (home → campaign → briefing → mission → result → base), fixing
+places where it could be skipped or exploited.
+
+- **Leaving a campaign mission is a retreat.** In a campaign mission the Menu button reads "Retreat" and asks
+  first. A retreat is reported as a failed mission, and the evacuation costs `RETREAT_FEE` (40 salvage, never
+  below zero). Without the fee, retreating on turn 1 would pass time for free (healing, training, candidates).
+- **What a failed mission (lost, drawn or retreated) does:** survivors keep what they carried out, the fallen
+  are gone, and a supply run leaves the board (`withdrawSupplyRun`) without advancing the tier.
+- **All of it lives in `endMission`** in `core/roster.ts`, which is tested.
+- **Results are reported the moment a mission is decided** (the checkpoint that sets `winner`), not when the
+  player clicks through the banner. Closing the tab on a loss no longer erases it. The debrief and after-action
+  report wait in `CampaignState.inbox`, which is saved.
+- **Two save slots** (`ui/missionStore.ts`): a campaign mission and a single mission can't overwrite each other.
+  Home shows a Resume button for each.
+- **While a campaign mission is in progress** the campaign screen shows a Resume / Retreat banner, and nothing
+  else can be deployed.
+- **Deployed soldiers are locked.** They're listed in `CampaignState.deployed` and marked "On a mission":
+  no re-equipping, dismissing or infirmary.
+  - This closes a gear-duplication bug: you could move gear off a deployed soldier and also get it back when
+    the mission ended.
+  - If the pending save disappears (for example, an unreadable old format), `Campaign.open` releases them.
+- **A retreat can't resurrect itself.** Leaving the screen after a retreat used to save the mission again, so
+  it came back as pending.
+- **The locker is never trimmed behind the player's back.** Over capacity after a mission, the Locker Full
+  screen (`ui/stash.ts`) opens. Scrap pieces, equip them in Loadout, or let the game scrap duplicates. Done
+  stays disabled until the locker fits, and the campaign won't deploy while it's over.
+- **Small fixes:** the end banner's button reads "Continue" for campaign missions, and the results table no
+  longer shows "lost" in the XP column.
+- **Map view.**
+  - No scrollbars, and the wheel never scrolls. The camera moves by the map-move keys and by left-button
+    (or one-finger) drag.
+  - The wheel, a pinch and the zoom keys zoom smoothly around the cursor, between tile sizes from 0.75× fit to
+    72 px. Fit/S/M/L are just presets.
+  - The board sits in a margin, so you can pan about a third of the view past each edge. That margin shows
+    procedurally patterned city outskirts under fog, and the board's own rim fades into it (`drawEdgeFog`).
+  - A board that fits stays centred on that axis.
+
+**Tests:** `core/roster.test.ts` covers win, loss, retreat (fee and floor), supply-run withdrawal, the locker
+never being auto-trimmed, and the lock on deployed soldiers (no duplication, dismissing or admitting).
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

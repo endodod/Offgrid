@@ -33,6 +33,7 @@ export interface View {
   anim: AnimFrame; // event playback (10d): where units are mid-walk, pending damage, effects
   shake: boolean; // screen shake allowed (a player preference)
   ambient: boolean; // animated weather (10i, a player preference); off = the static tint and haze only
+  edgeFog?: boolean; // fade the board's outer edge into the outskirts around it (14; off in the map builder)
 }
 
 // Dark, desaturated palette. Yellow is reserved for the selected unit.
@@ -98,6 +99,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   for (const u of s.units) if (shownUnit(v, u)) drawUnit(ctx, v, u);
   drawEffects(ctx, v);
   drawWeather(ctx, v);
+  if (v.edgeFog) drawEdgeFog(ctx, v.s);
   drawMovePath(ctx, v);
   drawPreview(ctx, v);
   drawFloaters(ctx, v);
@@ -210,6 +212,26 @@ function drawDaylight(ctx: CanvasRenderingContext2D, v: View) {
     ctx.fillStyle = s.weather === 'cloudy' ? 'rgba(40,46,52,0.10)' : 'rgba(24,32,44,0.18)';
     ctx.fillRect(0, 0, W, H);
   }
+}
+
+/**
+ * The board's rim fades into the fog of the outskirts drawn around it (14, style.css `.canvas-wrap`), so the
+ * map edge reads as haze rather than a hard frame. About a tile deep - never enough to hide what's on it.
+ */
+function drawEdgeFog(ctx: CanvasRenderingContext2D, s: GameState) {
+  const W = s.width * TILE, H = s.height * TILE, d = TILE * 1.1;
+  const fog = 'rgba(13,16,12,0.8)', clear = 'rgba(13,16,12,0)';
+  const band = (x0: number, y0: number, x1: number, y1: number, x: number, y: number, w: number, h: number) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, fog);
+    g.addColorStop(1, clear);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  };
+  band(0, 0, d, 0, 0, 0, d, H);
+  band(W, 0, W - d, 0, W - d, 0, d, H);
+  band(0, 0, 0, d, 0, 0, W, d);
+  band(0, H, 0, H - d, 0, H - d, W, d);
 }
 
 /** Whether the board has moving weather, so the frame loop keeps drawing while nothing else is happening. */

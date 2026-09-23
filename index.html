@@ -20,7 +20,10 @@
           <p class="hero__tag">Turn-based squad tactics in a city three years off the grid.</p>
         </div>
 
-        <button id="home-resume" class="btn--accent resume-strip" data-icon="play" hidden><span class="lbl">Resume mission</span></button>
+        <div class="resume-row">
+          <button id="home-resume" class="btn--accent" data-icon="play" hidden><span class="lbl">Resume mission</span></button>
+          <button id="home-resume-single" class="btn--ghost" data-icon="play" hidden><span class="lbl">Resume</span></button>
+        </div>
 
         <div class="home-tiles">
           <button id="home-campaign" class="tile tile--campaign">
@@ -79,6 +82,7 @@
       </header>
       <div class="screen__body">
         <div class="section">
+          <div id="campaign-pending" class="pending" hidden></div>
           <h2 class="section__title">Districts</h2>
           <div id="campaign-districts" class="district-rail"></div>
         </div>
@@ -112,6 +116,19 @@
       <div class="screen__body">
         <div class="cluster base-top"><div id="base-tabs" class="seg"></div><span id="base-msg" class="muted"></span></div>
         <div id="base-body" class="stack stack--lg"></div>
+      </div>
+    </section>
+
+    <section id="stash" class="screen" hidden>
+      <header class="screen__header">
+        <h1 class="screen__title">Locker full<small>Choose what to keep</small></h1>
+        <div class="spacer"></div>
+        <span id="stash-parts" class="currency"></span>
+        <button id="stash-loadout" class="btn--ghost" data-icon="squad">Loadout</button>
+        <button id="stash-done" class="btn--primary" data-icon="check">Done</button>
+      </header>
+      <div class="screen__body screen__body--narrow">
+        <div id="stash-body" class="stack stack--lg"></div>
       </div>
     </section>
 
@@ -232,7 +249,7 @@
           <button id="to-builder" class="btn--sm btn--ghost" hidden>Back to builder</button>
           <button id="tutorial-replay" class="btn--sm btn--ghost" hidden title="Replay the guided walkthrough for this mission">Tutorial</button>
           <button id="game-settings" class="btn--sm btn--ghost btn--icon" title="Settings" data-icon="settings"></button>
-          <button id="menu" class="btn--sm btn--ghost" data-icon="back">Menu</button>
+          <button id="menu" class="btn--sm btn--ghost" data-icon="back"><span class="lbl">Menu</span></button>
         </div>
         <div class="cluster" style="margin-bottom:var(--s-3)">
           <span class="field__label">Zoom</span>

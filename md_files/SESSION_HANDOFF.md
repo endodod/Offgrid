@@ -54,8 +54,11 @@ console errors.
   spawn *tiles* in order. The squad is capped at the number of player spawns.
 - **Soldier ids:** founders are `sniper`, `assault`, `soldier`, `medic` and `tank`; recruits are `r<n>`. Tests
   lean on the founder ids.
-- **Campaign missions report on every ending, a loss included** (`Campaign.reportEnd`). Leaving mid-mission
-  through Menu reports nothing, and the mission can be resumed.
+- **Campaign missions report exactly once, at the checkpoint that decides them** (main.ts `reported` flag),
+  or when the player retreats. Menu in a campaign mission is a retreat. A single mission's Menu still just
+  saves and leaves.
+- **`CampaignState.deployed` locks soldiers while a campaign mission is pending.** Any new code that changes
+  a soldier's gear or removes one must check `onMission`.
 - **Weather animation is a ~30 fps `setTimeout` in main.ts's `frame`**, and only runs while weather is moving,
   the game screen is visible and nothing else is animating. It is a pure function of time, so there is no
   particle state to save.

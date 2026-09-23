@@ -1,7 +1,6 @@
 import { baseGameOptions } from '../core/base';
 import {
-  applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus,
-  markIntroSeen, newCampaign, recordMissionGear, resolveSupplyRun, unseenIntros, type CampaignState,
+  availableStoryMissions, districtStatus, markIntroSeen, newCampaign, resolveSupplyRun, unseenIntros, type CampaignState,
 } from '../core/campaign';
 import type { Unit } from '../core/types';
 import {
@@ -14,7 +13,9 @@ import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
 import { icon } from './icons';
 import { confirmModal, showModal } from './modal';
 import type { BriefingInfo } from './briefing';
-import { afterMission, deploySquad } from '../core/roster';
+import { deploySquad, endMission, RETREAT_FEE, type MissionOutcome } from '../core/roster';
+import { lockerCapacity } from '../core/base';
+import { lockerCount } from '../core/crafting';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -24,6 +25,15 @@ export interface CampaignHooks {
   /** Show the briefing (11) for a picked mission; it calls `Campaign.deploy` with the chosen squad. */
   onBrief: (cs: CampaignState, info: BriefingInfo) => void;
   onBack: () => void;
+  /** A campaign mission is still in progress (14): its name and turn, or null. Nothing else deploys meanwhile. */
+  pending: () => { name: string; turn: number } | null;
+  onResume: () => void;
+  /** Retreat from the pending mission without resuming it (a loss, reported through `reportEnd`). */
+  onRetreatPending: () => void;
+  /** The locker is over capacity: sort it before anything else (14, ui/stash.ts). */
+  onLockerFull: () => void;
+  /** A new campaign replaces the old: any mission still in progress from it is dropped. */
+  onReset: () => void;
 }
 
 /**
@@ -36,9 +46,6 @@ export interface CampaignHooks {
  */
 export class Campaign {
   private state: CampaignState;
-  private pendingDebrief: StoryMissionDef | null = null;
-  /** What happened at the base after the last win (11), shown once the screen opens. */
-  private pendingReport: string[] | null = null;
   /** The mission on the briefing screen, waiting for a squad. */
   private briefed: { map: MapDef; id: string } | null = null;
 
@@ -52,20 +59,30 @@ export class Campaign {
       });
       if (!ok) return;
       clearCampaign();
+      hooks.onReset();
       this.state = newCampaign();
-      this.pendingDebrief = null;
       saveCampaign(this.state);
       void this.open();
     });
     $('campaign-story').addEventListener('click', (e) => this.onPlayClick(e, 'story'));
     $('campaign-supply').addEventListener('click', (e) => this.onPlayClick(e, 'supply'));
+    $('campaign-pending').addEventListener('click', async (e) => {
+      const act = (e.target as HTMLElement).closest<HTMLElement>('[data-pending]')?.dataset.pending;
+      if (act === 'resume') hooks.onResume();
+      if (act === 'retreat' && await confirmRetreat()) hooks.onRetreatPending();
+    });
   }
 
   /** Show the screen with fresh data, then any story that is waiting. */
   async open() {
+    // Soldiers marked away on a mission whose save no longer exists (storage cleared, or an older save format
+    // that can't be read): nothing will ever bring them back, so they come home as they left.
+    if (this.state.deployed && !this.hooks.pending()) { this.state.deployed = undefined; saveCampaign(this.state); }
     this.render();
-    const debrief = this.pendingDebrief;
-    this.pendingDebrief = null;
+    const inbox = this.state.inbox;
+    this.state.inbox = undefined;
+    saveCampaign(this.state);
+    const debrief = inbox?.debrief ? STORY_MISSIONS.find((m) => m.id === inbox.debrief) : undefined;
     if (debrief) {
       await showModal({
         eyebrow: `${districtName(debrief.district)} · mission complete`,
@@ -74,8 +91,7 @@ export class Campaign {
         cta: 'Back to the map',
       });
     }
-    const report = this.pendingReport;
-    this.pendingReport = null;
+    const report = inbox?.report;
     if (report?.length) await showModal({ eyebrow: 'After action', title: 'Back at base', body: report, cta: 'Continue' });
     this.render();
     for (const id of unseenIntros(this.state)) {
@@ -90,6 +106,11 @@ export class Campaign {
       saveCampaign(this.state);
       this.render();
     }
+    if (this.lockerOver() > 0) this.hooks.onLockerFull();
+  }
+
+  private lockerOver(): number {
+    return lockerCount(this.state.inventory) - lockerCapacity(this.state.base);
   }
 
   /** Whether a campaign has been played at all (the home tile and the lore's record read this). */
@@ -103,24 +124,13 @@ export class Campaign {
   }
 
   /**
-   * Called once a mission launched from here is over, won or not (13: a loss is time passing too). A win
-   * completes the mission, persists ending loadouts (7) and awards XP (8); a loss only keeps what the
-   * survivors carried out. Either way the fallen are gone and the base moves one mission on.
+   * Called the moment a mission launched from here ends (14: at the checkpoint that decides it, not when the
+   * player leaves the results screen, so closing the tab can't skip it), or when the player retreats. See
+   * core/roster.ts's `endMission` for what each outcome does. The debrief and report wait in the saved inbox.
    */
-  reportEnd(missionId: string, finalUnits: Unit[], won: boolean) {
-    const partsBefore = this.state.parts;
-    if (won) {
-      if (this.state.supplyRunPool.some((m) => m.id === missionId)) completeSupplyRun(this.state, missionId);
-      else {
-        completeStoryMission(this.state, missionId);
-        this.pendingDebrief = STORY_MISSIONS.find((m) => m.id === missionId) ?? null;
-      }
-    }
-    recordMissionGear(this.state, finalUnits, won);
-    if (won) applyMissionXp(this.state, finalUnits);
-    const partsEarned = this.state.parts - partsBefore;
-    const { lines } = afterMission(this.state, finalUnits, won);
-    this.pendingReport = [...(partsEarned ? [`Salvaged ${partsEarned} parts for the fabricator.`] : []), ...lines];
+  reportEnd(missionId: string, finalUnits: Unit[], outcome: MissionOutcome) {
+    const report = endMission(this.state, missionId, finalUnits, outcome);
+    this.state.inbox = { ...this.state.inbox, report };
     saveCampaign(this.state);
   }
 
@@ -139,6 +149,8 @@ export class Campaign {
   private onPlayClick(e: Event, kind: 'story' | 'supply') {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-play]');
     if (!btn) return;
+    if (this.hooks.pending()) return; // the banner above says why
+    if (this.lockerOver() > 0) return this.hooks.onLockerFull();
     const id = btn.dataset.play!;
     if (kind === 'story') {
       const m = availableStoryMissions(this.state).find((x) => x.id === id);
@@ -157,7 +169,8 @@ export class Campaign {
   /** Launch the briefed mission with `squad` (11): wounds carry in, beds empty for whoever goes. */
   deploy(squad: string[]) {
     const b = this.briefed;
-    if (!b || !squad.length) return;
+    if (!b || !squad.length || this.hooks.pending()) return;
+    if (this.lockerOver() > 0) return this.hooks.onLockerFull();
     const map = deploySquad(this.state, b.map, squad);
     saveCampaign(this.state);
     this.hooks.onPlay(this.applyBase(map), b.id);
@@ -165,6 +178,12 @@ export class Campaign {
 
   private render() {
     $('campaign-currency').innerHTML = `${icon('currency')}${this.state.currency}`;
+    const pending = this.hooks.pending();
+    $('campaign-pending').hidden = !pending;
+    $('campaign-pending').innerHTML = pending ? `<span class="pending__text"><b>Mission in progress:</b> ${pending.name}, turn ${pending.turn}. Finish it or retreat before deploying anyone else.</span>
+      <button class="btn--primary" data-pending="resume">${icon('play')}Resume</button>
+      <button class="btn--danger" data-pending="retreat">Retreat</button>` : '';
+
 
     $('campaign-districts').innerHTML = DISTRICTS.map((d) => {
       const status = districtStatus(this.state, d.id);
@@ -185,6 +204,7 @@ export class Campaign {
           : ''}</p>`;
 
     $('campaign-supply').innerHTML = this.state.supplyRunPool.map((m) => supplyCard(m)).join('');
+    document.querySelectorAll<HTMLButtonElement>('#campaign [data-play]').forEach((b) => { b.disabled = !!pending; });
   }
 
   private storyCard(m: StoryMissionDef): string {
@@ -206,6 +226,16 @@ export class Campaign {
 }
 
 const districtName = (id: string) => DISTRICTS.find((d) => d.id === id)?.name ?? id;
+
+/** Retreating is a choice with a cost (14); asked the same way from the mission and from the campaign screen. */
+export const confirmRetreat = () => confirmModal({
+  title: 'Retreat from the mission?',
+  body: [
+    'It counts as a failed mission: nothing is gained, anyone already killed stays dead, and time passes at the base.',
+    `The evacuation costs ${RETREAT_FEE} salvage, and a supply run goes to someone else.`,
+  ],
+  cta: 'Retreat', cancel: 'Keep fighting', danger: true,
+});
 
 /** The at-a-glance shape of a mission: size, squad sizes, and the conditions it starts under. */
 function mapChips(map: MapDef): string {

@@ -3,19 +3,28 @@ import { seg } from './seg';
 import { keyOf, PAN_ACTIONS } from './keybindings';
 import { getBindings } from './input';
 
-/** Tile size, in CSS pixels, for each zoom step. 'fit' scales the whole board into the column instead. */
-const ZOOMS: { value: string; label: string; px: number | 'fit'; title: string }[] = [
-  { value: 'fit', label: 'Fit', px: 'fit', title: 'Scale the whole board to fit the column' },
+/** Zoom presets for the buttons, as tile size in CSS pixels. 'fit' scales the whole board into the box. The
+ *  wheel and the zoom keys move freely between and beyond them (14); a preset button just jumps there. */
+const PRESETS: { value: string; label: string; px: number | 'fit'; title: string }[] = [
+  { value: 'fit', label: 'Fit', px: 'fit', title: 'Scale the whole board to fit the view' },
   { value: 'sm', label: 'S', px: 22, title: 'Small tiles - more of a large map on screen' },
   { value: 'md', label: 'M', px: 32, title: 'Medium tiles' },
   { value: 'lg', label: 'L', px: 44, title: 'Large tiles' },
 ];
+const MAX_PX = 72;
+/** How far past "whole board fits" the player may zoom out, to see the outskirts around it. */
+const MIN_FIT_SHARE = 0.75;
+/** Each wheel notch (deltaY 100) or zoom key press scales by this. */
+const ZOOM_STEP = 1.15;
 
 const KEY = 'offgrid.zoom';
 /** A press that moves further than this (CSS px) is a pan, not a click. */
 const DRAG_THRESHOLD = 6;
-/** Arrow-key pan speed, CSS px per second. */
+/** Map-move key pan speed, CSS px per second. */
 const PAN_SPEED = 900;
+/** How much of the view may be past the board's edge when panned all the way over (the outskirts, 14). */
+const EDGE_SHARE = 0.35;
+
 /** The pan direction a key is bound to right now (defaults: the arrow keys), or null. */
 function panDir(key: string): [number, number] | null {
   const b = getBindings();
@@ -24,24 +33,28 @@ function panDir(key: string): [number, number] | null {
 }
 
 /**
- * Board zoom, scrolling and camera controls.
+ * Board zoom and camera.
  *
- * Story maps are 48x32 - four times the area of the old 24x16 layouts - and scaling one of those into a
- * ~1000px column puts a tile at 20 CSS pixels, which is too small to read a unit's letter or its cover
- * shields. So the board lives in a scroll box with a zoom control, and the camera follows whatever the game
- * is drawing attention to (the selected unit, or the unit the enemy phase is currently moving).
+ * Story maps are 48x32, so the board lives in a fixed-size box with a zoom, and the camera follows whatever
+ * the game is drawing attention to (the selected unit, or the unit the enemy phase is moving).
  *
- * The player can also drive the camera (10b): drag with any mouse button to pan (a drag past DRAG_THRESHOLD
- * swallows the click that would otherwise follow it), hold the arrow keys to pan, and Ctrl+wheel / trackpad
- * pinch or the zoom keys to zoom around the cursor. A plain wheel keeps scrolling the box natively, which is
- * what trackpad two-finger panning needs.
+ * The player drives the camera (10b, reworked in 14) only three ways: hold the map-move keys (the arrows by
+ * default); hold the left button (or a finger) and drag - a press that moves less than DRAG_THRESHOLD is still
+ * a click; and zoom smoothly with the wheel, a pinch, the zoom keys or a preset button, around the cursor. The
+ * box never scrolls by itself (no scrollbars, no wheel scrolling).
+ *
+ * The board sits inside a margin (`pad`) so it can be panned partway past its edges, and centred when it's
+ * smaller than the box. That margin shows the city's outskirts under fog (style.css `.canvas-wrap`), never
+ * blank space.
  *
  * `ui/input.ts` converts clicks with `canvas.getBoundingClientRect()` against the map's width in tiles, so it
- * already reads whatever scale is applied here - zoom needs no changes there.
+ * reads whatever scale and offset are applied here.
  */
 export class Viewport {
-  private mode: string;
-  /** The last tile the camera was pointed at, so a zoom change keeps looking at the same place. */
+  /** Tile size in CSS px, or 'fit' (recomputed from the box whenever the board or the box changes). */
+  private zoom: number | 'fit';
+  /** The board's offset inside the scroll area, in CSS px. */
+  private pad = { x: 0, y: 0 };
   private last: { x: number; y: number } | null = null;
   private setSeg: (v: string) => void;
   private drag: { id: number; x: number; y: number; left: number; top: number; panning: boolean } | null = null;
@@ -51,15 +64,17 @@ export class Viewport {
 
   /** `active` says whether the board is on screen and keys should reach it (not typing, no modal). */
   constructor(private canvas: HTMLCanvasElement, private wrap: HTMLElement, segEl: HTMLElement, private active: () => boolean) {
-    this.mode = load();
-    this.setSeg = seg(segEl, ZOOMS.map((z) => ({ value: z.value, label: z.label, title: z.title })), this.mode, (v) => this.setMode(v));
+    this.zoom = load();
+    this.setSeg = seg(segEl, PRESETS.map((z) => ({ value: z.value, label: z.label, title: z.title })), this.presetValue(), (v) => {
+      const p = PRESETS.find((z) => z.value === v)!;
+      this.setZoom(p.px);
+    });
 
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('pointercancel', this.onPointerUp);
-    // Capture phase, registered before ui/input.ts's own listeners: the click (or, for a right-button drag, the
-    // contextmenu = cancel) that ends a pan never reaches them.
+    // Capture phase, registered before ui/input.ts's own listeners: the click that ends a pan never reaches them.
     const swallow = (e: Event) => {
       if (!this.suppressClick) return;
       e.preventDefault();
@@ -69,10 +84,14 @@ export class Viewport {
     canvas.addEventListener('click', swallow, true);
     canvas.addEventListener('contextmenu', swallow, true);
     canvas.addEventListener('auxclick', (e) => e.preventDefault());
+    canvas.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no middle-click autoscroll
+    wrap.addEventListener('pointerdown', (e) => { if (e.target === wrap) this.onPointerDown(e); }); // drag from the outskirts too
     wrap.addEventListener('wheel', (e) => {
-      if (!e.ctrlKey) return; // plain wheel: native scroll (trackpad panning); Ctrl+wheel and pinch: zoom
-      e.preventDefault();
-      this.zoomBy(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
+      e.preventDefault(); // the board never scrolls
+      if ((e as WheelEvent & { rotatesCover?: boolean }).rotatesCover) return; // ui/input.ts: turning cover while placing it
+      // Smooth: the zoom follows the wheel's own delta, so a trackpad glides and a mouse notch is one step.
+      const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      this.zoomAt(Math.pow(ZOOM_STEP, -delta / 100), e.clientX, e.clientY);
     }, { passive: false });
     window.addEventListener('keydown', (e) => {
       if (!panDir(keyOf(e)) || !this.active() || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -83,51 +102,71 @@ export class Viewport {
     });
     window.addEventListener('keyup', (e) => this.held.delete(keyOf(e)));
     window.addEventListener('blur', () => this.held.clear());
+    window.addEventListener('resize', () => this.apply());
   }
 
-  /** Re-applies the current zoom. Call after the canvas is resized for a new map. */
+  // ---------- zoom ----------
+  private cols() { return this.canvas.width / (TILE * RES); }
+  private rows() { return this.canvas.height / (TILE * RES); }
+  /** Tile size that fits the whole board in the box. */
+  private fitPx() {
+    return Math.max(4, Math.min(this.wrap.clientWidth / this.cols(), this.wrap.clientHeight / this.rows()));
+  }
+  private tilePx() {
+    const fit = this.fitPx();
+    return this.zoom === 'fit' ? fit : Math.min(MAX_PX, Math.max(fit * MIN_FIT_SHARE, this.zoom));
+  }
+  /** The preset the current zoom is on, if any - the buttons light up only then. */
+  private presetValue(): string {
+    if (this.zoom === 'fit') return 'fit';
+    const z = this.zoom;
+    return PRESETS.find((p) => p.px !== 'fit' && Math.abs(p.px - z) < 0.5)?.value ?? '';
+  }
+
+  /** Re-applies the zoom and the outskirts margin. Call after the canvas is resized for a new map. */
   apply(anchor?: { clientX: number; clientY: number; lx: number; ly: number }) {
-    const z = ZOOMS.find((x) => x.value === this.mode) ?? ZOOMS[0];
-    if (z.px === 'fit') {
-      this.canvas.style.width = '100%';
-      this.canvas.style.maxWidth = '';
-    } else {
-      const cols = this.canvas.width / (TILE * RES);
-      this.canvas.style.width = `${cols * z.px}px`;
-      this.canvas.style.maxWidth = 'none';
-    }
-    // Zooming should not also move you somewhere else. With an anchor (zoom at the cursor) keep that board point
-    // under the cursor; otherwise re-centre on whatever the camera was last watching. Next frame, once the
-    // browser has laid the new canvas size out.
+    if (!this.wrap.clientWidth) return; // not on screen yet
+    const px = this.tilePx();
+    const w = this.cols() * px, h = this.rows() * px;
+    const vw = this.wrap.clientWidth, vh = this.wrap.clientHeight;
+    // Enough margin to pan EDGE_SHARE of the view past each edge, and to centre a board smaller than the box.
+    this.pad = { x: Math.round(Math.max(vw * EDGE_SHARE, (vw - w) / 2)), y: Math.round(Math.max(vh * EDGE_SHARE, (vh - h) / 2)) };
+    this.canvas.style.width = `${w}px`;
+    this.canvas.style.maxWidth = 'none';
+    this.canvas.style.margin = `${this.pad.y}px ${this.pad.x}px`;
+    this.setSeg(this.presetValue());
     if (anchor) {
-      requestAnimationFrame(() => {
-        const k = this.cssPerLogical();
-        const w = this.wrap.getBoundingClientRect();
-        this.wrap.scrollTo({ left: anchor.lx * k - (anchor.clientX - w.left), top: anchor.ly * k - (anchor.clientY - w.top) });
-      });
+      // Keep the board point that was under the cursor under it.
+      const k = px / TILE;
+      const r = this.wrap.getBoundingClientRect();
+      this.scrollTo(this.pad.x + anchor.lx * k - (anchor.clientX - r.left), this.pad.y + anchor.ly * k - (anchor.clientY - r.top));
       return;
     }
     const last = this.last;
-    if (last) requestAnimationFrame(() => this.center(last.x, last.y));
+    if (last) this.center(last.x, last.y);
   }
 
-  /** Step the zoom in (+1) or out (-1), keeping the board point under (clientX, clientY) - or the view centre - still. */
+  /** Zoom in (+1) or out (-1) one step around the view centre - the zoom keys. */
   zoomBy(dir: 1 | -1, clientX?: number, clientY?: number) {
-    const i = ZOOMS.findIndex((z) => z.value === this.mode);
-    const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + dir))];
-    if (next.value === this.mode) return;
-    const w = this.wrap.getBoundingClientRect();
-    const cx = clientX ?? w.left + w.width / 2;
-    const cy = clientY ?? w.top + w.height / 2;
+    this.zoomAt(dir > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, clientX, clientY);
+  }
+
+  /** Scale the zoom by `factor`, keeping the board point under (clientX, clientY) - or the view centre - still. */
+  private zoomAt(factor: number, clientX?: number, clientY?: number) {
+    const before = this.tilePx();
+    const next = Math.min(MAX_PX, Math.max(this.fitPx() * MIN_FIT_SHARE, before * factor));
+    if (Math.abs(next - before) < 0.01) return;
+    const r = this.wrap.getBoundingClientRect();
+    const cx = clientX ?? r.left + r.width / 2;
+    const cy = clientY ?? r.top + r.height / 2;
     const c = this.canvas.getBoundingClientRect();
     const k = this.cssPerLogical();
-    this.setSeg(next.value);
-    this.setMode(next.value, { clientX: cx, clientY: cy, lx: (cx - c.left) / k, ly: (cy - c.top) / k });
+    this.setZoom(next, { clientX: cx, clientY: cy, lx: (cx - c.left) / k, ly: (cy - c.top) / k });
   }
 
-  private setMode(v: string, anchor?: Parameters<Viewport['apply']>[0]) {
-    this.mode = v;
-    save(v);
+  private setZoom(z: number | 'fit', anchor?: Parameters<Viewport['apply']>[0]) {
+    this.zoom = z;
+    save(z);
     this.apply(anchor);
   }
 
@@ -136,25 +175,33 @@ export class Viewport {
     return this.canvas.getBoundingClientRect().width / (this.canvas.width / RES);
   }
 
-  /** Put the given tile in the middle of the viewport, for the first frame of a new mission. */
-  center(tileX: number, tileY: number, smooth = false) {
-    this.last = { x: tileX, y: tileY };
-    const scale = this.cssPerLogical();
-    this.wrap.scrollTo({
-      left: Math.max(0, (tileX + 0.5) * TILE * scale - this.wrap.clientWidth / 2),
-      top: Math.max(0, (tileY + 0.5) * TILE * scale - this.wrap.clientHeight / 2),
-      behavior: smooth ? 'smooth' : 'auto',
-    });
+  /** Scrolls the box - except along an axis where the whole board already fits, which stays centred: the
+   *  camera following a unit never slides a fitted board off to one side. */
+  private scrollTo(left: number, top: number, smooth = false) {
+    const k = this.cssPerLogical();
+    const w = this.cols() * TILE * k, h = this.rows() * TILE * k;
+    const vw = this.wrap.clientWidth, vh = this.wrap.clientHeight;
+    if (w <= vw) left = this.pad.x + w / 2 - vw / 2;
+    if (h <= vh) top = this.pad.y + h / 2 - vh / 2;
+    this.wrap.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
   }
 
-  /** Scroll the given tile into view, with a margin, but only if it is not comfortably visible already. */
+  // ---------- camera ----------
+  /** Put the given tile in the middle of the view. */
+  center(tileX: number, tileY: number, smooth = false) {
+    this.last = { x: tileX, y: tileY };
+    const k = this.cssPerLogical();
+    this.scrollTo(this.pad.x + (tileX + 0.5) * TILE * k - this.wrap.clientWidth / 2, this.pad.y + (tileY + 0.5) * TILE * k - this.wrap.clientHeight / 2, smooth);
+  }
+
+  /** Bring the given tile into view, with a margin, but only if it is not comfortably visible already. */
   ensureVisible(tileX: number, tileY: number) {
     if (this.drag?.panning || this.held.size) return; // the player is steering the camera: don't fight them
     this.last = { x: tileX, y: tileY };
-    const scale = this.cssPerLogical();
-    const px = (tileX + 0.5) * TILE * scale;
-    const py = (tileY + 0.5) * TILE * scale;
-    const margin = 3 * TILE * scale;
+    const k = this.cssPerLogical();
+    const px = this.pad.x + (tileX + 0.5) * TILE * k;
+    const py = this.pad.y + (tileY + 0.5) * TILE * k;
+    const margin = 3 * TILE * k;
     const { scrollLeft, scrollTop, clientWidth, clientHeight } = this.wrap;
     let left = scrollLeft;
     let top = scrollTop;
@@ -162,15 +209,12 @@ export class Viewport {
     else if (px > scrollLeft + clientWidth - margin) left = px - clientWidth + margin;
     if (py < scrollTop + margin) top = py - margin;
     else if (py > scrollTop + clientHeight - margin) top = py - clientHeight + margin;
-    if (left !== scrollLeft || top !== scrollTop) {
-      this.wrap.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
-    }
+    if (left !== scrollLeft || top !== scrollTop) this.scrollTo(left, top, true);
   }
 
   // ---------- drag to pan ----------
   private onPointerDown = (e: PointerEvent) => {
-    if (e.pointerType !== 'mouse' || this.drag) return; // touch scrolls the box natively
-    if (e.button === 1) e.preventDefault(); // no browser autoscroll on middle-click
+    if (this.drag || e.button !== 0) return; // left button, or a finger; right-click stays "cancel"
     this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: this.wrap.scrollLeft, top: this.wrap.scrollTop, panning: false };
   };
 
@@ -179,7 +223,7 @@ export class Viewport {
     if (!d || e.pointerId !== d.id) return;
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (!d.panning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    if (!d.panning) { d.panning = true; this.canvas.classList.add('is-panning'); }
+    if (!d.panning) { d.panning = true; this.wrap.classList.add('is-panning'); }
     this.wrap.scrollLeft = d.left - dx;
     this.wrap.scrollTop = d.top - dy;
   };
@@ -189,13 +233,13 @@ export class Viewport {
     if (!d || e.pointerId !== d.id) return;
     if (d.panning) {
       this.suppressClick = true;
-      setTimeout(() => { this.suppressClick = false; }, 0); // only the click/contextmenu that belongs to this release
+      setTimeout(() => { this.suppressClick = false; }, 0); // only the click that belongs to this release
     }
-    this.canvas.classList.remove('is-panning');
+    this.wrap.classList.remove('is-panning');
     this.drag = null;
   };
 
-  // ---------- arrow keys ----------
+  // ---------- map-move keys ----------
   private panLoop = (then: number) => {
     this.panFrame = requestAnimationFrame((now) => {
       if (!this.held.size || !this.active()) { this.panFrame = 0; this.held.clear(); return; }
@@ -208,10 +252,17 @@ export class Viewport {
   };
 }
 
-function load(): string {
-  try { return localStorage.getItem(KEY) ?? 'fit'; } catch { return 'fit'; }
+/** The saved zoom: a tile size, or 'fit'. Older saves stored a preset id ('sm', 'md', 'lg'). */
+function load(): number | 'fit' {
+  try {
+    const v = localStorage.getItem(KEY);
+    const preset = PRESETS.find((p) => p.value === v);
+    if (preset) return preset.px;
+    const n = Number(v);
+    return v && Number.isFinite(n) && n > 0 ? n : 'fit';
+  } catch { return 'fit'; }
 }
 
-function save(v: string) {
-  try { localStorage.setItem(KEY, v); } catch { /* storage unavailable: zoom just won't persist */ }
+function save(v: number | 'fit') {
+  try { localStorage.setItem(KEY, String(typeof v === 'number' ? Math.round(v * 10) / 10 : v)); } catch { /* won't persist */ }
 }

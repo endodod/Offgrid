@@ -149,7 +149,7 @@ export class Hud {
   private renderKeyHelp() {
     const k = (a: BindableAction) => `<kbd>${displayKey(keyFor(a))}</kbd>`;
     const html = `Click a unit to select it, then a tile to move or an enemy to attack. Right-click / <kbd>Esc</kbd> cancels, then deselects.<br />
-      ${k('selectUnit1')}-${k('selectUnit5')} select · ${k('endTurn')} end turn · ${k('toggleOverwatchView')} overwatch view · ${k('toggleAutoRun')} auto-run · ${k('rotateCoverCW')} / wheel rotate cover while placing it · ${k('panUp')}${k('panLeft')}${k('panDown')}${k('panRight')} / drag pan · ${k('zoomIn')} ${k('zoomOut')} / Ctrl+wheel zoom · ${k('centerCamera')} centre`;
+      ${k('selectUnit1')}-${k('selectUnit5')} select · ${k('endTurn')} end turn · ${k('toggleOverwatchView')} overwatch view · ${k('toggleAutoRun')} auto-run · ${k('rotateCoverCW')} / wheel rotate cover while placing it · ${k('panUp')}${k('panLeft')}${k('panDown')}${k('panRight')} / left-drag move map · ${k('zoomIn')} ${k('zoomOut')} / wheel zoom · ${k('centerCamera')} centre`;
     if (html !== this.keyHelp) { this.keyHelp = html; $('keyhelp').innerHTML = html; }
   }
 
@@ -270,7 +270,7 @@ export class Hud {
       const acc = u.shotsFired ? `${u.shotsHit}/${u.shotsFired} <small>(${Math.round((100 * u.shotsHit) / u.shotsFired)}%)</small>` : '-';
       const xp = won && u.alive ? xpEarned(u) : 0;
       const up = xp && levelForXp(u.cls, u.xp + xp) > u.level ? '<span class="lvl">LEVEL UP</span>' : '';
-      return `<tr><td>${u.name ?? CLASSES[u.cls].name}${u.name ? ` <small>${CLASSES[u.cls].name}</small>` : ''}${up}</td><td>${status}</td><td>${u.kills}</td><td>${acc}</td><td>${u.dmgDealt}</td><td>${u.dmgTaken}</td><td>${won ? (u.alive ? `+${xp}` : 'lost') : '-'}</td></tr>`;
+      return `<tr><td>${u.name ?? CLASSES[u.cls].name}${u.name ? ` <small>${CLASSES[u.cls].name}</small>` : ''}${up}</td><td>${status}</td><td>${u.kills}</td><td>${acc}</td><td>${u.dmgDealt}</td><td>${u.dmgTaken}</td><td>${won && u.alive ? `+${xp}` : '-'}</td></tr>`;
     }).join('');
     const loot = this.session.loot;
     return `<table>
