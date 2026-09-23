@@ -2,18 +2,46 @@
 
 See CLAUDE.md for when to update this file. Everything below is committed; the working tree should be clean.
 
-## What landed this session
+## What landed this session (feature 10, polish pass)
+
+The plan is ROADMAP.md feature 10 (table of 10a-10k with status). Each item is one commit:
 
 | Commit | What |
 |---|---|
-| `95b8844` | Story bible (`md_files/STORY.md`) and the first pass of hand-authored maps, replacing feature 5's placeholder "every campaign mission uses Training Grounds' layout". Supply runs became template x complication x difficulty tier. `scripts/sim.ts` gained `--map`. |
-| `bd7365d` | Full UI rework: design system, segmented controls instead of every `<select>`, toggle switches instead of checkboxes, pointer-based drag-and-drop loadout screen, story modal, board zoom/scroll, inline SVG icon set. |
-| `8eb9be8` | Act 1 expanded to ten 48x32 story levels (five per district), a map-composition toolkit, district briefings and mission debriefs, and a full balance retune. |
-| (this one) | `npm run map -- <MAP_NAME>` promoted from a scratch script to `scripts/mapPreview.ts`. |
+| `e6e98e0` | 10a/10b: HiDPI board (`RES`), combat log visible to everyone, `confirmModal`, generated key help, hostile counter; camera drag/arrow pan, `=`/`-`/Ctrl+wheel zoom, `C` centre |
+| `c4056af` | 10c: mid-mission autosave (`core/save.ts`, `ui/missionStore.ts`) and Resume on the home screen |
+| `cafa07a` | 10d: event playback (`ui/anim.ts`): walks, tracers, grenades, shake, phase banner; move events carry `path` |
+| `e3d387b` | 10e/10f: procedural WebAudio sounds (`ui/audio.ts`); Settings "Game" group (`ui/prefs.ts`), colour-blind palette |
+| `5427441` | 10g: mission results table in the end banner; `Unit.shotsFired/shotsHit` |
+| `facdc67` | 10h: end-turn confirmation, undo for a move that revealed nothing (`Z`) |
 
-398 tests pass (`npx vitest run`), `npx tsc --noEmit` is clean, and the whole loop was driven in a headless
-browser with no console errors: briefing -> deploy -> select/move/end turn/enemy phase/open a door at M zoom
--> win -> debrief -> next district's briefing -> loadout drag-and-drop -> base -> map builder.
+414 tests pass, `tsc` clean, `npm run build` clean. Each item was also driven in headless Chromium with no
+console errors.
+
+## Next up
+
+1. **10i** board visuals ahead of #9: fog as a soft-edged darkness overlay instead of greyscale tiles, plus
+   rain/fog/night overlays from `envMods`. All in `render/renderer.ts` (`drawTile`'s `grey` path).
+2. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
+3. **10j** gameplay depth (AI opens doors, retreat to real cover, enemy pods/reinforcements). Each needs a sim
+   knob; see the notes below on doors.
+4. The earlier queue still stands: Act 2 missions, feature 9 visual rehaul, a per-instance roster.
+
+## Gotchas from this session
+
+- **The renderer draws in logical units through `ctx.setTransform(RES, ...)`.** Anything converting mouse or
+  scroll positions must use the map's width in tiles (see `ui/input.ts`, `Viewport.cssPerLogical`), never
+  `canvas.width / TILE`.
+- **The screen deliberately lags the state during playback.** HP, deaths, log lines (`LogLine.at`) and tooltips
+  wait for their event's moment. Anything new that reads unit state for display should check
+  `session.animating()` or the `AnimFrame` (`hpPending`, `upright`, `fading`), or it will spoil results.
+- **`Session.onChange` fires on every hover.** Don't do real work in it unless it has changed (see the focus
+  guard in main.ts: the camera used to snap back after every pan).
+- **Bumping `SAVE_VERSION` in `core/save.ts` is how to change `GameState`/`Unit` shape safely:** older
+  mid-mission saves are then ignored instead of half-read.
+- **Headless browser driving:** Playwright lives in the npx cache
+  (`~/AppData/Local/npm-cache/_npx/5e2e484947874241/node_modules/playwright`), with `.env.local` setting
+  `VITE_DEBUG=true` so `window.session` exists. Run `npx vite --port 5199` in the background.
 
 ## Things that are worth knowing and are not obvious from the code
 
@@ -41,7 +69,7 @@ browser with no console errors: briefing -> deploy -> select/move/end turn/enemy
   blocks failed with "unexpected EOF". Write the script to the scratchpad with the Write tool and run it with
   `python <path>` instead.
 
-## Nothing is in progress
+## Earlier notes: nothing in progress from the previous session
 
 The working tree is clean. The next pieces of work, in the order I would take them:
 
