@@ -113,6 +113,8 @@ export function fireWeapon(s: GameState, attacker: Unit, target: Unit, overwatch
       t: 'shot', attacker: attacker.id, target: target.id, shot: 1, shots: 1, chance: 100, roll: 0, hit: true,
       damage, overwatch, finishing: true, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
     }, [attacker, target]);
+    attacker.shotsFired++;
+    attacker.shotsHit++;
     applyDamage(s, target, damage, attacker);
     return;
   }
@@ -125,6 +127,7 @@ export function fireWeapon(s: GameState, attacker: Unit, target: Unit, overwatch
       t: 'shot', attacker: attacker.id, target: target.id, shot: i + 1, shots: w.shots, chance, roll, hit, damage,
       overwatch, finishing: false, at: { x: target.x, y: target.y }, from: { x: attacker.x, y: attacker.y },
     }, [attacker, target]);
-    if (hit) applyDamage(s, target, damage, attacker);
+    attacker.shotsFired++;
+    if (hit) { attacker.shotsHit++; applyDamage(s, target, damage, attacker); }
   }
 }

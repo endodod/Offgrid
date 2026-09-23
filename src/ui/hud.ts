@@ -19,6 +19,7 @@ import { seg } from './seg';
 import { play } from './audio';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
+import { levelForXp, xpEarned } from '../core/leveling';
 
 const BUTTON_ORDER: ButtonId[] = ['move', 'attack', 'reload', 'gadget', 'overwatch', 'aid', 'revive', 'interact', 'endTurn'];
 
@@ -246,9 +247,32 @@ export class Hud {
     if (s.winner) {
       banner.className = s.winner;
       $('banner-text').textContent = s.winner === 'player' ? 'MISSION COMPLETE' : s.winner === 'enemy' ? 'SQUAD LOST' : 'DRAW';
+      $('banner-sub').textContent = `${s.map.name} · ${s.turn} turn${s.turn === 1 ? '' : 's'}`;
+      $('results').innerHTML = this.results(s);
     }
 
     this.renderTip();
+  }
+
+  /**
+   * Mission results (10g): per squad member, what happened to them and what they did. XP is shown only for a
+   * win - that is the only time the campaign awards it (core/campaign.ts applyMissionXp) - and a level-up is
+   * flagged when this mission's XP crosses the class's next threshold.
+   */
+  private results(s: GameState): string {
+    const won = s.winner === 'player';
+    const rows = s.units.filter((u) => u.team === 'player').map((u) => {
+      const status = !u.alive ? '<span class="st-kia">KIA</span>' : u.downed ? '<span class="st-down">Downed</span>' : '<span class="st-ok">OK</span>';
+      const acc = u.shotsFired ? `${u.shotsHit}/${u.shotsFired} <small>(${Math.round((100 * u.shotsHit) / u.shotsFired)}%)</small>` : '-';
+      const xp = won && u.alive ? xpEarned(u) : 0;
+      const up = xp && levelForXp(u.cls, u.xp + xp) > u.level ? '<span class="lvl">LEVEL UP</span>' : '';
+      return `<tr><td>${CLASSES[u.cls].name}${up}</td><td>${status}</td><td>${u.kills}</td><td>${acc}</td><td>${u.dmgDealt}</td><td>${u.dmgTaken}</td><td>${won ? (u.alive ? `+${xp}` : 'lost') : '-'}</td></tr>`;
+    }).join('');
+    const loot = this.session.loot;
+    return `<table>
+      <thead><tr><th>Unit</th><th>Status</th><th>Kills</th><th>Hits</th><th>Dealt</th><th>Taken</th><th>XP</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      ${loot.length ? `<p class="loot">Recovered: ${loot.join(', ')}</p>` : ''}`;
   }
 
   /** Phase banner (10d): once per new phase, never on the first frame of a mission or once it's over. */

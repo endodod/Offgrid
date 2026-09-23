@@ -523,6 +523,19 @@ canvas.is-panning { cursor: grabbing; }
 #banner.enemy #banner-text { color: var(--enemy); }
 #banner.draw #banner-text { color: var(--text-dim); }
 #banner .cluster { justify-content: center; }
+#banner { overflow-y: auto; padding: var(--s-5) var(--s-4); }
+#banner-sub { font: 600 13px/1.4 var(--font-mono); letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; }
+/* Mission results (10g): one row per squad member. */
+#results { width: min(720px, 100%); overflow-x: auto; }
+#results table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#results th { padding: 6px 10px; text-align: right; font: 600 11px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); border-bottom: 1px solid var(--line-strong); }
+#results td { padding: 8px 10px; text-align: right; font-family: var(--font-mono); border-bottom: 1px solid var(--line); }
+#results th:first-child, #results td:first-child { text-align: left; font-family: var(--font-ui); }
+#results .st-ok { color: var(--player); }
+#results .st-down { color: var(--warn); }
+#results .st-kia { color: var(--danger); }
+#results .lvl { margin-left: 6px; padding: 2px 6px; border-radius: var(--r-pill); background: var(--accent-deep); color: var(--accent); font: 700 10px/1 var(--font-mono); letter-spacing: 0.08em; }
+#results .loot { margin-top: var(--s-3); font-size: 13px; color: var(--text-dim); text-align: center; line-height: 1.5; }
 
 /* Guided tutorial */
 #tutorial-box {

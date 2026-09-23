@@ -55,7 +55,7 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
         gadget: forPlayer ? { id: def.gadget, uses: RULES.gadgetUsesPerMission + gadgetUsesBonus, cooldown: 0 } : null,
         armor: loadout?.armor ?? null, equipment: loadout ? [...loadout.equipment] : [null, null],
         xp: progress?.xp ?? 0, level: progress?.level ?? 1, perkPool: progress ? [...progress.perkPool] : [], equippedPerks,
-        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, aiProfile,
+        dmgDealt: 0, dmgTaken: 0, kills: 0, revives: 0, reserveUsed: 0, ranDry: false, shotsFired: 0, shotsHit: 0, aiProfile,
       });
     }
   }

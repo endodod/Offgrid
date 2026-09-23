@@ -32,6 +32,9 @@ export class Session {
   mode: Mode = 'move';
   hover: Pos | null = null;
   floaters: Floater[] = [];
+  /** Gear the squad picked up this mission, by name, for the results screen (10g). Not saved: after a resume it
+   *  lists only what was found since. */
+  loot: string[] = [];
   /** Event playback (10d): what the board is still catching up on. */
   readonly anim = new Animator();
   log: LogLine[] = [];
@@ -84,6 +87,7 @@ export class Session {
     this.autoRun = false;
     this.lastAction = null;
     this.floaters = [];
+    this.loot = [];
     this.anim.clear();
     // Open the camera on the squad, not on tile (0,0): on a 48x32 map the spawn corner is off screen.
     const first = this.state.units.find((u) => u.team === 'player');
@@ -463,6 +467,9 @@ export class Session {
     events.forEach((e, i) => {
       const line = describe(s, e);
       if (line) this.log.push({ ...line, at: times[i] });
+      if (e.t === 'pickup' && s.units[e.unit].team === 'player' && (e.item === 'armor' || e.item === 'equipment')) {
+        this.loot.push(line?.text.replace(/^.* picks up /, '') ?? e.item);
+      }
     });
     // At instant speed a burst's numbers would all pop at once: stagger them so each shot still reads.
     if (speed <= 0) floaters.forEach((f, n) => { f.born = now + n * 260; });

@@ -198,3 +198,15 @@ describe('walls as cover', () => {
     expect(s.cover[2 * 24 + 5]).toBeNull();
   });
 });
+
+describe('shot counters for the results screen (10g)', () => {
+  it('counts every shot of a burst, and only the hits as hits', () => {
+    const s = makeGame(blank(10, 3), { player: { assault: [2, 1] }, enemy: { tank: [6, 1] } });
+    const a = unit(s, 'player', 'assault');
+    const shots = CLASSES.assault.weapon.shots;
+    rolls(s, 0, 0.99); // first shot hits, the rest miss
+    act(s, { type: 'attack', unit: a.id, target: unit(s, 'enemy', 'tank').id });
+    expect(a.shotsFired).toBe(shots);
+    expect(a.shotsHit).toBe(1);
+  });
+});

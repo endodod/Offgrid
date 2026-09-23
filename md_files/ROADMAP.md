@@ -536,7 +536,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | done |
 | 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | done |
 | 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | done |
-| 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | |
+| 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | done |
 | 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | |
 | 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | |
 | 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | |
@@ -590,6 +590,11 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
   ghosts). Not covered yet: the HP-bar green/amber/red ramp, which reads by length as well as colour.
 - **10g.** Replace the banner's two buttons with a debrief panel: per-unit kills, shots and hit rate, damage dealt and
   taken, XP gained and level-ups, and loot picked up. All of it is already on `Unit` or in the event stream.
+  *Done as:* a table inside `#banner` (`Hud.results`). `Unit` gained `shotsFired`/`shotsHit` (counted in
+  `fireWeapon`), which bumped `SAVE_VERSION` to 2 so older mid-mission saves are ignored rather than half-read.
+  XP uses the campaign's own `xpEarned`, shown only on a win since that's the only time it's awarded. Loot is
+  `Session.loot` (armor/equipment pickups) and is not in the save, so after a resume it lists only what was found
+  since.
 - **10h.** End turn with units that still have actions asks first (a "don't ask again" toggle). Undo: only the last
   move, only when it consumed no RNG and changed no team's `seenUnits`/`memory`. That is a snapshot and compare, and
   it cannot leak information.

@@ -49,6 +49,8 @@ export interface Unit {
   revives: number;
   reserveUsed: number; // ammo (4): total rounds drawn from reserve by reloads, for the sim's balance table
   ranDry: boolean; // ammo (4): true once this unit has ever had both ammo and reserve at 0 simultaneously
+  shotsFired: number; // results screen (10g): every shot of every burst, overwatch included
+  shotsHit: number;
 }
 
 /** Last-seen marker. `hidden` becomes true once its tile has been out of sight, so a fresh look can clear it. */
