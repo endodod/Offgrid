@@ -120,11 +120,7 @@ function squadTab(cs: CampaignState): string {
         ? `<button class="btn--primary btn--block" data-act="admit:${s.id}" ${beds && used < beds ? '' : 'disabled'} title="${beds ? (used < beds ? 'Sits missions out and heals fast' : 'Every bed is taken') : 'Build the infirmary first'}">${icon('medkit')}Admit to infirmary</button>`
         : '';
     return `<article class="card soldier soldier--${st}">
-      <div class="card__head">
-        <div class="soldier__badge">${CLASSES[s.cls].letter}</div>
-        <div><h3 class="card__title">${s.name}</h3><span class="card__sub">${CLASSES[s.cls].name} · level ${s.progress.level}</span></div>
-        <div class="spacer"></div>${STATUS_CHIP[st]}
-      </div>
+      ${soldierHead(s, STATUS_CHIP[st])}
       ${hpMeter(s)}
       <div class="card__foot">${action}<button class="btn--ghost btn--sm" data-act="dismiss:${s.id}" ${cs.roster.length <= 1 ? 'disabled' : ''}>Dismiss</button></div>
     </article>`;
@@ -135,16 +131,27 @@ function squadTab(cs: CampaignState): string {
     <div class="grid grid--soldiers">${cards}</div>`;
 }
 
+/**
+ * A soldier card's header: the name gets a line of its own, and class, level and status share the one
+ * below, so a long name or a status chip never squeezes the other into wrapping.
+ */
+function soldierHead(s: Soldier, chip = ''): string {
+  return `<div class="soldier__head">
+    <div class="soldier__badge">${CLASSES[s.cls].letter}</div>
+    <div class="soldier__id">
+      <h3 class="soldier__name" title="${s.name}">${s.name}</h3>
+      <div class="soldier__meta"><span>${CLASSES[s.cls].name} · Lv ${s.progress.level}</span>${chip}</div>
+    </div>
+  </div>`;
+}
+
 function recruitTab(cs: CampaignState): string {
   const full = cs.roster.length >= rosterCapacity(cs.base);
   const cards = cs.recruits.map((s) => {
     const cost = hireCost(s);
     const def = CLASSES[s.cls];
     return `<article class="card soldier">
-      <div class="card__head">
-        <div class="soldier__badge">${def.letter}</div>
-        <div><h3 class="card__title">${s.name}</h3><span class="card__sub">${def.name} · level ${s.progress.level}</span></div>
-      </div>
+      ${soldierHead(s)}
       <p class="card__body">${def.hp} HP · move ${def.move} · vision ${def.vision} · range ${def.weapon.range}</p>
       <div class="card__foot"><button class="btn--primary btn--block" data-act="hire:${s.id}" ${full || cs.currency < cost ? 'disabled' : ''} title="${full ? 'The barracks are full' : cs.currency < cost ? 'Not enough salvage' : ''}">${icon('currency')}${cost} · Hire</button></div>
     </article>`;

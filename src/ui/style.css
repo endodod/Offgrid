@@ -750,3 +750,13 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .pick:disabled { opacity: 0.35; cursor: not-allowed; }
 .pick__check { font: 700 12px/1 var(--font-mono); }
 .r-top small { color: var(--text-faint); font-size: 10px; margin-left: 2px; }
+/* Soldier cards: name on its own line, class/level/status on the next, nothing competing for one row. */
+.grid--soldiers { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.soldier { gap: var(--s-3); }
+.soldier__head { display: flex; align-items: flex-start; gap: var(--s-3); min-width: 0; }
+.soldier__id { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.soldier__name { font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+.soldier__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+.soldier__meta > span { white-space: nowrap; }
+.soldier__meta .chip { padding: 2px 8px; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.soldier .card__foot { align-items: center; }
