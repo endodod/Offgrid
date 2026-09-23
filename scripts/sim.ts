@@ -15,6 +15,7 @@ import { TRAINING_GROUNDS, type ClassProgress, type MapDef } from '../src/data/t
 import {
   COLD_STORAGE, FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, NIGHT_MARKET, PHARMACY_ROW, PUMPHOUSE,
   RAIL_YARD, ROW_RELAY, SIGNAL_FIRE, THE_CLINIC, TOLLGATE, UNDERPASS, WATERWORKS,
+  CORNER_STORE, CANAL_TOWPATH, PARKING_DECK,
 } from '../src/data/maps';
 import { LEVEL_PATHS } from '../src/data/leveling';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
@@ -57,7 +58,7 @@ const MAPS: Record<string, MapDef> = {
   'market-row': MARKET_ROW, 'clinic': THE_CLINIC, 'row-relay': ROW_RELAY, 'night-market': NIGHT_MARKET,
   'jackals-den': JACKALS_DEN,
   'fuel-depot': FUEL_DEPOT, 'pharmacy-row': PHARMACY_ROW, 'rail-yard': RAIL_YARD, 'underpass': UNDERPASS,
-  'waterworks': WATERWORKS,
+  'waterworks': WATERWORKS, 'corner-store': CORNER_STORE, 'canal-towpath': CANAL_TOWPATH, 'parking-deck': PARKING_DECK,
 };
 const mapId = str('--map', 'training-grounds');
 const baseMap = MAPS[mapId];

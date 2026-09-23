@@ -31,6 +31,8 @@ Status: 0a-8 and 10-17 are done; 9 (visual rehaul) is the one numbered feature l
 | 15 | Game-loop audit: retreats, pending missions, Locker Full screen, map view | medium | done |
 | 16 | Squad orders for auto-run (Explore, Rush, Defend) | medium | done |
 | 17 | Debug tools for the campaign | small | done |
+| 18 | Balance pass: campaign economy, campaign simulator | medium | done |
+| 19 | Act 1 rework: map sizes, steady difficulty slope, 3 new supply runs | large | done |
 
 0a-0f go first: they are core game-feel, not content, and every feature after them (new hazards, objectives, pickups, mission generation) needs the clearer UI, the revive mechanic, a more capable AI, configurable controls and a way to teach all of it already in place instead of retrofitted later. 0d builds directly on 0c's AI rework, and 0f is easiest last among these since it can then cover 0b-0e as well as the base rules, so do them in roughly that order even though most of them can start immediately. Weather can slot in any time after that. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
 
@@ -861,8 +863,9 @@ the server with `VITE_DEBUG=true npx vite`: the process environment takes priori
 
 ## 18. Balance pass: the campaign economy, and a campaign simulator
 
-**Status: in progress.** The economy changes and the tool are done. The difficulty curve they exposed is being
-fixed by the Act 1 rework (19).
+**Status: done.** The economy changes and the tool are in; the difficulty curve they exposed was fixed by the
+Act 1 rework (19). After both, campaign-sim finishes Act 1 in 4 of 12 AI-run campaigns (about 34 missions
+each), up from 0.
 
 **The tool:** `npm run campaign-sim -- [--n 12] [--max-missions 45] [--verbose]` (`scripts/campaignSim.ts`)
 plays whole Act 1 campaigns. The Balanced squad AI fights; a scripted commander runs the base:
@@ -876,7 +879,8 @@ plays whole Act 1 campaigns. The Balanced squad AI fights; a scripted commander 
   volunteer safety net only restored 2 soldiers. One bad mission left a squad too small to win anything, with
   no money to hire.
   - Now `STARTING_SALVAGE` 150 and `STORY_SALVAGE` 100 per won story mission.
-  - `ROSTER_FLOOR` 4: after any mission, free level-1 volunteers top the roster up to 4.
+  - `ROSTER_FLOOR` 6: after any mission, free level-1 volunteers top the roster up to 6 - a full squad of
+    five plus one resting. At 4, every campaign kept deploying 3-person squads that could not win.
 - **A lost fight is a full wipe.** The enemy finishes downed units, so a loss killed the whole deployed squad.
   Retreating (15) is what saves survivors. With the commander retreating, deaths fell from about 142 to 53 per
   45-mission run. Players should be told this: see the Act 1 rework.
@@ -899,6 +903,38 @@ plays whole Act 1 campaigns. The Balanced squad AI fights; a scripted commander 
   often harder than the story. Even with the economy fixes, campaign-sim finishes Act 1 in 0 of 12 runs. The
   target for 19 is a steady slope: about 85% at mission 1, easing down to about 55% at the finale, with
   tier-0 supply runs around 75%. The AI plays worse than a person, so these are relative targets.
+
+## 19. Act 1 rework: map sizes, and a steady difficulty slope
+
+**Status: done.** Every Act 1 story map was 48×32 and the difficulty jumped around (18's table). Each mission
+now has its own size, chosen for its idea, and is tuned with the sim (Balanced squad, fresh level 1) toward a
+steady slope. `md_files/STORY.md` §4-6 has the per-mission tables, and two new level-design rules came out of
+this.
+
+| # | Mission | Size | Sim win | | # | Mission | Size | Sim win |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Lights Out | 34×24 | 77% | | 6 | Market Row | 56×24 | 80% |
+| 2 | Signal Fire | 30×30 | 75% | | 7 | The Clinic | 32×26 | 57% |
+| 3 | Cold Storage | 46×22 | 73% | | 8 | Row Relay | 40×36 | 66% |
+| 4 | The Pumphouse | 30×40 | 65% | | 9 | Night Market | 36×36 | 47% |
+| 5 | The Tollgate | 62×16 | 72% (27% draws: the boss camps) | | 10 | Jackals' Den | 56×36 | level 3: 42% (2% losses) |
+
+**Supply runs.** At the tier they are actually played at (tier 0: mostly `easy`), the old five were already
+78-95%, except Underpass at 52%, which lost one guard (now 65%). The earlier 3-40% figures were `standard`
+enemies, which only turn up from tier 1. For size variety there are three new layouts:
+- Hollis Corner Store, 18×14, hold: a quick job;
+- Grey Canal Towpath, 44×14, reach along the water;
+- Vance Street Parking Deck, 24×32, sabotage across three levels.
+
+That makes eight on the board.
+
+**Bug found by campaign-sim and fixed.** `MapDef.aiOpensDoors: false` (the sealed boss rooms) also stopped the
+*squad's* AI from opening the office door. Auto-run could never win those missions, and neither could the
+sim. The seal now applies to the enemy only.
+
+**Still open:** the Clinic is a bit under its target (57% against about 65%). Every adjustment tried swung it by
+30 points: a fifth enemy as a camper walks to the console and turns the dispensary into a fortress. Revisit
+with a human playtest before more tuning.
 
 ## After these: levels, campaign, multiplayer
 

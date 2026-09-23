@@ -75,28 +75,31 @@ the mission that clears a district shows the debrief and *then* the next distric
 
 ## 4. Act 1, Riverside: the five levels
 
-Every mission owns a hand-authored **48×32** `MapDef` under `src/data/maps/story/`, composed structurally with
+Every mission owns a hand-authored `MapDef` under `src/data/maps/story/`, composed structurally with
 `src/data/maps/compose.ts` rather than typed row by row. No two share a layout, and each is built around one
-objective type chosen before the map was drawn.
+objective type chosen before the map was drawn. Since the Act 1 rework (ROADMAP #19) each also has its own
+size, chosen for what the mission is about: small for a first mission, tall for pushing up a hill, long and
+thin for a bridge.
 
-Balance figures are AI-vs-AI, from `npm run sim -- --map <id> --objective player`, 60 matches, using each
-map's own shipped enemy profile. The sim gives the player **no gadgets, no gear and no levels**, so treat
-every number as a floor.
+Balance figures are AI-vs-AI (`npm run sim -- --map <id> --objective player --player-profile friendly`),
+60-100 matches, each map's own shipped enemy profile, a fresh level-1 squad under the Balanced auto-run AI. The
+sim gives the player **no gadgets, no gear and no levels**, so treat every number as a floor. The target is a
+steady slope - about 80% at the first mission, easing to about 55% at a district's finale.
 
-| # | Mission | Objective | Conditions | Sim (player / enemy / draw) |
-|---|---|---|---|---|
-| 1 | **Lights Out** | `sabotage` ×2 | Afternoon, clear, `easy` | 92 / 2 / 7 |
-| 2 | **Signal Fire** | `hold` ×4 rounds | Midnight, storm | 92 / 8 / 0 |
-| 3 | **Cold Storage** | `reach` ×3 units | Midnight, fog | 63 / 10 / 27 |
-| 4 | **The Pumphouse** | `sabotage` ×3 | Morning, rain | 80 / 17 / 3 |
-| 5 | **The Tollgate** | `eliminateTarget` | Afternoon, fog | 62 / 2 / 37 |
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) |
+|---|---|---|---|---|---|
+| 1 | **Lights Out** | 34×24 | `sabotage` ×2 | Afternoon, clear, `easy` | 77 / 12 / 12 |
+| 2 | **Signal Fire** | 30×30 | `hold` ×5 rounds | Midnight, storm | 75 / 25 / 0 |
+| 3 | **Cold Storage** | 46×22 | `reach` ×3 units | Midnight, fog | 73 / 10 / 17 |
+| 4 | **The Pumphouse** | 30×40 | `sabotage` ×3 | Morning, rain | 65 / 25 / 10 |
+| 5 | **The Tollgate** | 62×16 | `eliminateTarget` | Afternoon, fog | 72 / 2 / 27 |
 
 ### 4.1 Lights Out — `lights-out`
 **Beat.** The substation two blocks from the safehouse still has a working feeder. The Jackals fenced it
 first. Get in, throw both breakers, and Riverside has light for the first time in three years.
 
-**Teaches: pick your entry.** A chain-link fence cuts the map in half at x=16 with three ways through — a gate
-at (16,16) that starts closed, and a torn breach at (16,24)–(16,25) that never does. The gate is short and
+**Teaches: pick your entry.** A chain-link fence cuts the map in half at x=12 with two ways through — a gate
+at (12,11) that starts closed, and a torn breach at (12,18)–(12,19) that never does. The gate is short and
 exposed; the breach is a long walk that drops you behind the transformer pens.
 
 **Also teaches: split or commit.** The two breakers are at opposite corners — one inside the control building
@@ -118,8 +121,9 @@ still listening to find us — and enough for every Jackal in the district to fi
 split it into three bands connected only through seven numbered gaps. The squad starts *on* the objective, so
 there is no approach phase: the hold can begin on turn one and the mission is the four rounds after that.
 
-`holdRounds: 4` instead of the global default of 2 is what turns "hold" from a race into a siege. Seven
-attackers through seven gaps from two directions is the pressure that number is calibrated against.
+`holdRounds: 5` instead of the global default of 2 is what turns "hold" from a race into a siege. Six
+attackers through five gaps from two directions is the pressure that number is calibrated against (on the
+30×30 roof, four rounds was 95% wins and a seventh attacker 55%).
 
 Midnight + storm is not set dressing: halved vision and −20 accuracy hurt the side crossing open roof far more
 than the side behind a parapet, which is the only reason a 5-against-7 defence is winnable.
@@ -131,10 +135,9 @@ Something answers three days later, in code, from the Dockyards, and it is not f
 **Beat.** Bellweather's packing plant has been sealed since the Blackout, which is another way of saying
 nobody has eaten what is in it. The Jackals got there this morning.
 
-**Teaches: doors are a decision.** Four halls, three dividing walls, two roller doors in each wall. One of
-each pair is already up and one is down, so every hall has a route the Jackals will use and a second route
-only the squad can open. The AI does not open doors — so a door you open is a flank you then have to watch,
-and a door you leave shut is one that stays shut.
+**Teaches: doors are a decision.** Four halls, three dividing walls, two roller doors in each wall, one up
+and one down. A closed door blocks sight as well as feet, so the down door in each wall is a route nobody is
+watching. Since 10j the Jackals open doors too, so whoever opens one first picks where the next fight happens.
 
 Freezer racks run north-south, across the line of advance, so there is no long lane through the building.
 Night *and* fog is the first mission that punishes not bringing `flashlight` or `nvg`: between them they halve
@@ -152,7 +155,7 @@ pipe gallery; two are inside settling tanks whose hatches start closed. There ar
 hatches:
 
 - walk to each one and lever it — one action each, three separate approaches; or
-- reach the sluice board at (44,22) in the far south-east corner and throw the master switch, which is
+- reach the sluice board at (26,12), in the control room at the east end of the tank farm, and throw the master switch, which is
   **linked to all three hatches** and opens them together.
 
 The master switch is *not* one of the objective's three valves. It is a shortcut, not a step — and because a
@@ -167,12 +170,12 @@ Halcyon maintenance sticker on the sluice board. Nobody in Riverside has heard t
 **Beat.** Halloway has held the Kestrel Bridge since the second winter and taxes everything that crosses it,
 which now includes us. There is no way around a bridge.
 
-**Teaches: there is no flank.** The causeway is sixteen rows wide and forty-six long, open water either side.
+**Teaches: there is no flank.** The causeway is ten rows wide and sixty long, open water either side.
 Three barricade lines cross it, each with its three-tile gaps in a different place, so advancing means
 committing to a lane and then changing lanes under fire.
 
 Halloway sits in the toll house on `camper` — he holds what he has rather than coming to meet you, which on a
-map with no way around him means the mission ends where the map does. The 37% draw rate in the sim is exactly
+map with no way around him means the mission ends where the map does. The ~27% draw rate in the sim is exactly
 that: two AIs that will not dig each other out. A human will.
 
 Fog is the counterweight to having nothing to flank through; a squad carrying `flashlight` halves it back
@@ -185,13 +188,13 @@ and an open road. Word of that travels east.
 
 ## 5. Act 1, Market Row: the five levels
 
-| # | Mission | Objective | Conditions | Sim (player / enemy / draw) |
-|---|---|---|---|---|
-| 1 | **Supply Run: Market Row** | `reach` ×3 units | Morning, rain, `easy` | 97 / 2 / 2 |
-| 2 | **The Clinic** | `hold` ×3 rounds | Afternoon, clear | 78 / 8 / 13 |
-| 3 | **The Row Relay** | `sabotage` ×2 | Midnight, clear | 67 / 10 / 23 |
-| 4 | **The Night Market** | `eliminateTarget` | Midnight, cloudy | 43 / 53 / 3 |
-| 5 | **The Jackals' Den** | `eliminateTarget` | Afternoon, cloudy | see below |
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) |
+|---|---|---|---|---|---|
+| 1 | **Supply Run: Market Row** | 56×24 | `reach` ×3 units | Morning, rain, `easy` | 80 / 12 / 8 |
+| 2 | **The Clinic** | 32×26 | `hold` ×3 rounds | Afternoon, clear | 57 / 31 / 12 |
+| 3 | **The Row Relay** | 40×36 | `sabotage` ×2 | Midnight, clear, `easy` | 66 / 22 / 12 |
+| 4 | **The Night Market** | 36×36 | `eliminateTarget` | Midnight, cloudy | 47 / 43 / 10 |
+| 5 | **The Jackals' Den** | 56×36 | `eliminateTarget` | Afternoon, cloudy | see below |
 
 ### 5.1 Supply Run: Market Row — `supply-run-market-row`
 A west-to-east run down a covered market street. Shopfronts top and bottom, each with one doorway; stall
@@ -218,7 +221,9 @@ walk. One of them can shoot.
 
 ### 5.3 The Row Relay — `the-row-relay`
 **The switch that closes things.** The two dock shutters start **open** — that is how the Jackals feed the
-tower from the yard — and the breaker board at (13,16), right next to the squad's approach, is linked to both.
+tower from the yard — and the breaker board at (12,28), right next to the squad's approach, is linked to both.
+The dock wall also has a collapsed two-tile stretch that is always open (two one-tile doorways in a row were a
+kill zone: 0% in the sim without it).
 Throwing it drops both shutters and cuts the tower off. Throwing it again raises them.
 
 Nothing in the objective requires it. It is purely the option to decide which half of the map the fight
@@ -235,7 +240,7 @@ halved, the whole middle of the map becomes a place where both sides are nearby 
 
 It is also where bush **exposure** bites: anything but moving while in a tarpaulin reveals the unit until its
 own next phase. Shooting from concealment costs the concealment, and with six Jackals on the map that is
-usually the whole trade. At 43% player / 53% enemy this is the hardest fight before the finale, on purpose.
+usually the whole trade. At 47% player / 43% enemy this is the hardest fight before the finale, on purpose.
 
 Sable sits in the counting house on `camper` and does not wander into the tarpaulins, so this is a hunt
 *through* cover toward a fixed point, not a hunt for a moving target.
@@ -256,8 +261,9 @@ asks is the first thing the act asked: open something and go in.
 reads as "the one you have to dig out", and `data/units.ts` has no per-instance stats to hang a boss on. The
 roadmap's suggested "boss affix" turned out not to be needed.
 
-**Balance, measured with the office door opened so the fight itself is visible to the sim:** a fresh squad
-wins 22%, a level-3 squad 38%, a level-5 squad 67%. An act finale a starting squad can lose and a developed
+**Balance, measured with the office door opened so the fight itself is visible to the sim (56×36 version):**
+a fresh squad wins 4%, a level-3 squad 42% with only 2% losses (the rest are Vex camping out the turn cap,
+which a human digs out). An act finale a starting squad can lose and a developed
 one beats is the intended shape. Shipped, the office door is shut.
 
 **Ends with:** Vex dead in his own office, and in his desk a fuel-tithe schedule, countersigned quarterly by
@@ -278,12 +284,20 @@ Every Act 1 map follows the same five rules. Acts 2 and 3 should too.
    works — Signal Fire's defenders, Cold Storage's equipment check, the Night Market's concealment.
 4. **High cover in lines, never in slabs.** An early Jackals' Den used double rows of shelving and ~60% of
    AI-vs-AI runs timed out because nothing could be flanked. Halving them fixed it, and the rule generalised.
-5. **Enemy counts sit near parity.** The squad is always five. A 48×32 map buys distance and routes, not more
+5. **Enemy counts sit near parity.** The squad is always five. A big map buys distance and routes, not more
    bodies: the first pass at these maps used 8–10 enemies each and the sim showed 100% enemy wins across the
-   board. Five to seven is the working range, with seven reserved for a finale that expects levels.
+   board. Four to six is the working range, with six or seven reserved for a finale that expects levels. On a
+   small map one extra enemy swings a lot: Signal Fire went from 95% to 55% with a seventh attacker.
+6. **Size follows the idea** (added with the Act 1 rework). Every map has its own dimensions: small to fit
+   the eye on a first mission, tall to push up through, long and ten tiles wide for a bridge with no flank,
+   square for a market. 48×32 is no longer the default; nothing downstream assumes a size.
+7. **Two-wide gaps, and never two single doorways in a row.** A one-tile gap in a wall is a kill zone for
+   whoever is on overwatch behind it; two in sequence (a shutter, then a door) made the first Row Relay rework
+   0% in the sim, and the first Pumphouse rework 7%. Openings the squad *has* to use are two tiles wide.
 
-Then **balance-check with `npm run sim -- --map <id> --objective player`** and write the numbers into the map
-file's header comment before calling it done.
+Then **balance-check with `npm run sim -- --map <id> --objective player --player-profile friendly`** (60+
+matches, noise is about ±10 points at 60) and write the numbers into the map file's header comment before
+calling it done. `npm run campaign-sim` then shows whether the act holds together as a campaign.
 
 **Act 2's known beats**, for whoever writes them:
 

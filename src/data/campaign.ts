@@ -4,6 +4,7 @@ import type { WeatherId } from './weather';
 import {
   COLD_STORAGE, FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, NIGHT_MARKET, PHARMACY_ROW, PUMPHOUSE,
   RAIL_YARD, ROW_RELAY, SIGNAL_FIRE, THE_CLINIC, TOLLGATE, UNDERPASS, WATERWORKS,
+  CORNER_STORE, CANAL_TOWPATH, PARKING_DECK,
 } from './maps';
 import type { MapDef } from './trainingGrounds';
 
@@ -273,6 +274,27 @@ export const SUPPLY_RUN_TEMPLATES: SupplyRunTemplate[] = [
     objective: 'Eliminate the Jackal quartermaster. Or eliminate every enemy.',
     tags: ['target', 'bunkers', 'one way in'],
     map: WATERWORKS,
+  },
+  {
+    id: 'corner-store', name: 'Hollis Corner Store',
+    blurb: 'A corner shop whose till still talks to a bank that does not exist. The Jackals use it to keep their tallies. A quick job.',
+    objective: 'Interact with the till and hold it. Or eliminate every enemy.',
+    tags: ['hold', 'small', 'quick'],
+    map: CORNER_STORE,
+  },
+  {
+    id: 'canal-towpath', name: 'Grey Canal Towpath',
+    blurb: 'A narrowboat full of tinned food is tied up at the end of the towpath. Getting to it is a long walk with the water at your back.',
+    objective: 'Get 3 units to the narrowboat. Or eliminate every enemy.',
+    tags: ['extraction', 'long', 'one side open'],
+    map: CANAL_TOWPATH,
+  },
+  {
+    id: 'parking-deck', name: 'Vance Street Parking Deck',
+    blurb: 'Three levels of concrete the Jackals use as a vehicle pound. Cut both gate controls and the trucks stay where they are.',
+    objective: 'Throw both gate controls. Or eliminate every enemy.',
+    tags: ['sabotage', 'levels', 'pillars'],
+    map: PARKING_DECK,
   },
 ];
 

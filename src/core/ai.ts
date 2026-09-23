@@ -137,7 +137,7 @@ export function planAction(s: GameState, u: Unit): Action | null {
     if (mv) return mv;
   }
   // Last action and a door in the way: opening it beats standing on overwatch in front of it (10j).
-  const door = goal && aiOpensDoors(s) ? doorOnRoute(s, u, distanceMap(s, goal, true)) : null;
+  const door = goal && aiOpensDoors(s, u.team) ? doorOnRoute(s, u, distanceMap(s, goal, true)) : null;
   if (door) return door;
   const ow: Action = { type: 'overwatch', unit: u.id };
   if (ok(s, ow)) return ow;
@@ -205,7 +205,7 @@ function evaluate(s: GameState, u: Unit, enemies: Unit[], pos: Pos, cost: number
  * is part of the route; standing next to one that leads closer, the unit opens it instead of walking round.
  */
 function advance(s: GameState, u: Unit, goal: Pos): Action | null {
-  const doors = aiOpensDoors(s);
+  const doors = aiOpensDoors(s, u.team);
   const d = distanceMap(s, goal, doors);
   const here = d[idx(s, u.x, u.y)];
   const open = doors ? doorOnRoute(s, u, d) : null;
@@ -248,8 +248,13 @@ function objectiveSwitch(s: GameState, u: Unit): Action | null {
   return null;
 }
 
-/** Whether AI units may open doors here: on unless the game options or the map turn it off (10j). */
-const aiOpensDoors = (s: GameState): boolean => s.options.aiDoors !== false && s.map.aiOpensDoors !== false;
+/**
+ * Whether `team`'s AI may open doors here (10j): on unless the game options turn it off. A map's
+ * `aiOpensDoors: false` seals a boss room against the *enemy* only - the squad (auto-run, the sim) still has
+ * to be able to breach it, or the mission could never be won without a human.
+ */
+const aiOpensDoors = (s: GameState, team: Team): boolean =>
+  s.options.aiDoors !== false && (team === 'player' || s.map.aiOpensDoors !== false);
 
 const nearestOf = (u: Unit, points: Pos[]): Pos | null => (points.length ? points.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b)) : null);
 
@@ -297,7 +302,7 @@ function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
 function frontier(s: GameState, u: Unit): Pos | null {
   const explored = s.memory[u.team].explored;
   if (!explored) return null;
-  const d = distanceMap(s, u, aiOpensDoors(s));
+  const d = distanceMap(s, u, aiOpensDoors(s, u.team));
   let best = -1;
   for (let i = 0; i < d.length; i++) {
     if (d[i] <= 0 || explored[i]) continue;

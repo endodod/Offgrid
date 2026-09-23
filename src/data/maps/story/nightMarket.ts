@@ -1,4 +1,4 @@
-import { building, field, hRun, pts, put, rect, toRows, vRun } from '../compose';
+import { building, field, hRun, pts, rect, toRows, vRun } from '../compose';
 import type { MapDef } from '../../trainingGrounds';
 
 /**

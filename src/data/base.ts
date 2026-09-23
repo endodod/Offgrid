@@ -51,7 +51,7 @@ export const HIRE_COST = 80;
  *  gear), so one bad fight can't strand a campaign. Losing a veteran still costs their levels and kit. */
 export const STARTING_SALVAGE = 150;
 export const STORY_SALVAGE = 100;
-export const ROSTER_FLOOR = 4;
+export const ROSTER_FLOOR = 6;
 export const RECRUIT_XP = [0, 0, 100, 250];
 
 export const FACILITIES: Record<FacilityId, FacilityDef> = {

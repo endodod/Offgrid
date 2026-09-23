@@ -9,7 +9,7 @@
 //   - first hires the cheapest candidate while the roster is under 7, keeping 60 salvage in hand;
 //   - then builds stations in a fixed order whenever it can afford one with 60 to spare;
 //   - admits the worst-hurt soldiers to the infirmary; scraps locker overflow (duplicates first).
-//   - retreats from a fight once only 2 of a squad of 3+ are still standing.
+//   - retreats from a fight once more than half the squad is down.
 import { baseGameOptions, infirmaryBeds } from '../src/core/base';
 import {
   availableStoryMissions, newCampaign, resolveSupplyRun, upgradeFacility, type CampaignState,
@@ -88,7 +88,7 @@ function playOne(seed: number): Run {
     // instead of feeding the rest to it (15: survivors come home, downed ones on 1 HP).
     let retreated = false;
     while (!s.winner && s.turn <= RULES.maxTurns) {
-      if (s.phase === 'player' && squad.length >= 3 && s.units.filter((u) => u.team === 'player' && u.alive && !u.downed).length <= 2) { retreated = true; break; }
+      if (s.phase === 'player' && s.units.filter((u) => u.team === 'player' && u.alive && !u.downed).length * 2 < squad.length) { retreated = true; break; }
       runAiTurn(s, s.phase); s.events.length = 0;
     }
     const won = s.winner === 'player';
@@ -119,7 +119,7 @@ for (let i = 0; i < N; i++) {
 const avg = (f: (r: Run) => number) => (runs.reduce((a, r) => a + f(r), 0) / runs.length).toFixed(1);
 const finished = runs.filter((r) => r.finishedAt !== null);
 console.log(`\n${N} Act 1 campaigns, squad AI '${profile}', up to ${maxMissions} missions each`);
-console.log(`Finished Act 1: ${finished.length}/${N}${finished.length ? `, in ${avg((r) => r.finishedAt ?? 0)} missions on average (of those: ${(finished.reduce((a, r) => a + (r.finishedAt ?? 0), 0) / finished.length).toFixed(1)})` : ''}`);
+console.log(`Finished Act 1: ${finished.length}/${N}${finished.length ? `, in ${(finished.reduce((a, r) => a + (r.finishedAt ?? 0), 0) / finished.length).toFixed(1)} missions on average` : ''}`);
 console.log(`Missions played ${avg((r) => r.missions)} · won ${avg((r) => r.wins)} · lost ${avg((r) => r.losses)} (retreats ${avg((r) => r.retreats)}) · story done ${avg((r) => r.storyDone)}/${ACT1}`);
 console.log(`Soldiers killed ${avg((r) => r.deaths)} · hired ${avg((r) => r.hires)} · volunteer bailouts ${avg((r) => r.volunteers)} · lowest roster ${avg((r) => r.minRoster)}`);
 console.log(`Salvage earned ${avg((r) => r.salvageEarned)} · spent ${avg((r) => r.salvageSpent)} · left ${avg((r) => r.salvageAtEnd)} · stations built ${avg((r) => r.stations)}`);
