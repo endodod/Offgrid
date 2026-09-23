@@ -533,7 +533,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10a | Quick wins: HiDPI canvas, combat log for everyone, in-game modals instead of `confirm()`, generated key help, turn/enemy counter | small | done |
 | 10b | Camera: drag to pan, arrow keys pan, Ctrl+wheel / keys zoom at the cursor, re-centre key | small | done |
 | 10c | Mid-mission autosave and "Resume mission" | small-medium | done |
-| 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | |
+| 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | done |
 | 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | |
 | 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | |
 | 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | |
@@ -571,6 +571,13 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
   a path, tracer + muzzle flash, blast, flinch, death) and the renderer draws units at their animated position
   instead of their state position until the track ends. Input stays blocked while the queue plays; a speed setting
   (and "instant") scales every duration. `prefers-reduced-motion` defaults to instant and disables shake.
+  *Done as:* `ui/anim.ts` (`buildTracks` is pure and tested; `Animator` samples it into an `AnimFrame`). Core's
+  `move` event now carries the `path` actually walked, so an overwatch shot pauses the walk at the step it hit.
+  The screen never runs ahead of what's been shown: HP bars hold pending damage, a dying unit stays up until its
+  shot lands then fades, log lines carry an `at` time and appear when their event plays, and the tile tooltip hides
+  during playback. Fog: an enemy's walk is clipped to tiles the player can see, and a shot from the fog draws
+  only its impact. AI steps wait for the previous step's playback (`Session.aiDelay`). Phase banner is a DOM
+  overlay (`#phase-banner`, `Hud.announcePhase`). Speed/shake live in `ui/prefs.ts`; 10f adds their controls.
 - **10e.** A tiny WebAudio synth (noise bursts and envelopes) for select, step, shot, hit, miss, blast, door, UI
   click, phase change, win/lose. No files to license or load. Audio starts on the first user gesture.
 - **10f.** Settings gains a "Game" section next to keybindings, stored like the bindings. The colour-blind

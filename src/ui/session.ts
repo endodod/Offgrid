@@ -13,9 +13,11 @@ import { envMods } from '../core/environment';
 import { cheb, dist, findPath, hasLos, idx, inBounds, reachable } from '../core/grid';
 import { createGame, reseed } from '../core/state';
 import { refreshVision } from '../core/vision';
-import type { GameEvent, GameState, Pos, Unit } from '../core/types';
+import type { GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
+import { Animator } from './anim';
 import { describe, nameOf, type LogLine } from './log';
+import { getPrefs } from './prefs';
 
 export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive' | 'interact';
 export type ButtonId = 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'revive' | 'interact' | 'endTurn';
@@ -29,6 +31,8 @@ export class Session {
   mode: Mode = 'move';
   hover: Pos | null = null;
   floaters: Floater[] = [];
+  /** Event playback (10d): what the board is still catching up on. */
+  readonly anim = new Animator();
   log: LogLine[] = [];
   /** Bumped whenever `log` is replaced (reset, load), so the HUD knows to clear what it already rendered. */
   logEpoch = 0;
@@ -79,6 +83,7 @@ export class Session {
     this.autoRun = false;
     this.lastAction = null;
     this.floaters = [];
+    this.anim.clear();
     // Open the camera on the squad, not on tile (0,0): on a 48x32 map the spawn corner is off screen.
     const first = this.state.units.find((u) => u.team === 'player');
     this.focus = first ? { x: first.x, y: first.y } : null;
@@ -224,8 +229,13 @@ export class Session {
     this.onChange();
   }
 
+  /** True while the board is still playing back events (10d); new orders wait for it. */
+  animating(now = performance.now()): boolean {
+    return this.anim.remaining(now) > 0;
+  }
+
   click(p: Pos) {
-    if (!this.ready || !inBounds(this.state, p.x, p.y)) return;
+    if (!this.ready || this.animating() || !inBounds(this.state, p.x, p.y)) return;
     const sel = this.selected();
     const at = this.visibleUnitAt(p);
     if (sel && this.mode === 'gadget') {
@@ -285,7 +295,7 @@ export class Session {
   }
 
   press(b: ButtonId) {
-    if (!this.buttonState(b).enabled) return;
+    if (!this.buttonState(b).enabled || this.animating()) return;
     const u = this.selected();
     if (b === 'endTurn') return this.endTurn();
     if (!u) return;
@@ -346,11 +356,12 @@ export class Session {
       this.focusOnMover(before);
       this.flush();
       this.onChange();
-      if (r.done || this.state.winner) this.finishEnemyPhase();
-      else setTimeout(step, 420);
+      if (r.done || this.state.winner) setTimeout(() => { if (runId === this.runId) this.finishEnemyPhase(); }, this.anim.remaining(performance.now()));
+      else setTimeout(step, this.aiDelay(420));
     };
     this.status = 'Enemy phase...';
-    setTimeout(step, 250);
+    // Let the "Enemy activity" banner (Hud) read before the first enemy acts.
+    setTimeout(step, getPrefs().animSpeed > 0 ? this.anim.remaining(performance.now()) + 650 / getPrefs().animSpeed : 250);
   }
 
   /**
@@ -366,6 +377,7 @@ export class Session {
     this.activeGen = null;
     if (gen && this.busy) while (!this.state.winner && !gen.next().done) { /* play it out */ }
     this.busy = false;
+    this.anim.clear();
     this.flush();
     this.onCheckpoint();
   }
@@ -408,10 +420,17 @@ export class Session {
         if (!this.state.winner && this.autoRun) this.endTurn(); // chain into the enemy phase, then loop back here
         return;
       }
-      setTimeout(step, 220);
+      setTimeout(step, this.aiDelay(220));
     };
     this.status = 'Auto-run...';
-    setTimeout(step, 200);
+    setTimeout(step, this.aiDelay(200));
+  }
+
+  /** Wait before the next AI step: let the last one finish playing, then a short beat (the old fixed pause at
+   *  instant speed, since then there's nothing to watch but the result). */
+  private aiDelay(instantPause: number): number {
+    const speed = getPrefs().animSpeed;
+    return this.anim.remaining(performance.now()) + (speed > 0 ? 140 / speed : instantPause);
   }
 
   // ---------- helpers ----------
@@ -433,28 +452,21 @@ export class Session {
   private flush() {
     const s = this.state;
     const now = performance.now();
-    let n = 0; // stagger floating texts so a burst reads as separate shots
-    for (const e of s.events.splice(0)) {
+    const events = s.events.splice(0);
+    const visible = (p: Pos) => !s.fogEnabled || s.visible.player[idx(s, p.x, p.y)] === 1;
+    const speed = getPrefs().animSpeed;
+    const { floaters, times } = this.anim.push(events, s, now, speed, visible);
+    events.forEach((e, i) => {
       const line = describe(s, e);
-      if (line) this.log.push(line);
-      if (e.seen && this.floaterFor(e, now + n * 260)) n++;
-    }
+      if (line) this.log.push({ ...line, at: times[i] });
+    });
+    // At instant speed a burst's numbers would all pop at once: stagger them so each shot still reads.
+    if (speed <= 0) floaters.forEach((f, n) => { f.born = now + n * 260; });
+    this.floaters.push(...floaters);
     // A combat event outranks a move for the camera's attention.
-    const newest = this.floaters[this.floaters.length - 1];
-    if (newest && newest.born >= now) this.focus = { x: newest.x, y: newest.y };
+    const newest = floaters[floaters.length - 1];
+    if (newest) this.focus = { x: newest.x, y: newest.y };
     if (this.selectedId !== null && !this.selected()) this.selectedId = null;
-  }
-
-  /** Returns true if the event produced a floating text. */
-  private floaterFor(e: GameEvent, born: number): boolean {
-    const add = (p: Pos, text: string, color: string) => { this.floaters.push({ x: p.x, y: p.y, text, color, born }); return true; };
-    if (e.t === 'shot') return add(e.at, e.hit ? `-${e.damage}` : 'MISS', e.hit ? '#ff7a63' : '#b8b8a8');
-    if (e.t === 'damage') return add(e.at, `-${e.amount}`, '#ff7a63');
-    if (e.t === 'heal') return add(e.at, `+${e.amount}`, '#8fd19a');
-    if (e.t === 'revive') return add(e.at, `+${e.amount}`, '#8fd19a');
-    if (e.t === 'downed') return add(e.at, 'DOWN', '#e6a23a');
-    if (e.t === 'died') return add(e.at, 'DEAD', '#e6e0c8');
-    return false;
   }
 
   // ---------- read models for render / HUD ----------
@@ -462,8 +474,8 @@ export class Session {
     const s = this.state;
     const u = this.selected();
     this.floaters = this.floaters.filter((f) => now - f.born < 1400);
-    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, path: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now };
-    if (!u || !this.ready) return view;
+    const view: View = { s, selected: u, hover: this.hover, mode: this.mode, reach: null, path: null, ringed: new Set(), aimTiles: new Set(), coverRot: this.coverRot, overwatchView: this.showOverwatch, floaters: this.floaters, now, anim: this.anim.frame(now), shake: getPrefs().shake };
+    if (!u || !this.ready || this.animating(now)) return view;
     if (this.mode === 'move' && u.actions > 0) {
       const reach = reachable(s, u, moveRange(s, u));
       view.reach = new Set([...reach.keys()].filter((i) => i !== idx(s, u.x, u.y)));
@@ -544,7 +556,7 @@ export class Session {
   /** Tooltip lines for the hovered tile (enemy: hit chance, damage, cover state relative to the selected unit). */
   hoverInfo(): string[] | null {
     const p = this.hover;
-    if (!p) return null;
+    if (!p || this.animating()) return null; // the state is ahead of the board while it plays back: don't spoil it
     const s = this.state;
     const at = this.visibleUnitAt(p);
     const sel = this.selected();

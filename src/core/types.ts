@@ -99,7 +99,7 @@ export interface Memory {
 /** `seen` = whether the player team could see it when it happened (used to filter the log). */
 export type EventBody =
   | { t: 'phase'; team: Team; turn: number }
-  | { t: 'move'; unit: number; from: Pos; to: Pos }
+  | { t: 'move'; unit: number; from: Pos; to: Pos; path: Pos[] } // path: the steps actually walked (short if stopped)
   | { t: 'shot'; attacker: number; target: number; shot: number; shots: number; chance: number; roll: number;
       hit: boolean; damage: number; overwatch: boolean; finishing: boolean; at: Pos; from: Pos }
   | { t: 'damage'; target: number; amount: number; source: 'grenade'; at: Pos }

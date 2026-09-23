@@ -48,6 +48,7 @@ const tutorial = new Tutorial(session, () => hud.update());
 hud.tutorial = tutorial;
 
 let queued = false;
+let wasAnimating = false;
 function frame() {
   queued = false;
   const s = session.state;
@@ -56,8 +57,13 @@ function frame() {
     canvas.height = Math.round(s.height * TILE * RES);
     viewport.apply();
   }
-  draw(ctx, session.view(performance.now()));
-  if (session.floaters.length) request(); // keep animating while floating texts are alive
+  const now = performance.now();
+  draw(ctx, session.view(now));
+  // Keep animating while anything is still playing back (10d) or floating texts are alive; once playback ends,
+  // one last change lets the HUD and hover highlights (suppressed while it plays) catch up.
+  if (session.animating(now)) { wasAnimating = true; hud.updateLog(now); request(); }
+  else if (wasAnimating) { wasAnimating = false; session.onChange(); }
+  else if (session.floaters.length) request();
 }
 function request() {
   if (!queued) { queued = true; requestAnimationFrame(frame); }

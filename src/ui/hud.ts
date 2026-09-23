@@ -52,6 +52,7 @@ export class Hud {
   private logShown = 0;
   private logEpoch = -1;
   private keyHelp = '';
+  private phaseKey = '';
   private mouse = { x: 0, y: 0 };
   // Tracked by id, not DOM element: the actionbar's buttons are rebuilt on every update(), which would
   // otherwise leave a hovered/focused reference pointing at a detached node.
@@ -168,6 +169,7 @@ export class Hud {
 
     $('phase').innerHTML = `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}${this.hostileCount(s)}`;
     $('phase').className = s.phase;
+    this.announcePhase(s);
     this.setTime(s.timeOfDay);
     this.setWeather(s.weather);
     this.setProfile(s.aiProfiles.enemy);
@@ -233,16 +235,7 @@ export class Hud {
         ${sel.exposed ? '<p class="flag flag--exposed">Exposed: seen in the bush until your next turn</p>' : ''}`;
     }
 
-    const logEl = $('log');
-    if (this.logEpoch !== this.session.logEpoch) { logEl.innerHTML = ''; this.logShown = 0; this.logEpoch = this.session.logEpoch; }
-    for (; this.logShown < this.session.log.length; this.logShown++) {
-      const line = this.session.log[this.logShown];
-      const div = document.createElement('div');
-      div.className = line.kind;
-      div.textContent = line.text;
-      logEl.appendChild(div);
-    }
-    logEl.scrollTop = logEl.scrollHeight;
+    this.updateLog(performance.now());
 
     $('seed').textContent = String(this.session.seed);
     this.renderKeyHelp();
@@ -254,6 +247,42 @@ export class Hud {
     }
 
     this.renderTip();
+  }
+
+  /** Phase banner (10d): once per new phase, never on the first frame of a mission or once it's over. */
+  private announcePhase(s: GameState) {
+    const key = `${this.session.logEpoch}:${s.turn}:${s.phase}`;
+    if (key === this.phaseKey) return;
+    const first = !this.phaseKey.startsWith(`${this.session.logEpoch}:`);
+    this.phaseKey = key;
+    const el = $('phase-banner');
+    if (first || s.winner) { el.hidden = true; return; }
+    el.className = s.phase;
+    el.innerHTML = `${s.phase === 'player' ? 'Your turn' : 'Enemy activity'}<small>Turn ${s.turn}</small>`;
+    el.hidden = false;
+    // restart the CSS animation, then hide once it's done so it never sits over the board
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = setTimeout(() => { el.hidden = true; }, 1200);
+  }
+  private bannerTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Appends log lines whose moment has come (10d holds each until its event plays). Cheap: call every frame. */
+  updateLog(now: number) {
+    const logEl = $('log');
+    if (this.logEpoch !== this.session.logEpoch) { logEl.innerHTML = ''; this.logShown = 0; this.logEpoch = this.session.logEpoch; }
+    const start = this.logShown;
+    for (; this.logShown < this.session.log.length; this.logShown++) {
+      const line = this.session.log[this.logShown];
+      if (line.at !== undefined && line.at > now) break;
+      const div = document.createElement('div');
+      div.className = line.kind;
+      div.textContent = line.text;
+      logEl.appendChild(div);
+    }
+    if (this.logShown !== start) logEl.scrollTop = logEl.scrollHeight;
   }
 
   /**

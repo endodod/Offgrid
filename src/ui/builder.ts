@@ -11,6 +11,7 @@ import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
 import { draw, RES, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
 import { confirmModal } from './modal';
+import { emptyFrame } from './anim';
 import { seg } from './seg';
 
 type Tool = 'floor' | 'wall' | 'bush' | 'low' | 'high' | 'objective' | 'door' | 'switch' | 'chest' | 'link'
@@ -335,7 +336,7 @@ export class Builder {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     draw(this.ctx, {
       s, selected: null, hover: this.hover, mode: 'move', reach: null, path: null, ringed: new Set(), aimTiles: new Set(),
-      coverRot: this.rot, overwatchView: false, floaters: [], now: 0,
+      coverRot: this.rot, overwatchView: false, floaters: [], now: 0, anim: emptyFrame(), shake: false,
     });
   }
 }

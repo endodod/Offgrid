@@ -4,6 +4,7 @@ import type { ItemType } from '../data/items';
 import { shelterAt } from '../core/combat';
 import { hasLos, idx, dist } from '../core/grid';
 import type { GameState, Pos, Unit } from '../core/types';
+import type { AnimFrame } from '../ui/anim';
 
 export const TILE = 36;
 /**
@@ -29,6 +30,8 @@ export interface View {
   overwatchView: boolean; // show the coverage of units that are on overwatch
   floaters: Floater[];
   now: number;
+  anim: AnimFrame; // event playback (10d): where units are mid-walk, pending damage, effects
+  shake: boolean; // screen shake allowed (a player preference)
 }
 
 // Dark, desaturated palette. Yellow is reserved for the selected unit.
@@ -61,6 +64,8 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#0c0e0b';
   ctx.fillRect(0, 0, s.width * TILE, s.height * TILE);
+  const sh = v.shake ? v.anim.shake : { x: 0, y: 0 };
+  ctx.setTransform(RES, 0, 0, RES, sh.x * RES, sh.y * RES);
 
   for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) drawTile(ctx, v, x, y);
   drawInteractables(ctx, v);
@@ -70,10 +75,22 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   drawScans(ctx, v);
   drawObjective(ctx, v);
   drawGhosts(ctx, v);
-  for (const u of s.units) if (u.alive && (u.team === 'player' || s.seenUnits.player.has(u.id))) drawUnit(ctx, v, u);
+  for (const u of s.units) if (shownUnit(v, u)) drawUnit(ctx, v, u);
+  drawEffects(ctx, v);
   drawMovePath(ctx, v);
   drawPreview(ctx, v);
   drawFloaters(ctx, v);
+}
+
+/**
+ * Whether to draw `u` this frame. The state may be ahead of the screen (10d): a unit the state already has dead
+ * is drawn until its death plays, and an enemy mid-walk is drawn while the playback has it on a visible tile.
+ */
+function shownUnit(v: View, u: Unit): boolean {
+  const a = v.anim;
+  const inPlayback = a.upright.has(u.id) || a.fading.has(u.id);
+  if (!u.alive && !inPlayback) return false;
+  return u.team === 'player' || v.s.seenUnits.player.has(u.id) || a.pos.has(u.id) || inPlayback;
 }
 
 const isVisible = (s: GameState, x: number, y: number) => s.visible.player[idx(s, x, y)] === 1;
@@ -138,7 +155,7 @@ function drawShields(ctx: CanvasRenderingContext2D, v: View) {
   const { s } = v;
   const tiles = new Map<number, Pos>();
   const add = (p: Pos) => { if (isVisible(s, p.x, p.y)) tiles.set(idx(s, p.x, p.y), p); };
-  for (const u of s.units) if (u.alive && (u.team === 'player' || s.seenUnits.player.has(u.id))) add(u);
+  for (const u of s.units) if (u.alive && !v.anim.pos.has(u.id) && (u.team === 'player' || s.seenUnits.player.has(u.id))) add(u);
   if (v.hover) add(v.hover);
   if (v.reach) for (const i of v.reach) add({ x: i % s.width, y: Math.floor(i / s.width) });
   for (const p of tiles.values()) {
@@ -380,8 +397,17 @@ function drawGhosts(ctx: CanvasRenderingContext2D, v: View) {
 }
 
 function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
-  const px = u.x * TILE, py = u.y * TILE;
+  const a = v.anim;
+  const at = a.pos.get(u.id) ?? u; // mid-walk: a fractional tile
+  const px = at.x * TILE, py = at.y * TILE;
   const player = u.team === 'player';
+  const fade = a.fading.get(u.id);
+  ctx.save();
+  if (fade !== undefined) ctx.globalAlpha = fade;
+  // What the player has *seen* happen so far: not yet down, and any damage still in flight added back.
+  const downed = u.downed && !a.upright.has(u.id);
+  const hp = Math.min(CLASSES[u.cls].hp, u.hp + (a.hpPending.get(u.id) ?? 0));
+  u = { ...u, downed, hp, bleedOut: downed ? u.bleedOut : 0 };
   // Downed: desaturated fill regardless of team, and a prone (squat) body instead of the standing square.
   ctx.fillStyle = u.downed ? '#4a4638' : player ? C.playerDark : C.enemyDark;
   ctx.fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
@@ -435,7 +461,7 @@ function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
       ctx.stroke();
     }
   }
-  if (v.s.terrain[idx(v.s, u.x, u.y)] === 'bush') {
+  if (!a.pos.has(u.id) && v.s.terrain[idx(v.s, u.x, u.y)] === 'bush') {
     if (u.exposed) { // acted from the bush: visible until its team's next phase
       ctx.fillStyle = C.ink;
       ctx.fillRect(px + 2, py + 8, 10, 13);
@@ -448,6 +474,63 @@ function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
       ctx.fillRect(px + 4, py + TILE / 2, TILE - 8, TILE / 2 - 4);
     }
   }
+  ctx.restore();
+}
+
+const centre = (p: Pos) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 });
+
+/** Tracers, grenade arcs, blasts and scan pulses from event playback (10d). */
+function drawEffects(ctx: CanvasRenderingContext2D, v: View) {
+  const a = v.anim;
+  ctx.save();
+  for (const t of a.tracers) {
+    const f = centre(t.from), to = centre(t.to);
+    const head = { x: f.x + (to.x - f.x) * t.t, y: f.y + (to.y - f.y) * t.t };
+    if (!t.fromHidden) {
+      const tail = Math.max(0, t.t - 0.35);
+      ctx.strokeStyle = 'rgba(255,226,140,0.95)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(f.x + (to.x - f.x) * tail, f.y + (to.y - f.y) * tail);
+      ctx.lineTo(head.x, head.y);
+      ctx.stroke();
+      if (t.t < 0.35) { // muzzle flash
+        ctx.fillStyle = `rgba(255,210,120,${0.9 - t.t * 2})`;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    if (t.t >= 1) { // impact: sparks on a hit, a puff of dust on a miss
+      ctx.fillStyle = t.hit ? 'rgba(255,120,90,0.9)' : 'rgba(200,200,180,0.6)';
+      for (let k = 0; k < 5; k++) {
+        const ang = k * 1.26 + v.now * 0.01;
+        ctx.fillRect(to.x + Math.cos(ang) * 6 - 1.5, to.y + Math.sin(ang) * 6 - 1.5, 3, 3);
+      }
+    }
+  }
+  for (const arc of a.arcs) {
+    const f = centre(arc.from), to = centre(arc.to);
+    const x = f.x + (to.x - f.x) * arc.t;
+    const y = f.y + (to.y - f.y) * arc.t - Math.sin(Math.PI * arc.t) * TILE * 1.6;
+    ctx.fillStyle = C.ink;
+    ctx.beginPath(); ctx.arc(x, y + 1, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9aa06a';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const b of a.blasts) {
+    const c = centre(b.at);
+    const size = (2 * b.radius + 1) * TILE * (0.55 + 0.45 * Math.min(1, b.t * 3));
+    ctx.fillStyle = `rgba(255,${Math.round(170 - b.t * 110)},60,${0.55 * (1 - b.t)})`;
+    ctx.fillRect(c.x - size / 2, c.y - size / 2, size, size);
+    ctx.fillStyle = `rgba(255,240,200,${Math.max(0, 0.8 - b.t * 3)})`;
+    ctx.beginPath(); ctx.arc(c.x, c.y, TILE * 0.9, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const p of a.pulses) {
+    const c = centre(p.at);
+    ctx.strokeStyle = `rgba(127,196,214,${0.9 * (1 - p.t)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(1, p.radius * TILE * p.t), 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function eye(ctx: CanvasRenderingContext2D, cx: number, cy: number) {

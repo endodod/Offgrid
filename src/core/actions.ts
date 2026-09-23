@@ -226,12 +226,14 @@ function doMove(s: GameState, u: Unit, to: Pos) {
   const path = findPath(s, u, to, moveRange(s, u))!;
   u.moveBonus = 0; // adrenaline boosts one move, however far it goes
   u.actions--;
-  const ev = emit(s, { t: 'move', unit: u.id, from: { x: u.x, y: u.y }, to }, false);
+  const walked: Pos[] = [];
+  const ev = emit(s, { t: 'move', unit: u.id, from: { x: u.x, y: u.y }, to, path: walked }, false);
   const from = { x: u.x, y: u.y };
   // Walk step by step so overwatchers can react mid-path; a dead or downed mover stops.
   for (const p of path) {
     u.x = p.x;
     u.y = p.y;
+    walked.push({ x: p.x, y: p.y });
     collectPickup(s, u); // free (4): walking onto a pickup's tile collects it, no action cost
     refreshVision(s);
     triggerOverwatch(s, u);
