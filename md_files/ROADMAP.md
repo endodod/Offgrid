@@ -532,7 +532,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 |---|---|---|---|
 | 10a | Quick wins: HiDPI canvas, combat log for everyone, in-game modals instead of `confirm()`, generated key help, turn/enemy counter | small | done |
 | 10b | Camera: drag to pan, arrow keys pan, Ctrl+wheel / keys zoom at the cursor, re-centre key | small | done |
-| 10c | Mid-mission autosave and "Resume mission" | small-medium | |
+| 10c | Mid-mission autosave and "Resume mission" | small-medium | done |
 | 10d | Event playback: tweened movement, shot tracers, grenade blasts, screen shake, phase banner | medium | |
 | 10e | Procedural sound effects (WebAudio, no asset files) | small-medium | |
 | 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | |
@@ -561,6 +561,12 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 - **10c.** `GameState` is plain data apart from `Set`s and `Uint8Array`s, and the RNG is in the state, so a
   save is `serialize(state)` at the start of every player phase, keyed with the mission id (and campaign mission id
   if any). The home screen offers "Resume mission" when one exists; winning, losing or leaving clears it.
+  *Done as:* `core/save.ts` (pure, round-trip tested incl. a resumed 48x32 game playing out identically),
+  `ui/missionStore.ts`, `Session.onCheckpoint` (after each manual action, at the start of each player phase, at
+  the end) and `Session.resume`. Leaving is *not* a clear - "Menu" mid-mission is exactly when you want to resume.
+  Leaving while an AI phase is still animating plays it out at once (`Session.leave`): before this, the phase kept
+  running on its timers behind the home screen and saved after the Resume button had already been labelled.
+  Builder play-tests are never saved.
 - **10d.** The core already emits `GameEvent`s. The UI turns them into a queue of short tracks (move along
   a path, tracer + muzzle flash, blast, flinch, death) and the renderer draws units at their animated position
   instead of their state position until the track ends. Input stays blocked while the queue plays; a speed setting

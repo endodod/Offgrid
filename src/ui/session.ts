@@ -43,7 +43,12 @@ export class Session {
    *  has any visible effect on maps larger than the board viewport. */
   private focus: Pos | null = null;
   onChange: () => void = () => {};
+  /** Called whenever the game reaches a resumable point (10c): after a manual action, at the start of the
+   *  player's phase, and when the mission ends. The listener decides what to do with it (main.ts saves or clears). */
+  onCheckpoint: () => void = () => {};
   private runId = 0;
+  /** The AI phase currently being stepped through on timers, if any - so leave() can finish it at once. */
+  private activeGen: Generator<unknown, unknown> | null = null;
 
   constructor(private map: MapDef) {
     this.reset();
@@ -57,9 +62,19 @@ export class Session {
   }
 
   reset(seed = this.seed) {
+    this.begin(createGame(this.map, seed), `${this.map.name} loaded (seed ${seed}).`, 'Your turn. Click a unit, then a tile to move or an enemy to attack.');
+  }
+
+  /** Continue a saved mission (10c) exactly where it stopped. */
+  resume(state: GameState) {
+    this.map = state.map;
+    this.begin(state, `${state.map.name} resumed (turn ${state.turn}).`, 'Your turn.');
+  }
+
+  private begin(state: GameState, logText: string, status: string) {
     this.runId++; // cancels an enemy phase that is still animating
-    this.seed = seed;
-    this.state = createGame(this.map, seed);
+    this.seed = state.seed;
+    this.state = state;
     this.busy = false;
     this.autoRun = false;
     this.lastAction = null;
@@ -69,13 +84,14 @@ export class Session {
     this.focus = first ? { x: first.x, y: first.y } : null;
     this.coverRot = 0;
     this.showOverwatch = false;
-    this.log = [{ kind: 'system', text: `${this.map.name} loaded (seed ${seed}).` }];
+    this.log = [{ kind: 'system', text: logText }];
     this.logEpoch++;
-    this.status = 'Your turn. Click a unit, then a tile to move or an enemy to attack.';
+    this.status = status;
     this.mode = 'move';
     this.selectedId = null; // no unit pre-selected: the player's first click is a deliberate one
     this.flush();
     this.onChange();
+    this.onCheckpoint();
   }
 
   reseedRng() {
@@ -322,6 +338,7 @@ export class Session {
       return;
     }
     const gen = aiTurn(this.state, 'enemy'); // one action per step so the player can follow what happens
+    this.activeGen = gen;
     const step = () => {
       if (runId !== this.runId) return;
       const before = this.positions();
@@ -336,10 +353,29 @@ export class Session {
     setTimeout(step, 250);
   }
 
+  /**
+   * Leaving the mission screen (10c). An AI phase still animating on timers is played out to its end at once -
+   * the rules are deterministic, so the result is the same as watching it - and auto-run stops, so the save
+   * that follows is a clean start-of-player-phase checkpoint rather than half an enemy phase.
+   */
+  leave() {
+    this.autoRun = false;
+    this.state.aiProfiles.player = 'standard';
+    const gen = this.activeGen;
+    this.runId++; // stops the timer chain
+    this.activeGen = null;
+    if (gen && this.busy) while (!this.state.winner && !gen.next().done) { /* play it out */ }
+    this.busy = false;
+    this.flush();
+    this.onCheckpoint();
+  }
+
   private finishEnemyPhase() {
+    this.activeGen = null;
     this.busy = false; // selection is left alone: nothing selected stays nothing selected
     this.status = this.state.winner ? '' : 'Your turn.';
     this.onChange();
+    this.onCheckpoint();
     if (!this.state.winner && this.autoRun) this.runPlayerAuto();
   }
 
@@ -351,6 +387,7 @@ export class Session {
     const runId = ++this.runId;
     const before = this.alivePlayerCount();
     const gen = aiTurn(this.state, 'player');
+    this.activeGen = gen;
     const step = () => {
       if (runId !== this.runId) return;
       const wasAt = this.positions();
@@ -367,6 +404,7 @@ export class Session {
         this.busy = false;
         this.status = this.state.winner ? '' : this.autoRun ? 'Auto-run...' : 'Your turn.';
         this.onChange();
+        this.onCheckpoint();
         if (!this.state.winner && this.autoRun) this.endTurn(); // chain into the enemy phase, then loop back here
         return;
       }
@@ -382,6 +420,7 @@ export class Session {
     this.flush();
     this.status = r.ok ? '' : r.error;
     if (r.ok) this.lastAction = a; // a manually-performed action, for 0f's tutorial to react to - never set by AI turns
+    if (r.ok) this.onCheckpoint();
     return r.ok;
   }
 

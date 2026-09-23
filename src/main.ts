@@ -2,6 +2,7 @@ import './ui/style.css';
 import { DEBUG } from './debug';
 import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
+import type { GameState } from './core/types';
 import { draw, RES, TILE } from './render/renderer';
 import { Base } from './ui/base';
 import { Builder } from './ui/builder';
@@ -12,6 +13,7 @@ import { Hud } from './ui/hud';
 import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
+import { clearMission, loadMission, saveMission } from './ui/missionStore';
 import { initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
@@ -79,12 +81,27 @@ let lastFocus: { x: number; y: number } | null = null;
 // Set when a mission is launched from the campaign screen (5), so a win can be reported back to it, and so
 // "Main menu" returns to the campaign screen instead of home.
 let activeCampaignMissionId: string | null = null;
+let activeMissionId: string | null = null;
+/** Builder play-tests are never saved: the map only exists in the builder's working copy. */
+let savable = false;
 let returnScreen: Screen = 'home';
 
-const startGame = (map: MapDef, fromBuilder: boolean, missionId?: string) => {
+// 10c: keep the current mission resumable. Every checkpoint either saves it or, once it's over, clears it.
+session.onCheckpoint = () => {
+  if (!savable) return;
+  const s = session.state;
+  if (s.winner) clearMission();
+  else if (s.phase === 'player') saveMission({ missionId: activeMissionId, campaignMissionId: activeCampaignMissionId, state: s });
+};
+
+/** Starts `map` fresh, or continues a saved `GameState` (10c). */
+const startGame = (map: MapDef | { resume: GameState }, fromBuilder: boolean, missionId?: string) => {
   (el('dbg-fog') as HTMLInputElement).checked = true;
   el('to-builder').hidden = !fromBuilder;
-  session.load(map);
+  savable = !fromBuilder;
+  activeMissionId = missionId ?? null;
+  if ('resume' in map) session.resume(map.resume);
+  else session.load(map);
   showScreen('game');
   request();
   // after the screen is visible (so the scroll box has a size) and the canvas has been resized for this map
@@ -94,7 +111,7 @@ const startGame = (map: MapDef, fromBuilder: boolean, missionId?: string) => {
   });
   const isTutorialMission = missionId === TUTORIAL_MISSION_ID;
   el('tutorial-replay').hidden = !isTutorialMission;
-  if (isTutorialMission && !tutorialDismissed()) tutorial.start();
+  if (isTutorialMission && !tutorialDismissed() && !('resume' in map)) tutorial.start();
   else tutorial.hide();
 };
 
@@ -103,7 +120,7 @@ let refreshHome = () => {};
 if (DEBUG) {
   builder = new Builder({
     onPlay: (map) => startGame(map, true),
-    onExit: () => showScreen('home'),
+    onExit: () => goHome(),
     onSaved: () => refreshHome(),
   });
   el('to-builder').addEventListener('click', () => { showScreen('builder'); builder!.resume(); });
@@ -118,9 +135,26 @@ refreshHome = initHome(MISSIONS, {
 });
 el('tutorial-replay').addEventListener('click', () => tutorial.start());
 
+/** The home screen, with its "Resume mission" button reflecting whatever is saved right now. */
+function goHome() {
+  refreshHome();
+  const save = loadMission();
+  const btn = el('home-resume');
+  btn.hidden = !save;
+  if (save) btn.querySelector('.lbl')!.textContent = `Resume ${save.state.map.name} · turn ${save.state.turn}`;
+  showScreen('home');
+}
+el('home-resume').addEventListener('click', () => {
+  const save = loadMission();
+  if (!save) return goHome();
+  activeCampaignMissionId = save.campaignMissionId;
+  returnScreen = save.campaignMissionId ? 'campaign' : 'home';
+  startGame({ resume: save.state }, false, save.missionId ?? undefined);
+});
+
 const campaign = new Campaign({
   onPlay: (map, missionId) => { activeCampaignMissionId = missionId; returnScreen = 'campaign'; startGame(map, false, missionId); },
-  onBack: () => showScreen('home'),
+  onBack: () => goHome(),
 });
 /** Campaign.open() is async (it may queue a debrief and a district briefing); nothing waits on it. */
 const toCampaign = () => { showScreen('campaign'); void campaign.open(); };
@@ -133,20 +167,21 @@ const equip = new Equip({ onBack: toCampaign });
 el('campaign-to-equip').addEventListener('click', () => { equip.open(campaign.campaignState()); showScreen('equip'); });
 
 const toMenu = () => {
+  session.leave();
   if (activeCampaignMissionId && session.state.winner === 'player') campaign.reportWin(activeCampaignMissionId, session.state.units);
   activeCampaignMissionId = null;
   if (returnScreen === 'campaign') toCampaign();
-  else { refreshHome(); showScreen('home'); }
+  else goHome();
 };
 el('menu').addEventListener('click', toMenu);
 el('banner-menu').addEventListener('click', toMenu);
 
 // Settings can be opened from the home screen or mid-mission; remember which to return to.
 let settingsReturnTo: Screen = 'home';
-initSettings({ onBack: () => showScreen(settingsReturnTo) });
+initSettings({ onBack: () => (settingsReturnTo === 'home' ? goHome() : showScreen(settingsReturnTo)) });
 el('home-settings').addEventListener('click', () => { settingsReturnTo = 'home'; showScreen('settings'); });
 el('game-settings').addEventListener('click', () => { settingsReturnTo = 'game'; showScreen('settings'); });
 
-showScreen('home');
+goHome();
 
 if (DEBUG) (window as unknown as { session: Session }).session = session; // handy in the devtools console
