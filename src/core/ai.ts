@@ -72,17 +72,34 @@ export function planAction(s: GameState, u: Unit): Action | null {
       if (r) return r;
     }
     const here = evaluate(s, u, enemies, u, 0);
-    // Camper: reluctant to leave a position it already has - only reposition when it has no shot at all.
-    if (u.actions >= 2 && !holding && profile.habitat !== 'camper') {
-      let best = here;
+    // Rush (16): the objective is the point. With a move to spare, step to the tile closest to it that still
+    // has a shot; if nothing on the way has one, shoot from here, or just keep walking toward it.
+    const objective = profile.focus === 'objective' && !holding ? nearestOf(u, objectiveGoalPositions(s, u.team)) : null;
+    if (objective && u.actions >= 2) {
+      const d = distanceMap(s, objective);
+      let best: { pos: Pos; d: number } | null = null;
       for (const [i, r] of reachable(s, u, move)) {
+        const pos = { x: i % s.width, y: Math.floor(i / s.width) };
+        if (d[i] < 0 || !evaluate(s, u, enemies, pos, r.cost)) continue;
+        if (!best || d[i] < best.d) best = { pos, d: d[i] };
+      }
+      if (best && best.d < d[idx(s, u.x, u.y)]) return { type: 'move', unit: u.id, to: best.pos };
+    }
+    // Camper: reluctant to leave a position it already has - only reposition when it has no shot at all.
+    // Hold (16): repositions, but only within its leash.
+    if (u.actions >= 2 && !holding && !objective && profile.habitat !== 'camper') {
+      let best = here;
+      const leash = profile.habitat === 'hold' ? profile.leash ?? 2 : Infinity;
+      for (const [i, r] of reachable(s, u, move)) {
+        if (r.cost > leash) continue;
         const e = evaluate(s, u, enemies, { x: i % s.width, y: Math.floor(i / s.width) }, r.cost);
         if (e && (!best || e.score > best.score)) best = e;
       }
       if (best && (best.pos.x !== u.x || best.pos.y !== u.y)) return { type: 'move', unit: u.id, to: best.pos };
     }
     if (here && u.ammo > 0) return { type: 'attack', unit: u.id, target: here.target.id }; // ammo (4): a real attack needs ammo, not just a good angle
-    if (holding) return validate(s, { type: 'overwatch', unit: u.id }) === null ? { type: 'overwatch', unit: u.id } : null;
+    if (holding || profile.habitat === 'hold') return validate(s, { type: 'overwatch', unit: u.id }) === null ? { type: 'overwatch', unit: u.id } : null;
+    if (objective) { const mv = advance(s, u, objective); if (mv) return mv; }
     const nearest = enemies.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
     return advance(s, u, nearest);
   }
@@ -175,15 +192,32 @@ const nearestOf = (u: Unit, points: Pos[]): Pos | null => (points.length ? point
  * ghost - finishing the mission over finishing a fight it doesn't have to (the 'friendly' auto-run profile).
  */
 function pickGoal(s: GameState, u: Unit, profile: AiProfileDef): Pos | null {
-  if (profile.habitat === 'ambush') return null;
+  if (profile.habitat === 'ambush' || profile.habitat === 'hold') return null;
   const mem = s.memory[u.team];
   const goal = () => nearestOf(u, objectiveGoalPositions(s, u.team));
   if (profile.habitat === 'camper') return goal();
-  if (profile.prioritizeObjective) { const g = goal(); if (g) return g; }
+  if (profile.prioritizeObjective || profile.focus === 'objective') { const g = goal(); if (g) return g; }
+  if (profile.focus === 'explore') {
+    // Loot it can see, or a chest it has seen and not opened yet; then the waypoints; a fight only after that.
+    const loot = [
+      ...s.pickups.filter((p) => s.visible[u.team][idx(s, p.x, p.y)]),
+      ...s.interactables.filter((it) => it.type === 'chest' && it.id in mem.doors && !mem.doors[it.id]),
+    ];
+    const l = nearestOf(u, loot);
+    if (l) return l;
+    const w = waypoint(s, u);
+    if (w) return w;
+  }
   const ghosts = Object.values(mem.lastSeen);
   if (ghosts.length) return ghosts.reduce((a, b) => (dist(u, a) <= dist(u, b) ? a : b));
   const g = goal();
   if (g) return g;
+  return waypoint(s, u);
+}
+
+/** The team's next search waypoint for this unit (each unit is offset along the list, so they spread out). */
+function waypoint(s: GameState, u: Unit): Pos | null {
+  const mem = s.memory[u.team];
   const points = s.map.searchPoints[u.team];
   if (!points.length) return null;
   const rank = s.units.filter((x) => x.team === u.team && x.alive).indexOf(u);

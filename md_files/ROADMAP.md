@@ -760,6 +760,43 @@ places where it could be skipped or exploited.
 **Tests:** `core/roster.test.ts` covers win, loss, retreat (fee and floor), supply-run withdrawal, the locker
 never being auto-trimmed, and the lock on deployed soldiers (no duplication, dismissing or admitting).
 
+## 16. Squad orders for auto-run: Explore, Rush objective, Defend position
+
+**Status: done.** Auto-run used to play the squad under one profile (Friendly). A picker beside the Auto-run
+button now offers four orders (`SQUAD_ORDERS` in `data/aiProfiles.ts`). The choice is remembered as
+`Prefs.autoMode` and takes effect from the squad's next decision, even mid-phase.
+
+| Order | Profile | What it does |
+|---|---|---|
+| Balanced | `friendly` | As before: the objective over chasing fights; falls back below 50% HP. |
+| Explore | `explore` | `focus: 'explore'`: first loot it can see and chests it knows are unopened, then the search waypoints, then ghosts. Falls back below 50%. |
+| Rush objective | `rush` | `focus: 'objective'`: in a fight it moves to the reachable tile nearest the objective that still has a shot. With no shot anywhere, it walks toward the objective. Never falls back. |
+| Defend position | `defend` | New habitat `hold`: never goes looking. In a fight it repositions only within `leash` (2) tiles, and overwatches rather than advancing on a target it can't shoot. |
+
+The enemy profiles are unchanged (`PROFILE_ORDER`: Standard, Easy, Hard, Camper, Ambush). The new habitat and
+`focus` knobs are available to them too if a mission ever wants a defending or objective-rushing enemy.
+
+**Sim check** (`npm run sim -- --map lights-out --objective player --player-profile <id>`, 60 seeds, against
+the map's Easy enemies):
+
+| Order | Player | Enemy | Draw | Avg turns |
+|---|---|---|---|---|
+| Balanced | 60% | 15% | 25% | 23.3 |
+| Explore | 45% | 5% | 50% | 29.1 |
+| Rush objective | 92% | 2% | 7% | 15.8 |
+| Defend | 0% | 0% | 100% | 41 (hit the turn cap) |
+
+Defend draws every time because it never goes looking and these enemies never find it. That is the order
+working as intended, not a bug. Rush beating Balanced this clearly on an objective map suggests Balanced's
+50% retreat costs more than it saves. Worth revisiting in a balance pass.
+
+**Tests:** `core/aiProfiles.test.ts` ("squad orders for auto-run") checks that:
+- Defend holds in place and overwatches;
+- Defend doesn't chase a target it can't shoot;
+- Explore goes for visible loot before waypoints;
+- Rush walks toward the objective while an enemy is in sight;
+- Balanced stays the default.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

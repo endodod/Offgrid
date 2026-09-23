@@ -1,7 +1,7 @@
 import { CLASSES } from '../data/units';
 import { GADGETS } from '../data/gadgets';
 import { RULES } from '../data/rules';
-import { AI_PROFILES, PROFILE_ORDER } from '../data/aiProfiles';
+import { AI_PROFILES, PROFILE_ORDER, SQUAD_ORDERS, type AiProfileId } from '../data/aiProfiles';
 import { TIME_ORDER, TIMES_OF_DAY } from '../data/timeOfDay';
 import { WEATHER_ORDER, WEATHERS } from '../data/weather';
 import { effectiveAccuracyMod, effectiveMove, effectiveVision, envMods } from '../core/environment';
@@ -20,6 +20,7 @@ import { play } from './audio';
 import type { ButtonId, Session } from './session';
 import { nameOf } from './log';
 import { levelForXp, xpEarned } from '../core/leveling';
+import { getPrefs } from './prefs';
 
 const BUTTON_ORDER: ButtonId[] = ['move', 'attack', 'reload', 'gadget', 'overwatch', 'aid', 'revive', 'interact', 'endTurn'];
 
@@ -50,6 +51,9 @@ const stat = (k: string, v: string | number, boost?: string) =>
   `<div class="stat"><div class="stat__k">${k}</div><div class="stat__v">${v}${boost ? `<em>${boost}</em>` : ''}</div></div>`;
 
 /** DOM side of the UI: action bar, unit card, roster, mission panel, log, debug panel. Rebuilt from Session state on every change. */
+/** Short labels for the auto-run order picker (16). */
+const AUTO_LABEL: Partial<Record<AiProfileId, string>> = { friendly: 'Balanced', explore: 'Explore', rush: 'Rush', defend: 'Defend' };
+
 export class Hud {
   private logShown = 0;
   private logEpoch = -1;
@@ -106,6 +110,8 @@ export class Hud {
     $('ow-toggle').addEventListener('click', () => session.toggleOverwatchView());
     $('auto-run-toggle').addEventListener('click', () => session.toggleAutoRun());
     $('undo').addEventListener('click', () => session.undo());
+    seg($('auto-mode'), SQUAD_ORDERS.map((p) => ({ value: p, label: AUTO_LABEL[p] ?? AI_PROFILES[p].name, title: AI_PROFILES[p].blurb })),
+      getPrefs().autoMode, (v) => session.setAutoMode(v as AiProfileId));
     $('banner-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
   }
 

@@ -398,7 +398,7 @@ kbd {
 #topbar { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-3); }
 #phase {
   display: flex; align-items: baseline; gap: var(--s-3);
-  min-height: var(--hit); padding: 0 var(--s-4); flex: 1; min-width: 200px;
+  min-height: var(--hit); padding: 0 var(--s-4); flex: 1 0 auto; min-width: min(100%, 320px); white-space: nowrap;
   background: var(--surface-1); border: 1px solid var(--line); border-left: 3px solid var(--player);
   border-radius: var(--r-md);
   font: 700 14px/var(--hit) var(--font-ui); letter-spacing: 0.12em;
@@ -783,3 +783,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .canvas-wrap.is-panning, .canvas-wrap.is-panning canvas { cursor: grabbing; }
 /* Haze where the board meets the outskirts, so the edge reads as fog rather than a hard frame. */
 #board { box-shadow: 0 0 60px 24px rgba(13, 16, 12, 0.9); }
+
+/* Auto-run's order picker (16), beside the Auto-run button. */
+.seg--sm { padding: 2px; }
+.seg--sm button { min-height: 28px; padding: 0 8px; font-size: 12px; }

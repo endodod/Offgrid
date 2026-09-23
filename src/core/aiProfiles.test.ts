@@ -196,3 +196,52 @@ describe('AI profiles (0c)', () => {
     });
   });
 });
+
+describe('squad orders for auto-run (16)', () => {
+  /** Plays the player team's phase with the AI under `profile`. */
+  const runSquad = (s: ReturnType<typeof makeGame>) => runAiTurn(s, 'player');
+
+  it('every squad order is a known profile with a name and blurb', async () => {
+    const { SQUAD_ORDERS } = await import('../data/aiProfiles');
+    for (const id of SQUAD_ORDERS) expect(AI_PROFILES[id].blurb.length).toBeGreaterThan(10);
+  });
+
+  it('defend never goes looking: no waypoint walking, overwatch in place', () => {
+    const s = makeGame(blank(30, 5), { player: { soldier: [2, 2] }, enemy: { tank: [28, 2] } }, { playerProfile: 'defend' });
+    s.map.searchPoints.player = [[20, 2]];
+    runSquad(s);
+    const u = unit(s, 'player', 'soldier');
+    expect(u.x).toBe(2);
+    expect(u.overwatch).toBe(true);
+  });
+
+  it('defend does not advance on an enemy it cannot shoot', () => {
+    const s = makeGame(blank(30, 5), { player: { soldier: [2, 2] }, enemy: { tank: [20, 2] } }, { playerProfile: 'defend' });
+    s.seenUnits.player.add(unit(s, 'enemy', 'tank').id);
+    runSquad(s);
+    expect(unit(s, 'player', 'soldier').x).toBe(2);
+  });
+
+  it('explore heads for loot it can see before the search waypoints', () => {
+    const s = makeGame(blank(30, 5), { player: { soldier: [10, 2] }, enemy: { tank: [28, 2] } }, { playerProfile: 'explore' });
+    s.map.searchPoints.player = [[25, 2]];
+    s.pickups.push({ id: 99, type: 'ammo', x: 4, y: 2, amount: 2 });
+    s.visible.player.fill(1);
+    runSquad(s);
+    expect(unit(s, 'player', 'soldier').x).toBeLessThan(10); // toward the cache at x=4, away from the waypoint
+  });
+
+  it('rush walks toward the objective even with an enemy in sight it cannot shoot', () => {
+    const s = makeGame(blank(40, 5), { player: { soldier: [2, 2] }, enemy: { tank: [2, 4] } }, { playerProfile: 'rush' });
+    setObjective(s, 30, 2);
+    s.memory.player.objectiveSeen = true;
+    s.seenUnits.player.add(unit(s, 'enemy', 'tank').id);
+    runSquad(s);
+    expect(unit(s, 'player', 'soldier').x).toBeGreaterThan(2);
+  });
+
+  it('balanced (friendly) is still the default auto-run order', async () => {
+    const { defaultPrefs } = await import('../ui/prefs');
+    expect(defaultPrefs().autoMode).toBe('friendly');
+  });
+});

@@ -18,7 +18,7 @@ import type { GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
 import { Animator } from './anim';
 import { describe, nameOf, type LogLine } from './log';
-import { getPrefs } from './prefs';
+import { getPrefs, setPrefs } from './prefs';
 import { play } from './audio';
 
 export type Mode = 'move' | 'attack' | 'gadget' | 'aid' | 'revive' | 'interact';
@@ -210,8 +210,16 @@ export class Session {
    */
   toggleAutoRun() {
     this.autoRun = !this.autoRun;
-    this.state.aiProfiles.player = this.autoRun ? 'friendly' : 'standard';
+    this.state.aiProfiles.player = this.autoRun ? getPrefs().autoMode : 'standard';
     if (this.autoRun && this.ready) this.runPlayerAuto();
+    this.onChange();
+  }
+
+  /** Auto-run's order for the squad (16): explore, rush the objective, defend, or balanced. Takes effect from
+   *  the squad's next decision if auto-run is on, and is remembered for next time. */
+  setAutoMode(mode: AiProfileId) {
+    setPrefs({ autoMode: mode });
+    if (this.autoRun) this.state.aiProfiles.player = mode;
     this.onChange();
   }
 
