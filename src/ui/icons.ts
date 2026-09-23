@@ -9,7 +9,7 @@
 export type IconName =
   | 'move' | 'attack' | 'reload' | 'gadget' | 'overwatch' | 'aid' | 'revive' | 'interact' | 'endTurn'
   | 'armor' | 'equipment' | 'perk' | 'ammo' | 'medkit' | 'currency'
-  | 'play' | 'settings' | 'back' | 'close' | 'map' | 'base' | 'squad' | 'lock' | 'check' | 'eye' | 'bolt';
+  | 'play' | 'settings' | 'back' | 'close' | 'map' | 'base' | 'squad' | 'lock' | 'check' | 'eye' | 'bolt' | 'book' | 'target';
 
 const PATHS: Record<IconName, string> = {
   // --- action bar ---
@@ -41,6 +41,8 @@ const PATHS: Record<IconName, string> = {
   squad: '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-2.4-5"/>',
   lock: '<rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   check: '<path d="m4 12.5 5 5L20 6.5"/>',
+  book: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/><path d="M9 7h7M9 11h5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.6"/>',
   bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>',
 };

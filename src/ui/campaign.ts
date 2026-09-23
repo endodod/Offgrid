@@ -92,6 +92,11 @@ export class Campaign {
     }
   }
 
+  /** Whether a campaign has been played at all (the home tile and the lore's record read this). */
+  hasStarted(): boolean {
+    return this.state.seenIntros.length > 0 || this.state.completedSupplyRuns > 0;
+  }
+
   /** The live CampaignState, for main.ts to hand to the base screen (6) - mutated in place, not copied. */
   campaignState(): CampaignState {
     return this.state;

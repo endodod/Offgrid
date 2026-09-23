@@ -675,3 +675,72 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .pick__name small { color: var(--text-faint); font: 600 11px/1 var(--font-mono); }
 .pick__name .chip { padding: 2px 8px; font-size: 11px; }
 .pick__gear { color: var(--text-faint); font-size: 12px; }
+
+/* ==========================================================================
+   Home (rework): settings top left, two big tiles, the lore strip; Lore screen
+   ========================================================================== */
+.home-bar {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-3) var(--s-5);
+}
+.home .hero { padding: var(--s-5) 0 var(--s-5); text-align: center; }
+.home .hero__logo { margin-left: 0.22em; }
+.home .hero__tag { margin-inline: auto; }
+.resume-strip { display: flex; margin: 0 auto var(--s-4); }
+
+.home-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+@media (max-width: 760px) { .home-tiles { grid-template-columns: 1fr; } }
+.tile {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2);
+  min-height: 260px; padding: var(--s-6) var(--s-5) var(--s-5); text-align: left;
+  border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--med), border-color var(--med), box-shadow var(--med);
+}
+.tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+.tile--campaign { background: radial-gradient(120% 90% at 100% 0%, rgba(255, 210, 63, 0.16), transparent 60%), linear-gradient(160deg, #1d2417, #10140e); }
+.tile--campaign:hover { border-color: var(--accent); }
+.tile--training { background: radial-gradient(120% 90% at 100% 0%, rgba(127, 196, 214, 0.14), transparent 60%), linear-gradient(160deg, #17201f, #0e1312); }
+.tile--training:hover { border-color: var(--info); }
+.tile__art { position: absolute; right: -24px; bottom: -30px; opacity: 0.09; pointer-events: none; }
+.tile__art svg { width: 220px; height: 220px; stroke-width: 1.2; }
+.tile__kicker { font: 700 11px/1 var(--font-mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); }
+.tile__title { font: 700 clamp(28px, 4vw, 40px)/1.05 var(--font-ui); letter-spacing: 0.02em; color: var(--text); }
+.tile__sub { max-width: 42ch; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.tile__cta {
+  margin-top: auto; padding: 8px 16px; border-radius: var(--r-pill);
+  font: 700 13px/1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.tile--campaign .tile__cta { background: var(--accent); color: #1a1606; }
+.tile--training .tile__cta { background: rgba(127, 196, 214, 0.16); color: var(--info); border: 1px solid #2c4a52; }
+
+.lore-strip {
+  display: flex; align-items: center; gap: var(--s-4); width: 100%; margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5); text-align: left;
+  background: linear-gradient(90deg, rgba(255, 210, 63, 0.07), transparent 70%), var(--surface-1);
+  border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r-lg);
+}
+.lore-strip:hover { border-color: var(--line-strong); border-left-color: var(--accent); }
+.lore-strip__icon svg { width: 28px; height: 28px; color: var(--accent); }
+.lore-strip__text { flex: 1; min-width: 200px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.lore-strip__text b { color: var(--text); }
+.lore-strip__go { font: 700 13px/1 var(--font-ui); color: var(--accent); white-space: nowrap; }
+@media (max-width: 560px) { .lore-strip { flex-wrap: wrap; } }
+
+.lore { display: flex; flex-direction: column; gap: var(--s-5); }
+.lore-section h2 { font-size: 22px; margin-bottom: var(--s-2); }
+.lore-section p, .lore-entry p { font-size: 15px; line-height: 1.7; color: var(--text-dim); margin-top: var(--s-2); max-width: 68ch; }
+.lore-section p:last-child { color: var(--text); }
+.lore-districts { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.lore-district { display: grid; grid-template-columns: 54px 150px 1fr; gap: var(--s-3); align-items: baseline; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface-1); border: 1px solid var(--line); color: var(--text-faint); font-size: 14px; }
+.lore-district.is-reached { color: var(--text-dim); border-left: 3px solid var(--accent); }
+.lore-district b { color: var(--text); }
+.lore-district__act { font: 700 11px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+@media (max-width: 560px) { .lore-district { grid-template-columns: 1fr; gap: 2px; } }
+.lore-entry { padding: var(--s-4) var(--s-5); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.lore-entry h3 { font-size: 20px; margin-top: 4px; }
+.lore-entry__eyebrow { font: 700 11px/1 var(--font-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+.lore-entry__mission { margin-top: var(--s-3); padding-left: var(--s-3); border-left: 2px solid var(--line-strong); }
+.lore-entry__mission b { font-size: 14px; color: var(--text); }
+.tile, .lore-strip { white-space: normal; }

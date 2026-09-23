@@ -1,12 +1,14 @@
 import type { Mission } from '../data/missions';
 import type { MapDef } from '../data/trainingGrounds';
 import { icon } from './icons';
+import type { CampaignState } from '../core/campaign';
+import { DISTRICTS, STORY_MISSIONS } from '../data/campaign';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip' | 'briefing';
+export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip' | 'briefing' | 'lore';
 
-const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip', 'briefing'];
+const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip', 'briefing', 'lore'];
 
 /** Show exactly one screen. */
 export function showScreen(screen: Screen) {
@@ -60,6 +62,26 @@ export function initHome(missions: Mission[], h: HomeHooks): () => void {
     if (enter) h.onEnter(missions[Number(enter.dataset.mission)]);
     else if (edit) h.onEdit(missions[Number(edit.dataset.edit)]);
   });
+  $('home-debug').hidden = !h.debug;
+  const training = missions.find((m) => m.id === 'training-grounds') ?? missions[0];
+  $('home-training').addEventListener('click', () => h.onEnter(training));
   render();
   return render;
+}
+
+/** The campaign tile's line: where the campaign stands, or an invitation (and a nudge to the lore) if new. */
+export function renderCampaignTile(cs: CampaignState | null) {
+  $('home-lore').querySelector('.lore-strip__text')!.innerHTML = cs
+    ? '<b>The story so far.</b> Re-read every briefing and debrief, and what is known about Ashport.'
+    : '<b>New to Ashport?</b> Read what happened to the city, and who you are up against, before your first mission.';
+  if (!cs) {
+    $('home-campaign-sub').textContent = 'Take Ashport back, one district at a time. First time? Read the lore below.';
+    $('home-campaign-cta').textContent = 'Start';
+    return;
+  }
+  const current = [...DISTRICTS].reverse().find((d) => cs.unlockedDistricts.includes(d.id)) ?? DISTRICTS[0];
+  const inDistrict = STORY_MISSIONS.filter((m) => m.district === current.id);
+  const done = inDistrict.filter((m) => cs.completedStoryMissions.includes(m.id)).length;
+  $('home-campaign-sub').textContent = `Act ${current.act} · ${current.name} · ${done}/${inDistrict.length} missions · ${cs.currency} salvage`;
+  $('home-campaign-cta').textContent = 'Continue';
 }

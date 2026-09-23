@@ -14,18 +14,23 @@ The plan is ROADMAP.md feature 10 (table of 10a-10k with status). Each item is o
 | `e3d387b` | 10e/10f: procedural WebAudio sounds (`ui/audio.ts`); Settings "Game" group (`ui/prefs.ts`), colour-blind palette |
 | `5427441` | 10g: mission results table in the end banner; `Unit.shotsFired/shotsHit` |
 | `facdc67` | 10h: end-turn confirmation, undo for a move that revealed nothing (`Z`) |
+| `7183f58` | 10i: soft fog-of-war overlay, time-of-day tint, animated weather (`Prefs.weatherFx`) |
+| `194d61a` | 11: base overhaul - ten stations, wounds carry over, squad pick + recon briefing, fabricator/parts |
+| (next) | 12: home page rework (two tiles, Settings top left) and the Lore screen |
 
-414 tests pass, `tsc` clean, `npm run build` clean. Each item was also driven in headless Chromium with no
+427 tests pass, `tsc` clean, `npm run build` clean. Each item was also driven in headless Chromium with no
 console errors.
 
 ## Next up
 
-1. **10i** board visuals ahead of #9: fog as a soft-edged darkness overlay instead of greyscale tiles, plus
-   rain/fog/night overlays from `envMods`. All in `render/renderer.ts` (`drawTile`'s `grey` path).
-2. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
-3. **10j** gameplay depth (AI opens doors, retreat to real cover, enemy pods/reinforcements). Each needs a sim
+1. **10k** touch: pinch zoom, tap-to-preview-then-confirm on coarse pointers (after 10b's `Viewport`).
+2. **10j** gameplay depth (AI opens doors, retreat to real cover, enemy pods/reinforcements). Each needs a sim
    knob; see the notes below on doors.
-4. The earlier queue still stands: Act 2 missions, feature 9 visual rehaul, a per-instance roster.
+3. **A per-instance roster** now matters more. Feature 11 (ROADMAP.md) keeps one soldier per class, so picking
+   a squad means leaving classes at home. Recruits, names and duplicate classes would need `loadouts`, `levels`
+   and `health` re-keyed from `ClassId` to a soldier id. Maps would also need spawn slots rather than per-class
+   spawns: `deploySquad` filters spawns by class.
+4. The earlier queue still stands: Act 2 missions and the feature 9 visual rehaul.
 
 ## Gotchas from this session
 
@@ -44,6 +49,14 @@ console errors.
   `VITE_DEBUG=true` so `window.session` exists. Run `npx vite --port 5199` in the background.
 
 ## Things that are worth knowing and are not obvious from the code
+
+- **Campaign health only moves on a win** (feature 11). A loss is retried from scratch, as before, so it
+  changes no HP. `afterMission` in `core/roster.ts` runs after `recordMissionGear` and `applyMissionXp` in
+  `Campaign.reportWin`; the order matters, because the death reset happens in `applyMissionXp`.
+- **Every campaign map spawns exactly the five classes**, one each. `deploySquad` relies on that.
+- **Weather animation is a ~30 fps `setTimeout` in main.ts's `frame`**, and only runs while weather is moving,
+  the game screen is visible and nothing else is animating. It is a pure function of time, so there is no
+  particle state to save.
 
 - **Enemy counts must sit near parity with the player's five.** The first pass at the 48x32 maps used 8-10
   enemies each; the sim showed ~100% enemy wins on all ten. A bigger map buys distance and routes, not bodies.

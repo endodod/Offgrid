@@ -664,6 +664,22 @@ and the squad became something to manage between missions.
 deployment, training XP, crafting gates, scrap values, locker trimming, parts income, the War Room, migration,
 and the new gear's starting supplies.
 
+## 12. Home page rework and the Lore screen
+
+**Status: done.**
+
+- The home page is a top bar (Settings on the left, Lore on the right), the logo, and two large tiles:
+  **Campaign** (with the current act, district, missions done and salvage, or an invitation for a new player)
+  and **Training Grounds** (straight into the rules sandbox and its tutorial). Under the tiles is a Lore strip;
+  its text switches from "New to Ashport?" to "The story so far" once a campaign has started. The single-mission
+  card list is now debug-only, because the Training Grounds tile replaces it.
+- **Lore** (`ui/lore.ts`, text in `data/lore.ts`) has three parts. The world: the Blackout, the Lamplighters,
+  the Jackals, a rumour about the waterfront, and how the campaign works. The seven districts: names always,
+  blurbs only for Act 1 and for districts the player has reached. The player's record: every district briefing
+  they have seen and every completed mission's debrief, in order.
+- **Spoilers are kept out on purpose.** Halcyon's part in the Blackout is Act 3's reveal (STORY.md §2), so the
+  Lore screen never names Halcyon, and it only hints at the Cinder Wardens.
+
 ## After these: levels, campaign, multiplayer
 
 Not planned in detail yet. These notes record what still needs attention beyond the meta-game layer above.

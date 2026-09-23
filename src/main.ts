@@ -10,7 +10,8 @@ import { Briefing } from './ui/briefing';
 import { Builder } from './ui/builder';
 import { Campaign } from './ui/campaign';
 import { Equip } from './ui/equip';
-import { initHome, isGameVisible, showScreen, type Screen } from './ui/home';
+import { initHome, isGameVisible, renderCampaignTile, showScreen, type Screen } from './ui/home';
+import { Lore } from './ui/lore';
 import { Hud } from './ui/hud';
 import { icon, type IconName } from './ui/icons';
 import { bindInput } from './ui/input';
@@ -162,6 +163,7 @@ el('tutorial-replay').addEventListener('click', () => tutorial.start());
 /** The home screen, with its "Resume mission" button reflecting whatever is saved right now. */
 function goHome() {
   refreshHome();
+  renderCampaignTile(campaign.hasStarted() ? campaign.campaignState() : null);
   const save = loadMission();
   const btn = el('home-resume');
   btn.hidden = !save;
@@ -185,6 +187,10 @@ const briefing = new Briefing({ onBack: () => showScreen('campaign'), onDeploy: 
 /** Campaign.open() is async (it may queue a debrief and a district briefing); nothing waits on it. */
 const toCampaign = () => { showScreen('campaign'); void campaign.open(); };
 el('home-campaign').addEventListener('click', toCampaign);
+const lore = new Lore({ onBack: () => goHome(), onCampaign: toCampaign });
+const toLore = () => { lore.open(campaign.hasStarted() ? campaign.campaignState() : null); showScreen('lore'); };
+el('home-lore').addEventListener('click', toLore);
+el('home-lore-top').addEventListener('click', toLore);
 
 const base = new Base({ onBack: toCampaign });
 el('campaign-to-base').addEventListener('click', () => { base.open(campaign.campaignState()); showScreen('base'); });
