@@ -3,7 +3,7 @@ import { DEBUG } from './debug';
 import { MISSIONS, type Mission } from './data/missions';
 import type { MapDef } from './data/trainingGrounds';
 import type { GameState } from './core/types';
-import { draw, RES, TILE } from './render/renderer';
+import { draw, hasAmbientMotion, RES, TILE } from './render/renderer';
 import { Base } from './ui/base';
 import { unlockAudio } from './ui/audio';
 import { Builder } from './ui/builder';
@@ -16,6 +16,7 @@ import { bindInput } from './ui/input';
 import { loadCustom } from './ui/mapStore';
 import { clearMission, loadMission, saveMission } from './ui/missionStore';
 import { confirmModal } from './ui/modal';
+import { getPrefs } from './ui/prefs';
 import { applyPalette, initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
@@ -70,7 +71,11 @@ function frame() {
   if (session.animating(now)) { wasAnimating = true; hud.updateLog(now); request(); }
   else if (wasAnimating) { wasAnimating = false; session.onChange(); }
   else if (session.floaters.length) request();
+  else if (getPrefs().weatherFx && hasAmbientMotion(s) && isGameVisible() && !ambientTimer) {
+    ambientTimer = window.setTimeout(() => { ambientTimer = 0; request(); }, 33); // weather (10i) doesn't need 60 fps
+  }
 }
+let ambientTimer = 0;
 function request() {
   if (!queued) { queued = true; requestAnimationFrame(frame); }
 }

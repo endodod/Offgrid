@@ -13,6 +13,8 @@ export interface Prefs {
   colorblind: boolean;
   /** Ask before ending a turn while units still have actions (10h). */
   confirmEndTurn: boolean;
+  /** Moving rain, fog banks and lightning on the board (10i). Off leaves the still tint and haze. */
+  weatherFx: boolean;
 }
 
 const KEY = 'offgrid.prefs';
@@ -21,8 +23,8 @@ const reducedMotion = (): boolean => {
   try { return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false; } catch { return false; }
 };
 
-/** Reduced-motion users start with instant playback and no shake; everyone can change it in Settings. */
-export const defaultPrefs = (): Prefs => ({ ...(reducedMotion() ? { animSpeed: 0, shake: false } : { animSpeed: 1, shake: true }), volume: 0.7, colorblind: false, confirmEndTurn: true });
+/** Reduced-motion users start with instant playback, no shake and still weather; everyone can change it in Settings. */
+export const defaultPrefs = (): Prefs => ({ ...(reducedMotion() ? { animSpeed: 0, shake: false, weatherFx: false } : { animSpeed: 1, shake: true, weatherFx: true }), volume: 0.7, colorblind: false, confirmEndTurn: true });
 
 let prefs: Prefs = load();
 
@@ -36,6 +38,7 @@ function load(): Prefs {
       animSpeed: typeof o.animSpeed === 'number' && o.animSpeed >= 0 ? o.animSpeed : d.animSpeed,
       shake: typeof o.shake === 'boolean' ? o.shake : d.shake,
       colorblind: typeof o.colorblind === 'boolean' ? o.colorblind : d.colorblind,
+      weatherFx: typeof o.weatherFx === 'boolean' ? o.weatherFx : d.weatherFx,
       confirmEndTurn: typeof o.confirmEndTurn === 'boolean' ? o.confirmEndTurn : d.confirmEndTurn,
       volume: typeof o.volume === 'number' && o.volume >= 0 && o.volume <= 1 ? o.volume : d.volume,
     };

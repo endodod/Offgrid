@@ -336,7 +336,7 @@ export class Builder {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     draw(this.ctx, {
       s, selected: null, hover: this.hover, mode: 'move', reach: null, path: null, ringed: new Set(), aimTiles: new Set(),
-      coverRot: this.rot, overwatchView: false, floaters: [], now: 0, anim: emptyFrame(), shake: false,
+      coverRot: this.rot, overwatchView: false, floaters: [], now: 0, anim: emptyFrame(), shake: false, ambient: false,
     });
   }
 }

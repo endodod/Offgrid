@@ -32,6 +32,7 @@ export interface View {
   now: number;
   anim: AnimFrame; // event playback (10d): where units are mid-walk, pending damage, effects
   shake: boolean; // screen shake allowed (a player preference)
+  ambient: boolean; // animated weather (10i, a player preference); off = the static tint and haze only
 }
 
 // Dark, desaturated palette. Yellow is reserved for the selected unit.
@@ -60,6 +61,7 @@ export function setColorblind(on: boolean) {
   Object.assign(C, teamColors(on));
 }
 
+/** Greyscale of a colour: kept for the remembered objective marker, which sits above the fog overlay. */
 const greyCache = new Map<string, string>();
 function grey(hex: string): string {
   let g = greyCache.get(hex);
@@ -86,6 +88,8 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) drawTile(ctx, v, x, y);
   drawInteractables(ctx, v);
   drawPickups(ctx, v);
+  drawDaylight(ctx, v);
+  drawFog(ctx, v);
   drawShields(ctx, v);
   drawHighlights(ctx, v);
   drawScans(ctx, v);
@@ -93,6 +97,7 @@ export function draw(ctx: CanvasRenderingContext2D, v: View) {
   drawGhosts(ctx, v);
   for (const u of s.units) if (shownUnit(v, u)) drawUnit(ctx, v, u);
   drawEffects(ctx, v);
+  drawWeather(ctx, v);
   drawMovePath(ctx, v);
   drawPreview(ctx, v);
   drawFloaters(ctx, v);
@@ -114,7 +119,7 @@ const isVisible = (s: GameState, x: number, y: number) => s.visible.player[idx(s
 function drawTile(ctx: CanvasRenderingContext2D, v: View, x: number, y: number) {
   const { s } = v;
   const i = idx(s, x, y);
-  const c = isVisible(s, x, y) ? (h: string) => h : grey; // terrain is always drawn, greyed out when not visible
+  const c = (h: string) => h; // terrain is always drawn in full; drawFog dims what's out of sight
   const px = x * TILE, py = y * TILE;
   ctx.fillStyle = c((x + y) % 2 ? C.floorA : C.floorB);
   ctx.fillRect(px, py, TILE, TILE);
@@ -140,6 +145,139 @@ function drawTile(ctx: CanvasRenderingContext2D, v: View, x: number, y: number) 
 
   const cover = s.cover[i];
   if (cover) drawCover(ctx, px, py, cover, s.coverRot[i], c);
+}
+
+/**
+ * Fog of war (10i): a dark, desaturated veil over every tile out of sight, with soft edges. The veil is painted
+ * into a tiny mask (FOG_RES pixels a tile) and stretched over the board with smoothing on, so the edge of what
+ * the squad can see fades over about half a tile instead of stepping tile by tile. The terrain under it is
+ * always drawn in full: the map layout is never hidden, only what's on it.
+ */
+const FOG_RES = 2;
+let fogMask: HTMLCanvasElement | null = null;
+
+function drawFog(ctx: CanvasRenderingContext2D, v: View) {
+  const { s } = v;
+  if (!s.fogEnabled || typeof document === 'undefined') return;
+  const w = s.width * FOG_RES, h = s.height * FOG_RES;
+  fogMask ??= document.createElement('canvas');
+  if (fogMask.width !== w || fogMask.height !== h) { fogMask.width = w; fogMask.height = h; }
+  const m = fogMask.getContext('2d')!;
+  const img = m.createImageData(w, h);
+  const [r, g, b] = fogTone(s);
+  for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) {
+    if (s.visible.player[idx(s, x, y)]) continue;
+    for (let dy = 0; dy < FOG_RES; dy++) for (let dx = 0; dx < FOG_RES; dx++) {
+      const o = ((y * FOG_RES + dy) * w + x * FOG_RES + dx) * 4;
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
+    }
+  }
+  m.putImageData(img, 0, 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalCompositeOperation = 'saturation'; // wash the colour out first...
+  ctx.globalAlpha = 0.7;
+  ctx.drawImage(fogMask, 0, 0, s.width * TILE, s.height * TILE);
+  ctx.globalCompositeOperation = 'source-over'; // ...then darken
+  ctx.globalAlpha = s.timeOfDay === 'midnight' ? 0.66 : 0.55;
+  ctx.drawImage(fogMask, 0, 0, s.width * TILE, s.height * TILE);
+  ctx.restore();
+}
+
+/** The colour of the unknown: a cold blue-black at night, a pale grey in fog, a neutral dark otherwise. */
+function fogTone(s: GameState): [number, number, number] {
+  if (s.timeOfDay === 'midnight') return [4, 8, 20];
+  if (s.weather === 'fog') return [38, 44, 46];
+  return [10, 12, 10];
+}
+
+/**
+ * Time of day (10i): a light wash over the whole board. Morning is a warm haze, afternoon a golden glare,
+ * midnight a deep blue. Midday is untouched. Drawn under the fog veil so out-of-sight stays the darkest thing.
+ */
+const DAYLIGHT: Partial<Record<GameState['timeOfDay'], string>> = {
+  morning: 'rgba(255,196,140,0.10)',
+  afternoon: 'rgba(255,214,120,0.08)',
+  midnight: 'rgba(16,28,72,0.34)',
+};
+
+function drawDaylight(ctx: CanvasRenderingContext2D, v: View) {
+  const { s } = v;
+  const tint = DAYLIGHT[s.timeOfDay];
+  const W = s.width * TILE, H = s.height * TILE;
+  if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, W, H); }
+  if (s.weather === 'cloudy' || s.weather === 'stormy' || s.weather === 'rain') {
+    ctx.fillStyle = s.weather === 'cloudy' ? 'rgba(40,46,52,0.10)' : 'rgba(24,32,44,0.18)';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/** Whether the board has moving weather, so the frame loop keeps drawing while nothing else is happening. */
+export function hasAmbientMotion(s: GameState): boolean {
+  return s.weather !== 'clear';
+}
+
+/**
+ * Weather (10i), over the units: rain streaks, drifting fog banks, cloud shadows, storm lightning. Everything is
+ * a pure function of `v.now` and tile coordinates (no particle state), so it costs nothing to pause and is the
+ * same on every redraw. With `v.ambient` off, only the still parts are drawn.
+ */
+function drawWeather(ctx: CanvasRenderingContext2D, v: View) {
+  const { s } = v;
+  const W = s.width * TILE, H = s.height * TILE;
+  const t = v.ambient ? v.now / 1000 : 0;
+  if (s.weather === 'cloudy' || s.weather === 'fog') drawDrift(ctx, s, t, s.weather === 'fog');
+  if (s.weather === 'rain' || s.weather === 'stormy') {
+    const storm = s.weather === 'stormy';
+    const n = Math.round((s.width * s.height) / (storm ? 3 : 5));
+    const fall = storm ? 520 : 380; // logical px per second
+    const slant = storm ? 0.45 : 0.18; // dx per dy
+    const len = storm ? 16 : 11;
+    ctx.save();
+    ctx.strokeStyle = storm ? 'rgba(190,205,225,0.32)' : 'rgba(180,200,220,0.26)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let k = 0; k < n; k++) {
+      const h = hash(k, 7, 3);
+      const speed = fall * (0.8 + (h % 40) / 100);
+      const y = ((h >> 4) % (H + 40) + t * speed) % (H + 40) - 20;
+      const x = (((h >> 12) % (W + 60)) + y * slant) % (W + 60) - 30;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len * slant, y + len);
+    }
+    ctx.stroke();
+    ctx.restore();
+    if (storm && v.ambient) {
+      // Lightning: a short double flash, roughly every 9 s at a varying moment.
+      const cycle = Math.floor(t / 9), phase = t - cycle * 9;
+      const at = 2 + (hash(cycle, 1, 9) % 50) / 10;
+      const d = phase - at;
+      const a = d >= 0 && d < 0.08 ? 0.22 : d >= 0.16 && d < 0.3 ? 0.14 * (1 - (d - 0.16) / 0.14) : 0;
+      if (a > 0) { ctx.fillStyle = `rgba(220,230,255,${a.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+    }
+  }
+}
+
+/** Slow soft blobs: pale fog banks, or dark cloud shadows. A handful per map, sized in tiles. */
+function drawDrift(ctx: CanvasRenderingContext2D, s: GameState, t: number, fog: boolean) {
+  const W = s.width * TILE, H = s.height * TILE;
+  const n = Math.max(3, Math.round((s.width * s.height) / (fog ? 60 : 110)));
+  ctx.save();
+  for (let k = 0; k < n; k++) {
+    const h = hash(k, 3, 11);
+    const r = TILE * (fog ? 3 + (h % 4) : 4 + (h % 5));
+    const speed = (fog ? 6 : 10) * (0.6 + ((h >> 5) % 10) / 10);
+    const x = (((h >> 9) % (W + 2 * r)) + t * speed) % (W + 2 * r) - r;
+    const y = ((h >> 17) % (H + r)) - r / 2 + Math.sin(t * 0.2 + k) * TILE * 0.5;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const inner = fog ? 'rgba(200,210,210,0.12)' : 'rgba(10,14,18,0.16)';
+    grad.addColorStop(0, inner);
+    grad.addColorStop(1, fog ? 'rgba(200,210,210,0)' : 'rgba(10,14,18,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  if (fog) { ctx.fillStyle = 'rgba(190,200,200,0.04)'; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
 }
 
 /** Low cover is a sandbag bar that can be rotated by quarter turns (the end cap shows which way). High cover is a block. */
@@ -313,7 +451,7 @@ function drawInteractables(ctx: CanvasRenderingContext2D, v: View) {
     const known = !s.fogEnabled || nowVisible || it.id in mem.doors;
     if (!known) continue;
     const active = !s.fogEnabled || nowVisible ? it.active : mem.doors[it.id];
-    const c = !s.fogEnabled || nowVisible ? (h: string) => h : grey;
+    const c = (h: string) => h; // dimmed by the fog overlay when out of sight
     const px = it.x * TILE, py = it.y * TILE;
     if (it.type === 'door') drawDoor(ctx, px, py, active, c);
     else if (it.type === 'switch') drawSwitch(ctx, px, py, active, c);

@@ -538,7 +538,7 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
 | 10f | Settings: volume, animation speed, screen shake, colour-blind palette | small | done |
 | 10g | Mission results screen (kills, accuracy, XP, loot) | small-medium | done |
 | 10h | Safety: confirm ending a turn with unspent actions; undo a move that revealed nothing | small | done |
-| 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | |
+| 10i | Board visuals ahead of #9: soft fog edge, weather/night overlays on the canvas | medium | done |
 | 10j | Gameplay depth: AI opens doors, retreat to real cover, enemy pods/activation, reinforcement timers | large | |
 | 10k | Touch / small screens: pinch zoom, tap-to-preview-then-confirm | medium | |
 
@@ -606,6 +606,12 @@ Each sub-item is its own commit and keeps the ground rules above (core stays pur
   confirms, which focus Cancel.
 - **10i.** Fog as a darkness overlay with a soft edge instead of greyscale tiles; rain streaks, fog haze and a
   night vignette from `envMods`. This is the start of #9, not a replacement for it.
+  *Done as:* `drawFog` stretches a 2-px-per-tile mask with smoothing (a desaturate pass, then a darken pass), so
+  the edge of sight fades over about half a tile; terrain and remembered doors are drawn in full colour under it.
+  `drawDaylight` tints the board per time of day (and darkens for cloud/rain/storm); `drawWeather` draws rain
+  streaks, drifting fog banks or cloud shadows, and storm lightning over the units, all as pure functions of the
+  clock (no particle state). A "Weather effects" setting (`Prefs.weatherFx`, off under reduced motion) stills it;
+  main.ts redraws at ~30 fps only while weather is moving and nothing else is.
 - **10j.** Recorded as separate follow-ups once 10a-10i land: the AI's door handling (see `SESSION_HANDOFF.md`), the
   `hard` retreat finding in 0c, and pod activation + reinforcements as mission options (each with a sim knob).
 - **10k.** After 10b: pinch zoom, and on coarse pointers a first tap previews (path, hit chance) and a second
