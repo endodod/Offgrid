@@ -102,9 +102,10 @@ function coldFeed(): string[] {
   rect(g, 7, 6, 18, 1, '#'); rect(g, 7, 21, 18, 1, '#'); rect(g, 7, 6, 1, 16, '#'); rect(g, 24, 6, 1, 16, '#');
   for (const [x, y] of [[15, 6], [16, 6], [15, 21], [16, 21], [7, 13], [7, 14], [24, 13], [24, 14]] as [number, number][]) put(g, x, y, '.');
   // the transformer pad
-  for (const [x, y] of tiles(15, 13, 2, 2)) put(g, x, y, 'O');
-  pts(g, [[13, 12], [18, 12], [13, 15], [18, 15]], 'l');
-  hRun(g, 14, 11, 4, 'h'); hRun(g, 14, 16, 4, 'h');
+  // the pad: twelve tiles, more than the squad can stand on - somebody has to be kept off it, not out-queued
+  for (const [x, y] of tiles(14, 12, 4, 3)) put(g, x, y, 'O');
+  pts(g, [[12, 12], [19, 12], [12, 15], [19, 15]], 'l');
+  hRun(g, 14, 10, 4, 'h'); hRun(g, 14, 17, 4, 'h');
   // yard furniture
   pts(g, [[10, 9], [21, 9], [10, 18], [21, 18]], 'h');
   pts(g, [[11, 13], [20, 14]], 'l');
@@ -119,12 +120,12 @@ export const COLD_FEED: MapDef = {
   name: 'Feeder Yard Seven',
   rows: coldFeed(),
   spawns: {
-    player: [['soldier', 13, 13], ['assault', 18, 14], ['medic', 14, 17], ['tank', 17, 10], ['sniper', 12, 17]],
-    enemy: [['assault', 15, 1, 'rush'], ['soldier', 29, 9], ['sniper', 2, 20], ['assault', 29, 22, 'rush']],
+    player: [['soldier', 13, 13], ['assault', 18, 14], ['medic', 13, 16], ['tank', 16, 11], ['sniper', 12, 17]],
+    enemy: [['soldier', 15, 1], ['soldier', 29, 9], ['sniper', 2, 20], ['assault', 29, 22, 'rush']],
   },
   searchPoints: {
     player: [[15, 8], [9, 13], [22, 14], [16, 19]],
-    enemy: [[15, 12], [16, 15], [15, 8], [22, 14]],
+    enemy: [[13, 12], [18, 15], [15, 8], [22, 14]],
   },
   startTimeOfDay: 'midnight',
   startWeather: 'clear',
@@ -132,7 +133,7 @@ export const COLD_FEED: MapDef = {
   objective: { type: 'defend', rounds: 5, label: 'the transformer' },
   reinforcements: [
     { turn: 2, spawns: [['assault', 1, 13, 'rush'], ['soldier', 30, 13]] },
-    { turn: 4, spawns: [['assault', 16, 26, 'rush'], ['tank', 15, 1], ['soldier', 30, 2]] },
+    { turn: 4, spawns: [['assault', 16, 26, 'rush'], ['soldier', 30, 2]] },
   ],
   interactables: [{ id: 20, type: 'chest', x: 30, y: 26 }],
   pickups: [
@@ -253,7 +254,7 @@ export const BREAKER_YARD: MapDef = {
     player: [['soldier', 18, 29], ['assault', 20, 29], ['medic', 19, 30], ['tank', 17, 30], ['sniper', 21, 30]],
     enemy: [
       ['soldier', 6, 23, 'defend'], ['sniper', 21, 4, 'defend'], ['assault', 33, 21, 'defend'], ['soldier', 30, 10],
-      ['assault', 10, 10],
+      ['assault', 10, 10], ['tank', 20, 16],
     ],
   },
   searchPoints: {

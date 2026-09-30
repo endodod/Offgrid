@@ -9,6 +9,7 @@ import {
   SWITCHBACK, COLD_FEED, MAINTENANCE_LOG, BREAKER_YARD, HILLTOP_CONTROL,
   NARROW_STREETS, BELL_TOWER, ARMOURY, SAINT_ORIELS, WARDEN_COMMAND,
   GLASS_CANYON, CONTRACT_OFFICE, BLACKOUT_ARCHIVE, SECURITY_PERIMETER, DIRECTOR,
+  SERVICE_ENTRANCE, FLOOR_FORTY, COOLING_PLANT, LOCKDOWN, GRID_CONTROL,
 } from './maps';
 import type { MapDef } from './trainingGrounds';
 
@@ -356,6 +357,42 @@ export const STORY_MISSIONS: StoryMissionDef[] = [
     objective: 'Eliminate Regional Director Harlan Crane. Or eliminate every enemy.',
     outcome: "Crane did not have much to say. He had kept the grid alive and off for three years because switching it back on meant an inquiry, and an inquiry meant the logs. He had an access card for the Spire around his neck - Grid Control, all levels - and the last thing he said was that it would not help you, because the room at the top of the Spire does not take orders from a card. It takes them from whoever is sitting in it.",
     map: DIRECTOR,
+  },
+  // ---------------------------------------------------------------- The Spire
+  {
+    id: 'service-entrance', name: 'Service Entrance', district: 'spire', act: 3,
+    blurb: "The Spire's front doors have been sealed since the Blackout. Its loading dock has not: Halcyon's drones still fly their rounds through the truck bays every night, and the service lift at the far end still goes up. Get three people into it.",
+    objective: 'Get 3 units to the service lift. Or eliminate every enemy.',
+    outcome: "The service lift goes as far as floor forty and stops with a polite chime. EXPRESS SERVICE TO GRID CONTROL REQUIRES ENGINEERING OVERRIDE. Abel Cortez, who has come every step of the way from a basement in Riverside, looks at the panel for a long time and says he can do it, if somebody keeps them off him for long enough.",
+    map: SERVICE_ENTRANCE,
+  },
+  {
+    id: 'floor-forty', name: 'Floor Forty', district: 'spire', act: 3,
+    blurb: "Abel is on the lift panel with his sleeves rolled up, and it will take him five rounds. Halcyon security is coming up both stairwells and across the sky bridge, and they are not coming for the squad. They are coming for the panel. Keep every one of them off it.",
+    objective: 'Keep every enemy off the lift panel until the end of round 5. Or eliminate every enemy.',
+    outcome: "The override takes, and the express lift opens onto the mechanical floor instead of the top: Grid Control has locked itself from the inside, the way it was designed to when the building is under threat. Abel says there is one way round a lock like that. Make the room think it is on fire.",
+    map: FLOOR_FORTY,
+  },
+  {
+    id: 'the-cooling-plant', name: 'The Cooling Plant', district: 'spire', act: 3,
+    blurb: "Grid Control can be locked from outside - unless it thinks it is overheating, in which case it fails over to manual, and whoever is in the room has the switches. Three coolant valves on the mechanical floor, three corners of a plant full of steam and pipe, and the building's sentries somewhere in the fog.",
+    objective: 'Close all three coolant valves. Or eliminate every enemy.',
+    outcome: "The temperature alarms start on the floor above, one after another, and then every door in the Spire unlocks at once - including the ones that should not. The building's security system has decided the squad is the fire.",
+    map: COOLING_PLANT,
+  },
+  {
+    id: 'lockdown', name: 'Lockdown', district: 'spire', act: 3,
+    blurb: "The Spire has sealed the atrium gallery with the squad inside it, and it is sending everything it has left through the service hatches. The fire doors cycle in six rounds. There is nowhere to go. Be alive when they open.",
+    objective: 'Survive until the end of round 6. Or eliminate every enemy.',
+    outcome: "The fire doors open on the sixth round, exactly as the placard says they will. Beyond them, the last staircase in Ashport that goes anywhere that matters. The radio net has gone quiet. Every Warden in the city is listening.",
+    map: LOCKDOWN,
+  },
+  {
+    id: 'grid-control', name: 'Grid Control', district: 'spire', act: 3,
+    blurb: "The room at the top of the Spire. Every switch in Ashport still answers to the master console on the dais, and the manual failover takes four rounds to complete. Every Halcyon asset left in the building is converging on it. Take the console. Hold it. Then give it away.",
+    objective: 'Take the master console and hold it for 4 rounds. Or eliminate every enemy.',
+    outcome: "At 21:04, exactly three years after the fault, Abel closes the first breaker by hand. Riverside comes on. Then Market Row. Then the Dockyards, the Hill, Old Town, Uptown, one district after another across the whole dark city, and on every Warden radio in Ashport a flat automated voice reads out the same line: CONTRACT HS-114 COUNTERMANDED BY AUTHORISED OFFICER. Nobody asks who.",
+    map: GRID_CONTROL,
   },
 ];
 

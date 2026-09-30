@@ -61,6 +61,23 @@ export function planAction(s: GameState, u: Unit): Action | null {
 
   const profile = AI_PROFILES[u.aiProfile ?? s.aiProfiles[u.team]];
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
+
+  // 'defend' (Act 2): an attacker standing on the zone is the only thing that matters - it takes the zone at
+  // the start of its next phase. Shoot it if possible, otherwise go and get it. (The squad side only: the
+  // attackers' own goal is the zone, see objectiveGoalPositions.)
+  if (s.objectiveDef?.type === 'defend' && u.team === 'player' && !holding) {
+    const zone = new Set(s.objectiveZone.map((p) => `${p.x},${p.y}`));
+    const onZone = enemies.filter((e) => !e.downed && zone.has(`${e.x},${e.y}`));
+    if (onZone.length) {
+      for (const e of onZone) {
+        const shot: Action = { type: 'attack', unit: u.id, target: e.id };
+        if (u.ammo > 0 && ok(s, shot)) return shot;
+      }
+      if (u.ammo === 0 && ok(s, reload)) return reload;
+      const mv = advance(s, u, nearestOf(u, onZone)!);
+      if (mv) return mv;
+    }
+  }
   const move = effectiveMove(s, u);
 
   // Difficulty: a unit that fails its reaction roll doesn't act with full competence this decision - it holds

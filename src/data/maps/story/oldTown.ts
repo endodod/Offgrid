@@ -114,7 +114,7 @@ export const BELL_TOWER: MapDef = {
     enemy: [
       ['sniper', 18, 18, 'defend'], // Brand
       ['soldier', 17, 13, 'defend'], ['assault', 27, 9], ['soldier', 9, 8, 'defend'], ['assault', 26, 27],
-      ['soldier', 27, 18, 'defend'], ['assault', 10, 18],
+      ['soldier', 27, 18, 'defend'],
     ],
   },
   searchPoints: {
