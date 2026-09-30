@@ -239,9 +239,10 @@ function doorOnRoute(s: GameState, u: Unit, d: Int16Array): Action | null {
  */
 function objectiveSwitch(s: GameState, u: Unit): Action | null {
   const capture = s.options.objectiveCapture;
-  if (s.objectiveDef?.type !== 'sabotage' || capture === 'none' || (capture === 'player' && u.team !== 'player')) return null;
+  const def = s.objectiveDef;
+  if ((def?.type !== 'sabotage' && def?.type !== 'retrieve') || capture === 'none' || (capture === 'player' && u.team !== 'player')) return null;
   for (const it of s.interactables) {
-    if (!s.objectiveDef.interactableIds.includes(it.id) || it.active || cheb(u, it) > 1) continue;
+    if (!def.interactableIds.includes(it.id) || it.active || cheb(u, it) > 1) continue;
     const a: Action = { type: 'interact', unit: u.id, target: it.id };
     if (ok(s, a)) return a;
   }

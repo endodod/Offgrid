@@ -1,7 +1,12 @@
 import type { GadgetId } from './gadgets';
 
-export type ClassId = 'sniper' | 'assault' | 'soldier' | 'medic' | 'tank';
+export type ClassId = 'sniper' | 'assault' | 'soldier' | 'medic' | 'tank' | 'sentry' | 'drone';
+/** The five classes a soldier can be - the roster, recruits, the builder's player palette. */
 export const CLASS_ORDER: ClassId[] = ['sniper', 'assault', 'soldier', 'medic', 'tank'];
+/** Act 3: Halcyon hardware. Enemy-only - never on the roster, never levels, never carries gear. */
+export const ENEMY_ONLY_CLASSES: ClassId[] = ['sentry', 'drone'];
+/** Every class, playable first - for anything that lists all of them (the builder, the sim's table). */
+export const ALL_CLASSES: ClassId[] = [...CLASS_ORDER, ...ENEMY_ONLY_CLASSES];
 
 export interface WeaponDef {
   range: number;
@@ -35,4 +40,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
              weapon: { range: 7,  damage: 4, shots: 1, accuracy: 70, magazine: 6 } },
   tank:    { name: 'Tank',    letter: 'T', hp: 24, armor: 3, move: 4, vision: 5, reserve: 12, gadget: 'cover',
              weapon: { range: 6,  damage: 3, shots: 1, accuracy: 70, magazine: 6 } },
+  // Act 3 (Halcyon Systems). A bolted-down gun on a tripod: never moves, sees far, hits hard, armored. The
+  // counterplay is walls - it can't come looking - and flanking, since it has no cover of its own unless placed in it.
+  sentry:  { name: 'Sentry',  letter: 'X', hp: 14, armor: 2, move: 0, vision: 9, reserve: 30, gadget: 'scan',
+             weapon: { range: 9,  damage: 4, shots: 1, accuracy: 70, magazine: 10 } },
+  // A quad-rotor with a carbine slung under it: fast, far-sighted, fragile. Spots for everything else.
+  drone:   { name: 'Drone',   letter: 'D', hp: 6,  armor: 0, move: 7, vision: 9, reserve: 12, gadget: 'scan',
+             weapon: { range: 5,  damage: 2, shots: 2, accuracy: 60, magazine: 4 } },
 };
+
+export const isEnemyOnly = (cls: ClassId): boolean => ENEMY_ONLY_CLASSES.includes(cls);

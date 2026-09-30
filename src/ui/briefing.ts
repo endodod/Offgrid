@@ -120,6 +120,13 @@ export class Briefing {
         facts.push(`${(map.pickups ?? []).length} supply caches, ${chests} locked chests, ${doors} doors.`);
       } else if (lvl === 2) facts.push('Recon Uplink level 3 marks caches and the objective.');
     }
+    // Always told, whatever the uplink: a squad that is going to be reinforced against deserves to know it.
+    const waves = map.reinforcements ?? [];
+    if (waves.length) {
+      const more = waves.reduce((n, w) => n + w.spawns.length, 0);
+      facts.push(`Radio chatter: ${more} more hostiles are on their way, in ${waves.length} wave${waves.length > 1 ? 's' : ''} from round ${Math.min(...waves.map((w) => w.turn))}.`);
+    }
+    if (map.enemyPods) facts.push('Most of the garrison is not expecting you: they stay put until someone raises the alarm.');
     $('brief-intel').innerHTML = facts.map((f) => `<li>${f}</li>`).join('');
     $('brief-legend').hidden = lvl < 1;
     $('brief-legend').innerHTML = [

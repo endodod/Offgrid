@@ -7,7 +7,7 @@ import { AI_PROFILES, PROFILE_ORDER, type AiProfileId } from '../data/aiProfiles
 import { ITEMS, type ItemType } from '../data/items';
 import type { Mission } from '../data/missions';
 import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/trainingGrounds';
-import { CLASSES, CLASS_ORDER, type ClassId } from '../data/units';
+import { ALL_CLASSES, CLASSES, type ClassId } from '../data/units';
 import { draw, RES, TILE } from '../render/renderer';
 import { clearCustom, saveCustom } from './mapStore';
 import { confirmModal } from './modal';
@@ -63,7 +63,7 @@ export class Builder {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
       if (b) { this.tool = b.dataset.tool as Tool; this.linkFrom = null; this.note(''); this.refresh(); }
     });
-    seg($('b-class'), CLASS_ORDER.map((c) => ({ value: c, label: CLASSES[c].name })), this.cls,
+    seg($('b-class'), ALL_CLASSES.map((c) => ({ value: c, label: CLASSES[c].name })), this.cls,
       (v) => { this.cls = v as ClassId; });
     seg($('b-profile'), PROFILE_ORDER.map((p) => ({ value: p, label: AI_PROFILES[p].name, title: AI_PROFILES[p].blurb })), this.profile,
       (v) => { this.profile = v as AiProfileId; });

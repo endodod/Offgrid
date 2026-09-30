@@ -5,7 +5,7 @@ import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import {
-  applyMissionXp, availableStoryMissions, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
+  applyMissionXp, availableStoryMissions, campaignFinished, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
   addGear, equipFromInventory, markIntroSeen, migrateCampaign, moveEquipped, perkSlots, progressFor,
   recordMissionGear, resolveSupplyRun, setPerkSlot, soldierById, stockOf, togglePerk, unequipToInventory, unseenIntros,
   type CampaignState,
@@ -54,12 +54,12 @@ describe('campaign (feature 5)', () => {
     expect(availableStoryMissions(a)).toEqual(availableStoryMissions(b));
   });
 
-  it('only lists available story missions (unlocked district, not yet completed)', () => {
+  it('offers only the next story mission of each unlocked district, in order', () => {
     const cs = newCampaign(1);
-    const ids = availableStoryMissions(cs).map((m) => m.id);
     const riverside = STORY_MISSIONS.filter((m) => m.district === 'riverside').map((m) => m.id);
-    expect(ids).toEqual(riverside); // every riverside mission; market-row is still locked
-    expect(ids).toHaveLength(5);
+    expect(availableStoryMissions(cs).map((m) => m.id)).toEqual([riverside[0]]); // market-row is still locked
+    completeStoryMission(cs, riverside[0]);
+    expect(availableStoryMissions(cs).map((m) => m.id)).toEqual([riverside[1]]);
   });
 
   it('completing every story mission in a district unlocks the next one', () => {
@@ -72,7 +72,7 @@ describe('campaign (feature 5)', () => {
     expect(districtStatus(cs, 'riverside')).toBe('completed');
     expect(cs.unlockedDistricts).toContain('market-row');
     expect(availableStoryMissions(cs).map((m) => m.id))
-      .toEqual(STORY_MISSIONS.filter((m) => m.district === 'market-row').map((m) => m.id));
+      .toEqual([STORY_MISSIONS.find((m) => m.district === 'market-row')!.id]);
   });
 
   it('gives every district that has missions at all exactly five of them', () => {
@@ -90,14 +90,15 @@ describe('campaign (feature 5)', () => {
     expect(unseenIntros(cs)).toEqual(['market-row']); // the new district's briefing is now pending
   });
 
-  it('completing every written story mission unlocks the next district in the order and does not crash beyond it', () => {
-    // STORY_MISSIONS only covers Act 1 (riverside, market-row) - completing all of it unlocks the next
-    // district in line (dockyards, Act 2's first), and stops there since nothing exists yet to complete it.
+  it('completing every story mission unlocks every district in order and finishes the campaign', () => {
     const cs = newCampaign(1);
+    for (const d of DISTRICT_ORDER) expect(STORY_MISSIONS.some((m) => m.district === d), d).toBe(true);
+    expect(campaignFinished(cs)).toBe(false);
     for (const m of STORY_MISSIONS) completeStoryMission(cs, m.id);
-    const marketRowIndex = DISTRICT_ORDER.indexOf('market-row');
-    expect(cs.unlockedDistricts).toContain(DISTRICT_ORDER[marketRowIndex + 1]);
-    expect(districtStatus(cs, DISTRICT_ORDER[marketRowIndex + 1])).toBe('available'); // unlocked but not "completed" (no missions written for it)
+    expect(cs.unlockedDistricts).toEqual(DISTRICT_ORDER);
+    for (const d of DISTRICT_ORDER) expect(districtStatus(cs, d)).toBe('completed');
+    expect(availableStoryMissions(cs)).toEqual([]);
+    expect(campaignFinished(cs)).toBe(true);
   });
 
   it('completing a story mission twice is a no-op', () => {

@@ -71,7 +71,7 @@ export function newSoldier(id: string, name: string, cls: ClassId, xp = 0): Sold
   return { id, name, cls, loadout: emptyLoadout(), progress };
 }
 
-const founders = (): Soldier[] => CLASS_ORDER.map((cls) => newSoldier(cls, FOUNDERS[cls], cls));
+const founders = (): Soldier[] => CLASS_ORDER.map((cls) => newSoldier(cls, FOUNDERS[cls] ?? cls, cls));
 
 const pickFrom = <T>(cs: CampaignState, list: readonly T[]): T => list[Math.floor(nextRandom(cs) * list.length)];
 
@@ -442,10 +442,23 @@ export function districtStatus(cs: CampaignState, districtId: string): DistrictS
   return 'available';
 }
 
-/** Story missions the player can play right now: in an unlocked, not-yet-completed district. */
+/**
+ * Story missions the player can play right now: the next one in each unlocked district. A district's missions
+ * are played in order - every debrief sets up the next briefing (Abel is recruited in the first and knows the
+ * door codes in the third), so playing them out of order told the story backwards.
+ */
 export function availableStoryMissions(cs: CampaignState): StoryMissionDef[] {
-  return STORY_MISSIONS.filter((m) => cs.unlockedDistricts.includes(m.district) && !cs.completedStoryMissions.includes(m.id));
+  const out: StoryMissionDef[] = [];
+  for (const district of cs.unlockedDistricts) {
+    const next = STORY_MISSIONS.find((m) => m.district === district && !cs.completedStoryMissions.includes(m.id));
+    if (next) out.push(next);
+  }
+  return out.sort((a, b) => STORY_MISSIONS.indexOf(a) - STORY_MISSIONS.indexOf(b));
 }
+
+/** Every story mission in the game is done: the campaign's ending has been earned. */
+export const campaignFinished = (cs: CampaignState): boolean =>
+  STORY_MISSIONS.every((m) => cs.completedStoryMissions.includes(m.id));
 
 /** Marks a story mission won; unlocks the next district once every mission in the current one is done. */
 export function completeStoryMission(cs: CampaignState, missionId: string): void {

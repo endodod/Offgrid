@@ -6,7 +6,7 @@ import { ITEMS } from '../data/items';
 import { EQUIPMENT } from '../data/equipment';
 import { refreshVision } from './vision';
 import { blocksMove } from './grid';
-import { holdRounds, objectiveComplete } from './objectives';
+import { holdRounds, objectiveComplete, objectiveFailed } from './objectives';
 import { lootOnDeath } from './loot';
 import { perkBonus } from './leveling';
 import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pickup, Pos, Team, Terrain, Unit } from './types';
@@ -94,6 +94,14 @@ export function createGame(map: MapDef, seed = 1, options: Partial<GameOptions> 
     memory: { player: emptyMemory(), enemy: emptyMemory() },
     events: [],
   };
+  // 'retrieve' (Act 2): the squad was told where the intel is - it's what the briefing is about - so it starts
+  // remembered (drawn, and a goal for the squad AI) rather than something to stumble on.
+  if (objectiveDef?.type === 'retrieve') {
+    for (const id of objectiveDef.interactableIds) {
+      const it = interactables.find((i) => i.id === id);
+      if (it) s.memory.player.doors[id] = it.active;
+    }
+  }
   startPhase(s, 'player');
   return s;
 }
@@ -247,6 +255,8 @@ export function endTurn(s: GameState) {
   const next: Team = s.phase === 'player' ? 'enemy' : 'player';
   if (next === 'player') s.turn++;
   startPhase(s, next);
+  // 'defend' (Act 2): an attacker who reached the zone and survived the squad's phase there takes it.
+  if (!s.winner && objectiveFailed(s)) declareWinner(s, 'enemy');
   if (next === 'enemy') arriveReinforcements(s);
   // Not part of startPhase: it also runs once from createGame's initial phase, before any unit could be downed
   // or a side eliminated, and single-team test scenarios (no opposing spawns) rely on that being a no-op.

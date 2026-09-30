@@ -3,6 +3,7 @@ import { GADGETS } from '../data/gadgets';
 import type { ItemType } from '../data/items';
 import { shelterAt } from '../core/combat';
 import { hasLos, idx, dist } from '../core/grid';
+import { isTarget } from '../core/objectives';
 import type { GameState, Pos, Unit } from '../core/types';
 import type { AnimFrame } from '../ui/anim';
 
@@ -493,6 +494,15 @@ function drawInteractables(ctx: CanvasRenderingContext2D, v: View) {
     if (it.type === 'door') drawDoor(ctx, px, py, active, c);
     else if (it.type === 'switch') drawSwitch(ctx, px, py, active, c);
     else drawChest(ctx, px, py, active, c);
+    const def = s.objectiveDef;
+    if ((def?.type === 'sabotage' || def?.type === 'retrieve') && def.interactableIds.includes(it.id)) {
+      // An objective switch: a ring in the objective colour, solid until it's done.
+      ctx.strokeStyle = C.objective;
+      ctx.lineWidth = 2;
+      if (active) ctx.setLineDash([3, 3]);
+      ctx.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      ctx.setLineDash([]);
+    }
   }
 }
 
@@ -634,6 +644,19 @@ function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
     }
   }
   if (u.overwatch) eye(ctx, px + TILE - 10, py + 10);
+  if (!u.downed && isTarget(v.s, u)) { // a named objective target: a gold crown over the head
+    ctx.fillStyle = C.accent;
+    ctx.beginPath();
+    ctx.moveTo(px + 3, py + 13);
+    ctx.lineTo(px + 3, py + 6);
+    ctx.lineTo(px + 6, py + 9);
+    ctx.lineTo(px + 8, py + 4);
+    ctx.lineTo(px + 10, py + 9);
+    ctx.lineTo(px + 13, py + 6);
+    ctx.lineTo(px + 13, py + 13);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   if (v.s.capture?.unit === u.id) { // this unit is holding the objective
     ctx.strokeStyle = C.objective;

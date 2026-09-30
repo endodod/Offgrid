@@ -5,6 +5,9 @@ import {
   COLD_STORAGE, FUEL_DEPOT, JACKALS_DEN, LIGHTS_OUT, MARKET_ROW, NIGHT_MARKET, PHARMACY_ROW, PUMPHOUSE,
   RAIL_YARD, ROW_RELAY, SIGNAL_FIRE, THE_CLINIC, TOLLGATE, UNDERPASS, WATERWORKS,
   CORNER_STORE, CANAL_TOWPATH, PARKING_DECK,
+  CHECKPOINT, LOW_TIDE, HARBOURMASTERS, CODED_SIGNAL, DRY_DOCK,
+  SWITCHBACK, COLD_FEED, MAINTENANCE_LOG, BREAKER_YARD, HILLTOP_CONTROL,
+  NARROW_STREETS, BELL_TOWER, ARMOURY, SAINT_ORIELS, WARDEN_COMMAND,
 } from './maps';
 import type { MapDef } from './trainingGrounds';
 
@@ -206,6 +209,115 @@ export const STORY_MISSIONS: StoryMissionDef[] = [
     objective: 'Eliminate Vex, the Jackal leader. Or eliminate every enemy.',
     outcome: 'Vex dies in his own office. The Jackals scatter within the week, and Market Row belongs to whoever feeds it. In his desk: a fuel-tithe schedule, countersigned, quarterly, by the Cinder Wardens of the Dockyards - and above their mark, the stamp of the company that used to run the lights.',
     map: JACKALS_DEN,
+  },
+  // ================================================================ Act 2: the Cinder Wardens
+  // ---------------------------------------------------------------- Dockyards
+  {
+    id: 'the-checkpoint', name: 'The Checkpoint', district: 'dockyards', act: 2,
+    blurb: "Gate Four is where the Dockyards take their cut: a customs post with a weigh station, a tithe office and two Wardens on the gate who write you a receipt. Vex's schedule says everything that came off the river went through here. Their books are in the office. Take them, and be on the quay when the boat comes.",
+    objective: 'Take the tithe ledger and the weigh-station manifest, then get 3 units to the quay. Or eliminate every enemy.',
+    outcome: "The ledger is neat, and it is not a list of what the Wardens stole. It is a list of what they were owed - fuel, grain, medicine, by district and by quarter - and Riverside is on it, already, three years back. Somebody drew up this schedule before anyone in Riverside had heard the word Warden.",
+    map: CHECKPOINT,
+  },
+  {
+    id: 'low-tide', name: 'Low Tide', district: 'dockyards', act: 2,
+    blurb: "The boat cannot come in until the tide does, and the Wardens know exactly where the squad went to ground: the container ring at the end of Pier Nine. Six rounds until there is enough water under the hull. Nothing to take, nothing to throw. Just be alive when it gets here.",
+    objective: 'Survive until the end of round 6. Or eliminate every enemy.',
+    outcome: "The boat comes in on the last of the dark. Nobody on it asks why the squad is shooting at men with receipts. The pilot, a woman called Nell Aske who ran ferries before the Blackout, says the Wardens have three collectors in the container yard, and that she will take you to them for the price of the ledger's page on her.",
+    map: LOW_TIDE,
+  },
+  {
+    id: 'the-harbourmasters', name: 'The Harbourmasters', district: 'dockyards', act: 2,
+    blurb: "Three tithe collectors run the container yard, each from their own post - the tally hut, the crane cab, the gatehouse - and the rest of the yard works for whoever holds the books. Most of the garrison is asleep at this hour. Kill all three before the yard wakes up and the Dockyards stop paying.",
+    objective: 'Eliminate the three tithe collectors. Or eliminate every enemy.',
+    outcome: "Each of the collectors carried the same thing: a pocket radio tuned to one frequency, and a card with the hours it transmits. It is the frequency from the Row Relay. It is the voice that answered the Signal Fire. And it comes, every hour, from the harbour master's tower.",
+    map: HARBOURMASTERS,
+  },
+  {
+    id: 'the-coded-signal', name: 'The Coded Signal', district: 'dockyards', act: 2,
+    blurb: "The harbour master's tower sends the same coded burst every hour, on the hour, and it has since the week the lights went out. Take the console on the top floor and hold it long enough to trace where the signal is relayed. The Wardens change shift on the fourth round.",
+    objective: 'Take the radio console and hold it for 3 rounds. Or eliminate every enemy.',
+    outcome: "The burst is not a message. It is a handshake: an automated status report, sent to a relay on Substation Hill and answered, every hour for three years, with the same two words. CONTRACT ACTIVE. The captain who signs off on the tower's log is Ansel Marrow, and he works out of the dry dock.",
+    map: CODED_SIGNAL,
+  },
+  {
+    id: 'dry-dock', name: 'Dry Dock', district: 'dockyards', act: 2,
+    blurb: "Captain Ansel Marrow runs the Dockyards from the pump house at the head of Number Two Dry Dock, with the whole basin between him and the gate. Through the basin or over the gantry - either way, the pump house door is shut and he is not coming out. A relief squad is due through the east gate.",
+    objective: 'Eliminate Captain Ansel Marrow. Or eliminate every enemy.',
+    outcome: "Marrow had a desk, a kettle, and a laminated card of standing orders: collect, maintain, hold, report. At the bottom, in smaller type, an authorisation code and a line nobody in the Dockyards had ever read to the end - enforcement services provided under contract to the grid operator, pending restoration of supply. The tithes all went one place: Substation Hill, marked FOR MAINTENANCE.",
+    map: DRY_DOCK,
+  },
+  // ---------------------------------------------------------------- Substation Hill
+  {
+    id: 'the-switchback', name: 'The Switchback', district: 'substation-hill', act: 2,
+    blurb: "Everything the Dockyards paid went up one road: the switchback to the substation gate. Five terraces, every one of them somebody else's high ground, and a sniper at the top who can see half the hill. Get three people to the gate.",
+    objective: 'Get 3 units to the substation gate at the top of the hill. Or eliminate every enemy.',
+    outcome: 'Through the gate, the hum. After three years of silence it takes a moment to recognise: live switchgear, somewhere under your feet. The substation is not dead. It never was. It is energised, balanced, and switched off at the last breaker before the city.',
+    map: SWITCHBACK,
+  },
+  {
+    id: 'cold-feed', name: 'Cold Feed', district: 'substation-hill', act: 2,
+    blurb: "Feeder Seven runs straight down to Saint Brigid's. Close one isolator in the yard and the clinic has mains power for the first time since the Blackout - and every Warden on the hill will know exactly which transformer did it. They will not blow it up. They will walk up to it and switch it off. Do not let them.",
+    objective: 'Keep every enemy off the transformer until the end of round 5. Or eliminate every enemy.',
+    outcome: "The clinic's lights come on at two in the morning, and stay on. The Wardens who came for the transformer carried no explosives - only insulated gloves and a printed isolation procedure, page one of forty. Somebody taught them to do this safely.",
+    map: COLD_FEED,
+  },
+  {
+    id: 'the-maintenance-log', name: 'The Maintenance Log', district: 'substation-hill', act: 2,
+    blurb: "The switchgear hall is kept better than anywhere in Ashport: swept floors, oiled breakers, a log book at the control booth with entries as recent as last week. Take the log and the work orders from the records room, then get out through the loading bay before the shift change.",
+    objective: 'Take the maintenance log and the work orders, then get 3 units to the loading bay. Or eliminate every enemy.',
+    outcome: "Every entry in the log is signed off by the same office, and every work order carries the same line at the top: MAINTAIN - DO NOT ENERGISE - REF HS-114. Somebody has spent three years keeping Ashport's grid ready to switch on, and paying the Wardens to make sure nobody does.",
+    map: MAINTENANCE_LOG,
+  },
+  {
+    id: 'breaker-yard', name: 'Breaker Yard', district: 'substation-hill', act: 2,
+    blurb: "The Wardens' searchlights and fence alarms run off three isolators in the breaker yard, each at the back of its own transformer pen. The east pen is fenced shut - the relay hut in the middle of the yard lowers the gates. Throw all three and the hill goes dark for the push on the control building.",
+    objective: 'Throw all three isolators. Or eliminate every enemy.',
+    outcome: 'The hill goes dark all at once, and for the first time since you came up the road it is the Wardens who cannot see. Somebody on their radio net says the superintendent wants a head count. Somebody else says the superintendent can come out and count them herself.',
+    map: BREAKER_YARD,
+  },
+  {
+    id: 'hilltop-control', name: 'Hilltop Control', district: 'substation-hill', act: 2,
+    blurb: "Superintendent Rhea Hale keeps the grid alive and off from the control building on the crown of the hill, and her engineer Colm Dray is the only other person who knows the switching orders. They are at opposite ends of the building, and neither is coming out. A relief column is coming up the hill road.",
+    objective: 'Eliminate Superintendent Hale and Engineer Dray. Or eliminate every enemy.',
+    outcome: "Hale's switching orders are signed, stamped and filed, and none of them came from the Wardens. They came from a regional office in Old Town, under the same contract reference as the work orders - HS-114 - and they all say the same thing in forty different ways: keep the lights off until the account is settled. The stamp at the bottom is a cinder over a wrench.",
+    map: HILLTOP_CONTROL,
+  },
+  // ---------------------------------------------------------------- Old Town
+  {
+    id: 'narrow-streets', name: 'Narrow Streets', district: 'old-town', act: 2,
+    blurb: "Old Town's resistance - such as it is - has a contact waiting in Cooper Square with the address of the office that signs the Wardens' orders. Getting to her means three streets you cannot see down, and Wardens who have learned that standing still in a doorway is cheaper than patrolling. Ammunition is short. It will stay short.",
+    objective: 'Get 3 units to Cooper Square. Or eliminate every enemy.',
+    outcome: "The contact is Mother Agnes Rook, sixty, who ran the parish food bank before the Blackout and runs the Old Town resistance now, out of the same kitchen. She knows the office: the Guildhall. She knows who guards the square in front of it. And she knows the Wardens are about to come for her church.",
+    map: NARROW_STREETS,
+  },
+  {
+    id: 'the-bell-tower', name: 'The Bell Tower', district: 'old-town', act: 2,
+    blurb: "Oskar Brand has been in the belfry of Saint Anne's for two years, and nothing has crossed the square without his say-so since. At midday he can see every paving stone. Go round, not across - the arcades are the only way in, and the tower door faces the wrong way.",
+    objective: 'Eliminate Oskar Brand, the Warden marksman. Or eliminate every enemy.',
+    outcome: "Brand kept a tally on the belfry wall - four hundred and some marks, three years of them. Under the latest, in pencil: RELIEVED OF DUTY PENDING CONTRACT REVIEW. He had written it himself. Nobody had ever come to review anything.",
+    map: BELL_TOWER,
+  },
+  {
+    id: 'the-armoury', name: 'The Armoury', district: 'old-town', act: 2,
+    blurb: "The Wardens are never short of ammunition, and now you know why: the Tanner Street armoury is resupplied every quarter by a convoy that comes from somewhere with working lorries. Take the munitions ledger and the key register - and as much as the squad can carry out.",
+    objective: 'Take the munitions ledger and the key register, then get 2 units to the loading gate. Or eliminate every enemy.',
+    outcome: "The munitions ledger has a supplier column, and every line in it says the same thing: HALCYON SYSTEMS - SECURITY PROVISION - ACCOUNT HS-114. The name from the Pumphouse sticker. It is the first time anybody in Ashport has seen it written by somebody who meant it.",
+    map: ARMOURY,
+  },
+  {
+    id: 'saint-oriels', name: "Saint Oriel's", district: 'old-town', act: 2,
+    blurb: "Forty people who would not pay the Old Town tithe are sheltering in Saint Oriel's, and the Wardens have come to collect them. Mother Agnes is getting them out through the crypt, and it takes seven rounds. Hold the church until the last of them is gone.",
+    objective: 'Survive until the end of round 7. Or eliminate every enemy.',
+    outcome: "Forty-one people come out of the crypt on the far side of the river, because somebody's grandmother was hiding under the altar. Mother Agnes counts them twice. Then she hands over a key she has been keeping for three years: the side door of the Guildhall, which her late husband used to clean.",
+    map: SAINT_ORIELS,
+  },
+  {
+    id: 'warden-command', name: 'Warden Command', district: 'old-town', act: 2,
+    blurb: "Commander Idris Vane runs every Warden in Ashport from the Guildhall's back chamber, behind a sealed door, a great hall and two galleries of marksmen. His orders come from somewhere else. Take him, take his files, and find out where.",
+    objective: 'Eliminate Commander Idris Vane. Or eliminate every enemy.',
+    outcome: "Vane's files are a contract. Enforcement services, city of Ashport, for Halcyon Systems, the grid operator - renewed automatically each quarter until countermanded by an authorised officer of the company. No officer of the company has countermanded anything in three years. The Wardens were never a militia. They are a contract nobody has cancelled. The last countersignature is from Halcyon's regional office in Uptown.",
+    map: WARDEN_COMMAND,
   },
 ];
 
