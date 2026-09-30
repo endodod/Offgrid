@@ -6,9 +6,9 @@ import { DISTRICTS, STORY_MISSIONS } from '../data/campaign';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip' | 'briefing' | 'lore' | 'stash';
+export type Screen = 'home' | 'game' | 'builder' | 'settings' | 'campaign' | 'base' | 'equip' | 'briefing' | 'lore' | 'stash' | 'versus';
 
-const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip', 'briefing', 'lore', 'stash'];
+const SCREENS: Screen[] = ['home', 'game', 'builder', 'settings', 'campaign', 'base', 'equip', 'briefing', 'lore', 'stash', 'versus'];
 
 /** Show exactly one screen. */
 export function showScreen(screen: Screen) {

@@ -14,6 +14,7 @@ import { cheb, dist, findPath, hasLos, idx, inBounds, reachable } from '../core/
 import { createGame, reseed } from '../core/state';
 import { deserializeGame, serializeGame } from '../core/save';
 import { refreshVision } from '../core/vision';
+import { prepareVersus, seatNextSide, versusWinner } from '../core/pvp';
 import type { GameState, Pos, Unit } from '../core/types';
 import type { Floater, View } from '../render/renderer';
 import { Animator } from './anim';
@@ -56,6 +57,11 @@ export class Session {
    *  has any visible effect on maps larger than the board viewport. */
   private focus: Pos | null = null;
   onChange: () => void = () => {};
+  /** Hotseat versus (core/pvp.ts): which side is seated as 'player', and each side's own combat log - the log
+   *  is fog-filtered from one side's point of view, so they can't share one. Null in every other mode. */
+  versus: { side: 1 | 2; logs: [LogLine[], LogLine[]] } | null = null;
+  /** Versus: the board is hidden until the side whose turn it is says they're at the screen. */
+  handoff = false;
   /** Asked before ending the turn while `idle` units can still act (10h). main.ts shows a modal; the default
    *  (tests, no UI) just says yes. */
   confirmEndTurn: (idle: number) => Promise<boolean> = () => Promise.resolve(true);
@@ -75,8 +81,34 @@ export class Session {
   // ---------- lifecycle / debug ----------
   /** Start a (new) mission from the home screen. */
   load(map: MapDef) {
+    this.versus = null;
+    this.handoff = false;
     this.map = map;
     this.reset();
+  }
+
+  /** Start a hotseat versus game on `map` (its player spawns are side 1, its enemy spawns side 2). */
+  loadVersus(map: MapDef) {
+    this.load(map);
+    prepareVersus(this.state);
+    refreshVision(this.state);
+    this.log = [{ kind: 'system', text: `Versus: ${map.name}. Player 1 deploys west, Player 2 east. Last squad standing.` }];
+    this.versus = { side: 1, logs: [this.log, [{ kind: 'system', text: `Versus: ${map.name}. You are Player 2, deployed east.` }]] };
+    this.logEpoch++;
+    this.handoff = true;
+    this.status = 'Player 1: your turn.';
+    this.onChange();
+  }
+
+  /** Versus: the seated side has taken the screen. */
+  takeSeat() {
+    this.handoff = false;
+    this.onChange();
+  }
+
+  /** Versus: 1 or 2 once the game is decided, or 'draw'. */
+  versusResult(): 1 | 2 | 'draw' | null {
+    return this.versus ? versusWinner(this.state, this.versus.side) : null;
   }
 
   reset(seed = this.seed) {
@@ -85,6 +117,8 @@ export class Session {
 
   /** Continue a saved mission (10c) exactly where it stopped. */
   resume(state: GameState) {
+    this.versus = null;
+    this.handoff = false;
     this.map = state.map;
     this.begin(state, `${state.map.name} resumed (turn ${state.turn}).`, 'Your turn.');
   }
@@ -213,6 +247,7 @@ export class Session {
    * another one; toggling on while it's not the player's turn just arms it for when that phase starts.
    */
   toggleAutoRun() {
+    if (this.versus) return; // both sides are people
     this.autoRun = !this.autoRun;
     this.state.aiProfiles.player = this.autoRun ? getPrefs().autoMode : 'standard';
     if (this.autoRun && this.ready) this.runPlayerAuto();
@@ -255,7 +290,7 @@ export class Session {
   }
 
   private get ready() {
-    return this.state.phase === 'player' && !this.busy && !this.state.winner;
+    return this.state.phase === 'player' && !this.busy && !this.state.winner && !this.handoff;
   }
 
   private visibleUnitAt(p: Pos): Unit | undefined {
@@ -431,7 +466,33 @@ export class Session {
 
   endTurn() {
     if (!this.try({ type: 'endTurn' })) return;
+    if (this.versus) return this.passTurn();
     this.runEnemyPhase();
+  }
+
+  /** Versus: seat the other side (core/pvp.ts), swap to their log, and hide the board until they're ready. */
+  private passTurn() {
+    const v = this.versus!;
+    v.side = seatNextSide(this.state, v.side);
+    this.log = v.logs[v.side - 1];
+    this.logEpoch++;
+    this.selectedId = null;
+    this.mode = 'move';
+    this.undoSnapshot = null;
+    this.anim.clear();
+    this.floaters = [];
+    const result = this.versusResult();
+    if (result) {
+      this.log.push({ kind: 'system', text: result === 'draw' ? 'Both squads are down. A draw.' : `Player ${result} wins.` });
+      this.status = '';
+    } else {
+      this.log.push({ kind: 'system', text: `— Round ${this.state.turn}: Player ${v.side} —` });
+      this.status = `Player ${v.side}: your turn.`;
+      this.handoff = true;
+      const first = this.state.units.find((u) => u.team === 'player' && u.alive);
+      this.focus = first ? { x: first.x, y: first.y } : null;
+    }
+    this.onChange();
   }
 
   /**

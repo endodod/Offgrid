@@ -77,7 +77,9 @@ describe.each(ALL_AUTHORED_MAPS.map((m) => [m.name, m] as const))('map: %s', (_n
     const objectiveTiles: [number, number][] = [];
     map.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === 'O') objectiveTiles.push([x, y]); }));
     const def = map.objective;
-    if (!def || def.type === 'hold') {
+    if (!def) {
+      expect(objectiveTiles.length, 'no objective: at most one legacy hold terminal').toBeLessThanOrEqual(1);
+    } else if (def.type === 'hold') {
       expect(objectiveTiles.length, 'a hold objective needs exactly one terminal tile').toBe(1);
     } else if (def.type === 'reach' || def.type === 'retrieve') {
       expect(objectiveTiles.length).toBeGreaterThanOrEqual(def.unitsRequired);

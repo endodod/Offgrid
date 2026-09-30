@@ -124,7 +124,12 @@ export class Hud {
     $('undo').addEventListener('click', () => session.undo());
     seg($('auto-mode'), SQUAD_ORDERS.map((p) => ({ value: p, label: AUTO_LABEL[p] ?? AI_PROFILES[p].name, title: AI_PROFILES[p].blurb })),
       getPrefs().autoMode, (v) => session.setAutoMode(v as AiProfileId));
-    $('banner-reset').addEventListener('click', () => { $<HTMLInputElement>('dbg-fog').checked = true; session.reset(); });
+    $('banner-reset').addEventListener('click', () => {
+      $<HTMLInputElement>('dbg-fog').checked = true;
+      if (session.versus) session.loadVersus(session.state.map);
+      else session.reset();
+    });
+    $('handoff-go').addEventListener('click', () => session.takeSeat());
   }
 
   /** One line telling the player what to do about the objective right now (3: type-generic, see core/objectives.ts). */
@@ -135,6 +140,7 @@ export class Hud {
       const rounds = s.capture.roundsLeft;
       return `SECURING: hold ${rounds} more round${rounds > 1 ? 's' : ''} - ${nameOf(u)} must stay where it is and stay alive.`;
     }
+    if (this.session.versus) return `Last squad standing: eliminate Player ${this.session.versus.side === 1 ? 2 : 1}'s squad.`;
     return describeObjective(s);
   }
 
@@ -189,7 +195,18 @@ export class Hud {
     const s = this.session.state;
     const sel = this.session.selected();
 
-    $('phase').innerHTML = `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}${this.hostileCount(s)}`;
+    const vs = this.session.versus;
+    $('phase').innerHTML = vs
+      ? `<b>Round ${s.turn}</b> PLAYER ${vs.side}${this.hostileCount(s)}`
+      : `<b>Turn ${s.turn}</b> ${s.phase === 'player' ? 'PLAYER PHASE' : 'ENEMY PHASE'}${this.hostileCount(s)}`;
+    $('game').classList.toggle('is-versus', !!vs);
+    $('handoff').hidden = !this.session.handoff;
+    if (vs && this.session.handoff) {
+      $('handoff-title').textContent = `Player ${vs.side}`;
+      $('handoff-text').textContent = s.turn === 1 && vs.side === 1
+        ? 'Player 1 deploys west. Player 2, look away - each side only sees what its own squad can see.'
+        : `Round ${s.turn}. Pass the screen to Player ${vs.side}; Player ${vs.side === 1 ? 2 : 1}, look away.`;
+    }
     $('phase').className = s.phase;
     this.announcePhase(s);
     this.setTime(s.timeOfDay);
@@ -274,7 +291,9 @@ export class Hud {
     banner.hidden = !s.winner;
     if (s.winner) {
       banner.className = s.winner;
-      $('banner-text').textContent = s.winner === 'player' ? 'MISSION COMPLETE' : s.winner === 'enemy' ? 'SQUAD LOST' : 'DRAW';
+      const vr = this.session.versusResult();
+      $('banner-text').textContent = vr ? (vr === 'draw' ? 'DRAW' : `PLAYER ${vr} WINS`)
+        : s.winner === 'player' ? 'MISSION COMPLETE' : s.winner === 'enemy' ? 'SQUAD LOST' : 'DRAW';
       const why = s.winner === 'enemy' && objectiveFailed(s) ? ` · they reached ${s.objectiveDef?.type === 'defend' ? s.objectiveDef.label ?? 'the zone' : 'the zone'}` : '';
       $('banner-sub').textContent = `${s.map.name} · ${s.turn} turn${s.turn === 1 ? '' : 's'}${why}`;
       $('results').innerHTML = this.results(s);

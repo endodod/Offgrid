@@ -25,6 +25,7 @@ import { applyPalette, initSettings } from './ui/settings';
 import { Session } from './ui/session';
 import { Tutorial, tutorialDismissed } from './ui/tutorial';
 import { Viewport } from './ui/viewport';
+import { PVP_MAPS } from './data/maps/pvp';
 
 /** The only mission the guided walkthrough covers so far (see ROADMAP.md #0f). */
 const TUTORIAL_MISSION_ID = 'training-grounds';
@@ -202,6 +203,37 @@ function resumeSlot(slot: SaveSlot) {
   startGame({ resume: save.state }, false, save.missionId ?? undefined);
 }
 el('home-resume').addEventListener('click', () => resumeSlot('campaign'));
+
+// ---------- versus (hotseat PvP) ----------
+el('versus-maps').innerHTML = PVP_MAPS.map((a) => `<article class="card card--interactive">
+  <div class="card__head"><div><h3 class="card__title">${a.map.name}</h3>
+    <span class="card__sub">${a.map.rows[0].length} x ${a.map.rows.length} · ${a.map.startTimeOfDay ?? 'midday'}, ${a.map.startWeather ?? 'clear'}</span></div></div>
+  <p class="card__body">${a.blurb}</p>
+  <div class="card__foot"><button class="btn--primary btn--block" data-arena="${a.id}">${icon('play')}Start</button></div>
+</article>`).join('');
+el('versus-maps').addEventListener('click', (e) => {
+  const id = (e.target as HTMLElement).closest<HTMLElement>('[data-arena]')?.dataset.arena;
+  const arena = PVP_MAPS.find((a) => a.id === id);
+  if (!arena) return;
+  activeCampaignMissionId = null;
+  activeMissionId = null;
+  returnScreen = 'versus';
+  savable = false; // a hotseat game lives only in this tab
+  reported = false;
+  (el('dbg-fog') as HTMLInputElement).checked = true;
+  el('to-builder').hidden = true;
+  el('banner-reset').hidden = false;
+  el('menu').querySelector('.lbl')!.textContent = 'Menu';
+  el('banner-menu').textContent = 'Back to arenas';
+  el('tutorial-replay').hidden = true;
+  tutorial.hide();
+  session.loadVersus(arena.map);
+  showScreen('game');
+  request();
+  requestAnimationFrame(() => { const start = session.focusTile(); if (start) viewport.center(start.x, start.y); });
+});
+el('home-versus').addEventListener('click', () => showScreen('versus'));
+el('versus-back').addEventListener('click', () => goHome());
 el('home-resume-single').addEventListener('click', () => resumeSlot('single'));
 
 const campaign = new Campaign({
@@ -246,6 +278,7 @@ const toMenu = () => {
   session.leave();
   activeCampaignMissionId = null;
   if (returnScreen === 'campaign') toCampaign();
+  else if (returnScreen === 'versus') showScreen('versus');
   else goHome();
 };
 /**

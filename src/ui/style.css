@@ -700,7 +700,8 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .resume-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-3); margin-bottom: var(--s-4); }
 .resume-row:not(:has(button:not([hidden]))) { display: none; }
 
-.home-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.home-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+@media (max-width: 1000px) { .home-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tile--campaign { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .home-tiles { grid-template-columns: 1fr; } }
 .tile {
   position: relative; overflow: hidden;
@@ -715,6 +716,9 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .tile--campaign:hover { border-color: var(--accent); }
 .tile--training { background: radial-gradient(120% 90% at 100% 0%, rgba(127, 196, 214, 0.14), transparent 60%), linear-gradient(160deg, #17201f, #0e1312); }
 .tile--training:hover { border-color: var(--info); }
+.tile--versus { background: radial-gradient(120% 90% at 100% 0%, rgba(212, 98, 63, 0.16), transparent 60%), linear-gradient(160deg, #221812, #120e0b); }
+.tile--versus:hover { border-color: var(--enemy); }
+.tile--versus .tile__cta { background: rgba(212, 98, 63, 0.16); color: #eda98f; border: 1px solid #5c2617; }
 .tile__art { position: absolute; right: -24px; bottom: -30px; opacity: 0.09; pointer-events: none; }
 .tile__art svg { width: 220px; height: 220px; stroke-width: 1.2; }
 .tile__kicker { font: 700 11px/1 var(--font-mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); }
@@ -863,3 +867,12 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 }
 /* Touch screens of any size: no keyboard, so no key hints. */
 @media (pointer: coarse) { #keyhelp { display: none; } kbd { display: none; } }
+
+/* Hotseat versus: the pass-the-screen cover, and no auto-run (both sides are people). */
+#handoff { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--s-4); background: rgba(8, 10, 7, 0.97); }
+#handoff[hidden] { display: none; }
+.handoff__box { max-width: 420px; text-align: center; display: grid; gap: var(--s-3); justify-items: center; }
+.handoff__eyebrow { font: 600 11px/1 var(--font-mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); }
+#handoff-title { font-size: 40px; letter-spacing: 0.16em; text-transform: uppercase; }
+#handoff-text { color: var(--text-dim); line-height: 1.6; }
+#game.is-versus #auto-run-toggle, #game.is-versus #auto-mode { display: none; }

@@ -34,6 +34,13 @@
             <span class="tile__sub" id="home-campaign-sub">Take Ashport back, one district at a time.</span>
             <span class="tile__cta" id="home-campaign-cta">Start</span>
           </button>
+          <button id="home-versus" class="tile tile--versus">
+            <span class="tile__art" data-icon="squad"></span>
+            <span class="tile__kicker">Two players</span>
+            <span class="tile__title">Versus</span>
+            <span class="tile__sub">Hotseat: two squads, one screen, pass it between turns. Each side sees only what its own soldiers see.</span>
+            <span class="tile__cta">Play</span>
+          </button>
           <button id="home-training" class="tile tile--training">
             <span class="tile__art" data-icon="target"></span>
             <span class="tile__kicker">Practice</span>
@@ -52,6 +59,19 @@
         <div class="section" id="home-debug" hidden>
           <h2 class="section__title">Single missions (debug)</h2>
           <div id="missions" class="grid grid--cards"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="versus" class="screen" hidden>
+      <header class="screen__header">
+        <button id="versus-back" class="btn--ghost btn--icon" title="Back to the main menu" data-icon="back"></button>
+        <h1 class="screen__title">Versus<small>Hotseat, two players on one screen</small></h1>
+      </header>
+      <div class="screen__body">
+        <div class="section">
+          <p class="section__note">Two squads of five - one of every class, gadgets and all - on a mirror-symmetric arena. Last squad standing wins. Player 1 deploys west and moves first. Between turns the board is covered: hand the screen over, and the other player looks away.</p>
+          <div id="versus-maps" class="grid grid--cards"></div>
         </div>
       </div>
     </section>
@@ -244,6 +264,15 @@
     </section>
 
     <main id="game" hidden>
+      <!-- Hotseat versus: covers the board between turns so neither side sees the other's view. -->
+      <div id="handoff" hidden>
+        <div class="handoff__box">
+          <div class="handoff__eyebrow">Versus · hotseat</div>
+          <h2 id="handoff-title"></h2>
+          <p id="handoff-text"></p>
+          <button id="handoff-go" class="btn--primary btn--lg" data-icon="play">I'm ready</button>
+        </div>
+      </div>
       <section id="board-col">
         <div id="topbar">
           <div id="phase"></div>
