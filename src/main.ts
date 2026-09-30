@@ -9,6 +9,7 @@ import { unlockAudio } from './ui/audio';
 import { Briefing } from './ui/briefing';
 import { Builder } from './ui/builder';
 import { Campaign, confirmRetreat } from './ui/campaign';
+import { difficultyOf } from './core/campaign';
 import { Equip } from './ui/equip';
 import { initHome, isGameVisible, renderCampaignTile, showScreen, type Screen } from './ui/home';
 import { Lore } from './ui/lore';
@@ -255,7 +256,7 @@ const toMenu = () => {
 el('menu').addEventListener('click', async () => {
   const id = activeCampaignMissionId;
   if (id && !session.state.winner) {
-    if (!(await confirmRetreat())) return;
+    if (!(await confirmRetreat(difficultyOf(campaign.campaignState()).retreatFee))) return;
     session.leave();
     if (!session.state.winner && !reported) {
       reported = true;

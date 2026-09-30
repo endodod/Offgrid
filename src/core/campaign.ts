@@ -13,7 +13,7 @@ import type { UnitLoadout, ClassProgress } from '../data/trainingGrounds';
 import type { PerkId } from '../data/perks';
 import { buildLevel, candidateCount, extraOffers, newBaseState, recruitXp, upgradeCost, type BaseState } from './base';
 import { STORY_PARTS, supplyRunParts } from '../data/crafting';
-import { STARTING_SALVAGE, STORY_SALVAGE } from '../data/base';
+import { ACT_RECRUIT_XP, DIFFICULTIES, STARTING_SALVAGE, STORY_SALVAGE, type DifficultyDef, type DifficultyId } from '../data/base';
 import { equipPerk, gainXp, newClassProgress, slotCount, unequipPerk, xpEarned } from './leveling';
 import { nextRandom } from './rng';
 
@@ -45,7 +45,11 @@ export interface CampaignState {
   deployed?: string[];
   /** The epilogue (data/campaign.ts EPILOGUE) has been shown, once the last story mission was won. */
   endingSeen?: boolean;
+  /** Missing on a save from before difficulties existed: Standard. */
+  difficulty?: DifficultyId;
 }
+
+export const difficultyOf = (cs: CampaignState): DifficultyDef => DIFFICULTIES[cs.difficulty ?? 'standard'];
 
 /** Whether soldier `id` is away on the mission in progress (14) - and so can't be re-equipped or dismissed. */
 export const onMission = (cs: CampaignState, id: string): boolean => !!cs.deployed?.includes(id);
@@ -82,7 +86,7 @@ export function rollSoldier(cs: CampaignState, xp = 0, taken = new Set(cs.roster
   let name = '';
   for (let tries = 0; tries < 8 && (!name || taken.has(name)); tries++) name = `${pickFrom(cs, FIRST_NAMES)} ${pickFrom(cs, LAST_NAMES)}`;
   taken.add(name);
-  return newSoldier(`r${cs.nextSoldierSeq++}`, name, pickFrom(cs, CLASS_ORDER), xp);
+  return newSoldier(`r${cs.nextSoldierSeq++}`, name, pickFrom(cs, CLASS_ORDER), xp + ACT_RECRUIT_XP[currentAct(cs)]);
 }
 
 /** A fresh set of candidates for the recruitment office (13), from the campaign's seeded RNG. */
@@ -97,11 +101,12 @@ const POOL_SIZE = 3;
 
 /** A fresh campaign: only the first district unlocked, an empty pool filled in immediately, no facilities
  *  built, gear found, or levels earned yet. */
-export function newCampaign(seed = Date.now()): CampaignState {
+export function newCampaign(seed = Date.now(), difficulty?: DifficultyId): CampaignState {
   const cs: CampaignState = {
     seed, rng: seed, unlockedDistricts: [DISTRICT_ORDER[0]], seenIntros: [], completedStoryMissions: [],
     completedSupplyRuns: 0, currency: STARTING_SALVAGE, nextSupplyRunSeq: 0, supplyRunPool: [], base: newBaseState(),
     inventory: newGearInventory(), parts: 0, roster: founders(), recruits: [], nextSoldierSeq: 0, infirmary: [],
+    ...(difficulty ? { difficulty } : {}),
   };
   fillPool(cs);
   rollRecruits(cs);
@@ -484,7 +489,7 @@ export function completeStoryMission(cs: CampaignState, missionId: string): void
   if (!m) return;
   cs.completedStoryMissions.push(missionId);
   cs.parts += STORY_PARTS;
-  cs.currency += STORY_SALVAGE;
+  cs.currency += Math.round(STORY_SALVAGE * difficultyOf(cs).rewardMult);
   if (districtStatus(cs, m.district) !== 'completed') return;
   const next = DISTRICT_ORDER[DISTRICT_ORDER.indexOf(m.district) + 1];
   if (next && !cs.unlockedDistricts.includes(next)) cs.unlockedDistricts.push(next);
@@ -503,7 +508,7 @@ export function withdrawSupplyRun(cs: CampaignState, missionId: string): void {
 export function completeSupplyRun(cs: CampaignState, missionId: string): void {
   const i = cs.supplyRunPool.findIndex((m) => m.id === missionId);
   if (i < 0) return;
-  cs.currency += cs.supplyRunPool[i].reward;
+  cs.currency += Math.round(cs.supplyRunPool[i].reward * difficultyOf(cs).rewardMult);
   cs.parts += supplyRunParts(cs.supplyRunPool[i].tier);
   cs.supplyRunPool.splice(i, 1);
   cs.completedSupplyRuns++;

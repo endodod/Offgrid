@@ -36,6 +36,37 @@ export function confirmModal(content: ConfirmContent): Promise<boolean> {
   return open(content, content.cancel ?? 'Cancel', content.danger);
 }
 
+export interface Choice { id: string; label: string; blurb: string }
+
+/**
+ * A modal with one button per choice (a difficulty, say). Resolves the chosen id, or `fallback` on Esc / the
+ * backdrop, so a caller that needs an answer always gets one.
+ */
+export function chooseModal(content: ModalContent, choices: Choice[], fallback: string, current?: string): Promise<string> {
+  close();
+  return new Promise((resolve) => {
+    const el = $('modal');
+    el.innerHTML = `<div class="modal__box" role="dialog" aria-modal="true" aria-label="${content.title.replace(/"/g, '&quot;')}">
+      ${content.eyebrow ? `<div class="modal__eyebrow">${content.eyebrow}</div>` : ''}
+      <h2 class="modal__title">${content.title}</h2>
+      <div class="modal__rule"></div>
+      <div class="modal__body">${content.body.map((p) => `<p>${p}</p>`).join('')}</div>
+      <div class="modal__choices">${choices.map((c) => `<button class="modal__choice${c.id === current ? ' is-current' : ''}" data-choice="${c.id}">
+        <b>${c.label}${c.id === current ? ' <small>(current)</small>' : ''}</b><span>${c.blurb}</span></button>`).join('')}</div>
+    </div>`;
+    el.hidden = false;
+    const pick = (id: string) => { close(); resolve(id); };
+    dismiss = () => pick(fallback);
+    el.addEventListener('click', onBackdropOrButton);
+    el.addEventListener('click', function onChoice(e) {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-choice]');
+      if (b) { el.removeEventListener('click', onChoice); pick(b.dataset.choice!); }
+    });
+    window.addEventListener('keydown', onKey, true);
+    el.querySelector<HTMLButtonElement>(`[data-choice="${current ?? fallback}"]`)?.focus();
+  });
+}
+
 function open(content: ModalContent, cancel: string | null, danger = false): Promise<boolean> {
   close(); // a second modal replaces the first rather than stacking
   return new Promise((resolve) => {
@@ -74,7 +105,8 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'Enter') {
     // Enter activates whichever button has focus; with nothing focused it confirms.
     const focused = document.activeElement as HTMLElement | null;
-    if (focused?.closest('[data-modal-cancel]')) { e.preventDefault(); dismiss?.(false); }
+    if (focused?.closest('[data-choice]')) { e.preventDefault(); focused.click(); }
+    else if (focused?.closest('[data-modal-cancel]')) { e.preventDefault(); dismiss?.(false); }
     else { e.preventDefault(); dismiss?.(true); }
   }
 }

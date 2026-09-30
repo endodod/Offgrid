@@ -624,6 +624,13 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .modal__body p:first-child { color: var(--text); font-size: 16px; }
 .modal__body p:last-child { margin-bottom: 0; }
 .modal__rule { height: 1px; margin: var(--s-5) 0; background: linear-gradient(90deg, var(--accent), transparent); }
+.modal__choices { display: grid; gap: var(--s-2); margin-top: var(--s-5); }
+.modal__choice { display: grid; gap: 2px; text-align: left; padding: var(--s-3) var(--s-4); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer; color: var(--text); }
+.modal__choice b { font-size: 15px; }
+.modal__choice span { font-size: 13px; line-height: 1.5; color: var(--text-dim); font-weight: 400; }
+.modal__choice:hover, .modal__choice:focus-visible { border-color: var(--accent); background: var(--surface-3); }
+.modal__choice.is-current { border-color: var(--line-strong); }
 .modal__foot { display: flex; justify-content: flex-end; gap: var(--s-3); margin-top: var(--s-5); }
 
 /* ==========================================================================

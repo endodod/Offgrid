@@ -350,3 +350,35 @@ describe('debug helpers (17)', () => {
     expect(sol(cs, 'sniper').progress.xp).toBe(150);
   });
 });
+
+describe('difficulty', () => {
+  it('Story: a soldier who falls is evacuated on 1 HP instead of dying', () => {
+    const cs = newCampaign(1, 'story');
+    const lines = endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 0, { alive: false }))], 'lost');
+    expect(sol(cs, 'medic')).toBeDefined();
+    expect(lines.some((l) => /critical condition/.test(l))).toBe(true);
+  });
+
+  it('Standard: the same soldier is gone', () => {
+    const cs = newCampaign(1, 'standard');
+    endMission(cs, STORY_MISSIONS[0].id, [gear(ended('medic', 0, { alive: false }))], 'lost');
+    expect(soldierById(cs, 'medic')).toBeUndefined();
+  });
+
+  it('Story retreats are free, Veteran ones cost more', () => {
+    const story = newCampaign(1, 'story');
+    const before = story.currency;
+    endMission(story, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'retreat');
+    expect(story.currency).toBe(before);
+    const vet = newCampaign(1, 'veteran');
+    endMission(vet, STORY_MISSIONS[0].id, [gear(ended('medic', 9))], 'retreat');
+    expect(before - vet.currency).toBeGreaterThan(RETREAT_FEE);
+  });
+
+  it('recruits arrive seasoned in later acts', () => {
+    const cs = newCampaign(3);
+    for (const m of STORY_MISSIONS.filter((x) => x.act === 1)) completeStoryMission(cs, m.id);
+    afterMission(cs, []);
+    expect(Math.min(...cs.recruits.map((r) => r.progress.level))).toBeGreaterThanOrEqual(3);
+  });
+});

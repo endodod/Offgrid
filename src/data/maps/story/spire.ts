@@ -175,7 +175,7 @@ export const COOLING_PLANT: MapDef = {
     ],
   },
   searchPoints: {
-    player: [[5, 23], [14, 17], [5, 10], [20, 11], [34, 10], [34, 23]],
+    player: [[5, 23], [14, 17], [5, 10], [4, 3], [20, 11], [34, 10], [35, 3], [34, 23], [34, 30]],
     enemy: [[14, 17], [5, 23], [26, 23], [20, 11]],
   },
   startTimeOfDay: 'afternoon',

@@ -166,3 +166,37 @@ export const FACILITIES: Record<FacilityId, FacilityDef> = {
     ],
   },
 };
+
+/** Campaign difficulty, chosen when a campaign starts and changeable from the campaign screen. */
+export type DifficultyId = 'story' | 'standard' | 'veteran';
+export interface DifficultyDef {
+  name: string;
+  blurb: string;
+  /** false: a soldier who would die is evacuated in critical condition instead (back on 1 HP). */
+  permadeath: boolean;
+  /** Multiplies every salvage reward (story missions and supply runs). */
+  rewardMult: number;
+  /** Volunteers join for free below this roster size. */
+  rosterFloor: number;
+  retreatFee: number;
+}
+export const DIFFICULTY_ORDER: DifficultyId[] = ['story', 'standard', 'veteran'];
+export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
+  story: {
+    name: 'Story', permadeath: false, rewardMult: 1.25, rosterFloor: 6, retreatFee: 0,
+    blurb: 'For the story. Nobody dies for good - the fallen are evacuated in critical condition - retreats are free and rewards are higher.',
+  },
+  standard: {
+    name: 'Standard', permadeath: true, rewardMult: 1, rosterFloor: ROSTER_FLOOR, retreatFee: 40,
+    blurb: 'The intended game. Soldiers who fall stay dead; volunteers keep the roster from emptying.',
+  },
+  veteran: {
+    name: 'Veteran', permadeath: true, rewardMult: 0.8, rosterFloor: 4, retreatFee: 60,
+    blurb: 'For people who have finished it. Leaner rewards, fewer volunteers, costlier retreats.',
+  },
+};
+
+/** XP a recruit or volunteer arrives with, by act, on top of the recruitment office's own: by Act 2 the people
+ *  joining have fought through the districts already lit. Without it the roster floor refilled a squad with
+ *  level-1 volunteers in Act 3 and the campaign could spiral. */
+export const ACT_RECRUIT_XP: Record<1 | 2 | 3, number> = { 1: 0, 2: 250, 3: 450 };

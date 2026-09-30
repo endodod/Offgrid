@@ -1,10 +1,10 @@
-import { HIRE_COST, PATCH_SHARE, ROSTER_FLOOR } from '../data/base';
+import { HIRE_COST, PATCH_SHARE } from '../data/base';
 import type { MapDef } from '../data/trainingGrounds';
 import { CLASSES, type ClassId } from '../data/units';
 import { LEVEL_PATHS } from '../data/leveling';
 import { infirmaryBeds, infirmaryHeal, restRate, rosterCapacity, trainingXp } from './base';
 import {
-  addGear, applyMissionXp, completeStoryMission, completeSupplyRun, onMission, recordMissionGear, rollRecruits,
+  addGear, applyMissionXp, difficultyOf, completeStoryMission, completeSupplyRun, onMission, recordMissionGear, rollRecruits,
   rollSoldier, soldierById, withdrawSupplyRun, type CampaignState, type Soldier,
 } from './campaign';
 import { lockerCount } from './crafting';
@@ -129,7 +129,7 @@ export type MissionOutcome = 'won' | 'lost' | 'retreat';
 
 /** Salvage an evacuation costs. Without it, retreating on turn 1 would be a free way to pass time (healing,
  *  training, new candidates). Never takes the campaign below zero. */
-export const RETREAT_FEE = 40;
+export const RETREAT_FEE = 40; // Standard difficulty's; see data/base.ts DIFFICULTIES
 
 /**
  * Everything a finished campaign mission does to the campaign (13, 14), in order. A win completes the mission
@@ -137,8 +137,13 @@ export const RETREAT_FEE = 40;
  * from the board, and a retreat also pays the evacuation fee. Either way survivors keep what they carried out,
  * the fallen are gone and one mission's worth of time passes. Returns the after-action lines.
  */
-export function endMission(cs: CampaignState, missionId: string, units: EndedUnit[], outcome: MissionOutcome): string[] {
+export function endMission(cs: CampaignState, missionId: string, allUnits: EndedUnit[], outcome: MissionOutcome): string[] {
   const won = outcome === 'won';
+  const diff = difficultyOf(cs);
+  // Story difficulty: nobody dies for good. The fallen come home in critical condition (1 HP, as a downed
+  // survivor would) and keep their kit; they still earn no XP for the mission.
+  const evacuated = diff.permadeath ? [] : allUnits.filter((u) => u.team === 'player' && !u.alive);
+  const units = diff.permadeath ? allUnits : allUnits.map((u) => (u.team === 'player' && !u.alive ? { ...u, alive: true, downed: true, hp: 1 } : u));
   const partsBefore = cs.parts;
   const lines: string[] = [];
   const isSupplyRun = cs.supplyRunPool.some((m) => m.id === missionId);
@@ -150,7 +155,7 @@ export function endMission(cs: CampaignState, missionId: string, units: EndedUni
       ? 'The squad retreated. Nothing was gained, and time has passed.'
       : 'The mission failed. Nothing was gained, and time has passed.');
     if (outcome === 'retreat') {
-      const fee = Math.min(cs.currency, RETREAT_FEE);
+      const fee = Math.min(cs.currency, diff.retreatFee);
       cs.currency -= fee;
       if (fee) lines.push(`The evacuation cost ${fee} salvage.`);
     }
@@ -158,7 +163,11 @@ export function endMission(cs: CampaignState, missionId: string, units: EndedUni
   }
   cs.deployed = undefined; // back (or not): the roster is theirs to manage again
   recordMissionGear(cs, units, won);
-  if (won) applyMissionXp(cs, units);
+  if (won) applyMissionXp(cs, units.filter((u) => !evacuated.includes(u as EndedUnit)));
+  for (const u of evacuated) {
+    const s = soldierById(cs, u.soldierId ?? u.cls);
+    if (s) lines.push(`${s.name} went down for good - and was carried out in critical condition. Story difficulty: nobody is lost.`);
+  }
   if (cs.parts > partsBefore) lines.push(`Salvaged ${cs.parts - partsBefore} parts for the fabricator.`);
   lines.push(...afterMission(cs, units).lines);
   const over = lockerCount(cs.inventory) - lockerCapacity(cs.base);
@@ -220,7 +229,7 @@ export function afterMission(cs: CampaignState, units: Pick<EndedUnit, 'team' | 
   // 4. New candidates, and volunteers if the squad is down to almost nobody (18: ROSTER_FLOOR).
   rollRecruits(cs);
   const volunteers: Soldier[] = [];
-  while (cs.roster.length < ROSTER_FLOOR) { const v = rollSoldier(cs); cs.roster.push(v); volunteers.push(v); }
+  while (cs.roster.length < difficultyOf(cs).rosterFloor) { const v = rollSoldier(cs); cs.roster.push(v); volunteers.push(v); }
   if (volunteers.length) lines.push(`Volunteers from the lit blocks join the squad: ${volunteers.map((v) => `${v.name} (${CLASSES[v.cls].name})`).join(', ')}.`);
   if (cs.recruits.length) lines.push(`${cs.recruits.length} new candidates at the recruitment office.`);
   return { lines };

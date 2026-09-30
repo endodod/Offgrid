@@ -1,6 +1,6 @@
 import { baseGameOptions } from '../core/base';
 import {
-  availableStoryMissions, campaignFinished, districtStatus, markIntroSeen, newCampaign, resolveSupplyRun, unseenIntros, type CampaignState,
+  availableStoryMissions, campaignFinished, difficultyOf, districtStatus, markIntroSeen, newCampaign, resolveSupplyRun, unseenIntros, type CampaignState,
 } from '../core/campaign';
 import type { Unit } from '../core/types';
 import {
@@ -11,9 +11,10 @@ import { AI_PROFILES } from '../data/aiProfiles';
 import type { MapDef } from '../data/trainingGrounds';
 import { clearCampaign, loadCampaign, saveCampaign } from './campaignStore';
 import { icon } from './icons';
-import { confirmModal, showModal } from './modal';
+import { chooseModal, confirmModal, showModal } from './modal';
+import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from '../data/base';
 import type { BriefingInfo } from './briefing';
-import { deploySquad, endMission, RETREAT_FEE, type MissionOutcome } from '../core/roster';
+import { deploySquad, endMission, type MissionOutcome } from '../core/roster';
 import { lockerCapacity } from '../core/base';
 import { lockerCount } from '../core/crafting';
 
@@ -64,12 +65,19 @@ export class Campaign {
       saveCampaign(this.state);
       void this.open();
     });
+    $('campaign-difficulty').addEventListener('click', async () => {
+      this.state.difficulty = await pickDifficulty(this.state.difficulty ?? 'standard', 'Change difficulty', [
+        'Takes effect from the next mission. Nothing already lost comes back.',
+      ]);
+      saveCampaign(this.state);
+      this.render();
+    });
     $('campaign-story').addEventListener('click', (e) => this.onPlayClick(e, 'story'));
     $('campaign-supply').addEventListener('click', (e) => this.onPlayClick(e, 'supply'));
     $('campaign-pending').addEventListener('click', async (e) => {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-pending]')?.dataset.pending;
       if (act === 'resume') hooks.onResume();
-      if (act === 'retreat' && await confirmRetreat()) hooks.onRetreatPending();
+      if (act === 'retreat' && await confirmRetreat(difficultyOf(this.state).retreatFee)) hooks.onRetreatPending();
     });
   }
 
@@ -78,6 +86,12 @@ export class Campaign {
     // Soldiers marked away on a mission whose save no longer exists (storage cleared, or an older save format
     // that can't be read): nothing will ever bring them back, so they come home as they left.
     if (this.state.deployed && !this.hooks.pending()) { this.state.deployed = undefined; saveCampaign(this.state); }
+    if (!this.state.difficulty) {
+      // A fresh campaign asks; one from before difficulties existed has been played on Standard all along.
+      this.state.difficulty = this.hasStarted() ? 'standard'
+        : await pickDifficulty('standard', 'Choose a difficulty', ['You can change it later from the campaign screen.']);
+      saveCampaign(this.state);
+    }
     this.render();
     const inbox = this.state.inbox;
     this.state.inbox = undefined;
@@ -184,6 +198,7 @@ export class Campaign {
 
   private render() {
     $('campaign-currency').innerHTML = `${icon('currency')}${this.state.currency}`;
+    $('campaign-difficulty').textContent = `Difficulty: ${DIFFICULTIES[this.state.difficulty ?? 'standard'].name}`;
     const pending = this.hooks.pending();
     $('campaign-pending').hidden = !pending;
     $('campaign-pending').innerHTML = pending ? `<span class="pending__text"><b>Mission in progress:</b> ${pending.name}, turn ${pending.turn}. Finish it or retreat before deploying anyone else.</span>
@@ -233,14 +248,18 @@ export class Campaign {
   }
 }
 
+const pickDifficulty = async (current: DifficultyId, title: string, body: string[]): Promise<DifficultyId> =>
+  (await chooseModal({ eyebrow: 'Campaign', title, body },
+    DIFFICULTY_ORDER.map((id) => ({ id, label: DIFFICULTIES[id].name, blurb: DIFFICULTIES[id].blurb })), current, current)) as DifficultyId;
+
 const districtName = (id: string) => DISTRICTS.find((d) => d.id === id)?.name ?? id;
 
 /** Retreating is a choice with a cost (14); asked the same way from the mission and from the campaign screen. */
-export const confirmRetreat = () => confirmModal({
+export const confirmRetreat = (fee: number) => confirmModal({
   title: 'Retreat from the mission?',
   body: [
     'It counts as a failed mission: nothing is gained, anyone already killed stays dead, and time passes at the base.',
-    `The evacuation costs ${RETREAT_FEE} salvage, and a supply run goes to someone else.`,
+    `${fee ? `The evacuation costs ${fee} salvage, and a` : 'A'} supply run goes to someone else.`,
   ],
   cta: 'Retreat', cancel: 'Keep fighting', danger: true,
 });

@@ -20,7 +20,7 @@ import { runAiTurn } from '../src/core/ai';
 import { createGame } from '../src/core/state';
 import { RULES } from '../src/data/rules';
 import { STORY_MISSIONS } from '../src/data/campaign';
-import type { FacilityId } from '../src/data/base';
+import type { DifficultyId, FacilityId } from '../src/data/base';
 import type { AiProfileId } from '../src/data/aiProfiles';
 import type { MapDef } from '../src/data/trainingGrounds';
 
@@ -32,6 +32,7 @@ const seed0 = num('--seed', 1);
 const maxMissions = num('--max-missions', 45);
 const profile = str('--profile', 'friendly') as AiProfileId;
 const verbose = args.includes('--verbose');
+const difficulty = str('--difficulty', 'standard') as DifficultyId;
 const acts = num('--acts', 1); // how many acts the commander plays through (1-3)
 
 const BUILD_ORDER: FacilityId[] = [
@@ -48,7 +49,7 @@ interface Run {
 }
 
 function playOne(seed: number): Run {
-  const cs = newCampaign(seed);
+  const cs = newCampaign(seed, difficulty);
   const run: Run = { missions: 0, storyDone: 0, wins: 0, losses: 0, deaths: 0, hires: 0, salvageEarned: 0, salvageSpent: 0, stations: 0, volunteers: 0, finishedAt: null, minRoster: 5, salvageAtEnd: 0, retreats: 0 };
   let buildStep = 0;
   for (let m = 0; m < maxMissions; m++) {
@@ -119,7 +120,7 @@ for (let i = 0; i < N; i++) {
 }
 const avg = (f: (r: Run) => number) => (runs.reduce((a, r) => a + f(r), 0) / runs.length).toFixed(1);
 const finished = runs.filter((r) => r.finishedAt !== null);
-console.log(`\n${N} campaigns through act ${acts}, squad AI '${profile}', up to ${maxMissions} missions each`);
+console.log(`\n${N} ${difficulty} campaigns through act ${acts}, squad AI '${profile}', up to ${maxMissions} missions each`);
 console.log(`Finished: ${finished.length}/${N}${finished.length ? `, in ${(finished.reduce((a, r) => a + (r.finishedAt ?? 0), 0) / finished.length).toFixed(1)} missions on average` : ''}`);
 console.log(`Missions played ${avg((r) => r.missions)} · won ${avg((r) => r.wins)} · lost ${avg((r) => r.losses)} (retreats ${avg((r) => r.retreats)}) · story done ${avg((r) => r.storyDone)}/${ACT1}`);
 console.log(`Soldiers killed ${avg((r) => r.deaths)} · hired ${avg((r) => r.hires)} · volunteer bailouts ${avg((r) => r.volunteers)} · lowest roster ${avg((r) => r.minRoster)}`);
