@@ -89,3 +89,20 @@ Where the brief was silent or ambiguous I picked a default. Everything numeric l
 - First aid with exactly one valid target (usually self) is applied immediately.
 - "Skip enemy phase" is a persistent toggle (the enemy simply passes) rather than a one-shot button.
 - In dev mode `window.session` is exposed for console poking.
+
+## Acts 2-3, difficulty and versus (ROADMAP #20-#23)
+
+- **Defend** is lost only if an attacker is still on the zone when the attackers' next phase begins; reaching it
+  is not enough. The attackers know where the zone is from turn one. Zones are larger than the squad.
+- **Survive / defend** are won at the start of round `rounds + 1` - i.e. once the enemy's phase of the last
+  round is over.
+- **Extraction** (`reach`, `retrieve`) needs the mission's number of units, or everyone still alive (downed
+  units count) if fewer than that are left.
+- **Retrieve** intel starts on the squad's map; everything else is still found, not given.
+- **An active hold reveals the terminal** to the side that isn't holding it.
+- **Sentries** never move - not even by weather or perks - and carry no gear; neither drones nor sentries level.
+- **Story difficulty**: a soldier who would die comes home on 1 HP, keeps their kit and earns no XP for that
+  mission. The memorial only lists deaths that stuck.
+- **Versus** is hotseat: fog is per side and the board is covered between turns, but nothing stops a player
+  looking at the other's turn - that is on the honour system, as with any hotseat game. Both sides get the
+  player's gadgets and medkits; there is no objective, no save and no auto-run.

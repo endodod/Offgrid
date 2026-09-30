@@ -112,6 +112,7 @@ export class Session {
   }
 
   reset(seed = this.seed) {
+    if (this.versus) { this.loadVersus(this.map); return; } // restart a versus game as one (load clears versus first)
     this.begin(createGame(this.map, seed), `${this.map.name} loaded (seed ${seed}).`, 'Your turn. Click a unit, then a tile to move or an enemy to attack.');
   }
 

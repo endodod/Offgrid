@@ -1,12 +1,23 @@
-# Training Grounds
+# Offgrid
 
-A small turn-based tactics test map for playtesting combat rules. Vite + TypeScript + Canvas, no engine.
+A turn-based squad tactics game in a city three years off the grid. Vite + TypeScript + Canvas, no engine, no
+server, no runtime dependencies.
+
+- **Campaign**: 35 hand-authored story missions across three acts and seven districts, generated supply runs
+  between them, a base to build, a roster with gear, levels and permadeath (or not - three difficulty levels),
+  and an ending.
+- **Versus**: hotseat PvP on one screen, three symmetric arenas.
+- **Training Grounds**: a range with a guided tutorial.
+
+Plays on desktop and on phones (touch, pinch zoom, a phone layout).
 
 ```
 npm install
 npm run dev        # play in the browser
 npm test           # vitest (rules live in src/core)
-npm run sim        # AI-vs-AI balance sim: npm run sim -- --n 500 --seed 1 --objective none|player|both
+npm run sim        # AI-vs-AI balance sim: npm run sim -- --map <mission-id> --objective player --player-profile friendly --player-level 3
+npm run campaign-sim  # whole-campaign sim: npm run campaign-sim -- --acts 3 --difficulty standard
+npm run map -- <MAP_CONST>   # print an authored map as annotated ASCII
 npm run build
 ```
 
@@ -24,8 +35,9 @@ Without the flag none of this is reachable, and a saved custom map is ignored.
 | Path | What |
 |---|---|
 | `src/data/` | All numbers: `units.ts`, `gadgets.ts`, `rules.ts`, `trainingGrounds.ts` (ASCII map), `missions.ts` (home screen list), `campaign.ts` (districts, story missions, supply-run templates) |
-| `src/data/maps/story/` | The ten hand-authored 48x32 Act 1 story levels, composed with `maps/compose.ts` |
-| `src/data/maps/supplyMaps.ts` | The five 24x16 layouts a generated supply run draws from |
+| `src/data/maps/story/` | The 35 story levels: one file per Act 1 map, one file per district from Act 2 on, composed with `maps/compose.ts` |
+| `src/data/maps/supplyMaps.ts` | The layouts a generated supply run draws from |
+| `src/data/maps/pvp.ts` | The mirror-symmetric versus arenas |
 | `src/core/` | Pure rules: no DOM, no canvas, seeded RNG. `actions.ts` is the rule entry point (`validate` / `perform`) |
 | `src/render/` | Canvas drawing (reads state only) |
 | `src/ui/` | HUD, input, session (clicks -> core actions), home screen, map builder (debug) |

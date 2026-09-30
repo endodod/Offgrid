@@ -2,7 +2,7 @@
 
 Planned work, in the order I would tackle it. Features 1-4 come **before** the meta-game layer (5-8), because they are the vocabulary the levels and missions will be built from. Multiplayer (PvP and co-op) comes after that.
 
-Status: 0a-8 and 10-17 are done; 9 (visual rehaul) is the one numbered feature left, and Acts 2-3 have no missions yet (`md_files/STORY.md`). Each feature below keeps its original design sketch for the record, with a Status line and, where the shipped version differs, a "Done as" or Resolved note. The current rules are in [ASSUMPTIONS.md](ASSUMPTIONS.md).
+Status: 0a-8 and 10-24 are done; 9 (visual rehaul) is the one numbered feature left. All three acts are written - 35 story missions (`md_files/STORY.md`) - and there is a hotseat versus mode. Each feature below keeps its original design sketch for the record, with a Status line and, where the shipped version differs, a "Done as" or Resolved note. The current rules are in [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
 ## Suggested order
 
@@ -33,6 +33,11 @@ Status: 0a-8 and 10-17 are done; 9 (visual rehaul) is the one numbered feature l
 | 17 | Debug tools for the campaign | small | done |
 | 18 | Balance pass: campaign economy, campaign simulator | medium | done |
 | 19 | Act 1 rework: map sizes, steady difficulty slope, 3 new supply runs | large | done |
+| 20 | Acts 2-3: 25 story missions, four new objective types, Halcyon's sentries and drones | large | done |
+| 21 | Campaign completion: sequential story, epilogue, act-aware supply runs, difficulty levels, memorial | medium | done |
+| 22 | Mobile layout | medium | done |
+| 23 | Versus: hotseat PvP | medium | done |
+| 24 | Game-loop fixes found on the way (sim conditions, extraction soft-lock, dry-ammo stalemate, AI posts) | medium | done |
 
 0a-0f go first: they are core game-feel, not content, and every feature after them (new hazards, objectives, pickups, mission generation) needs the clearer UI, the revive mechanic, a more capable AI, configurable controls and a way to teach all of it already in place instead of retrofitted later. 0d builds directly on 0c's AI rework, and 0f is easiest last among these since it can then cover 0b-0e as well as the base rules, so do them in roughly that order even though most of them can start immediately. Weather can slot in any time after that. 2 -> 3 -> 4 is the order that avoids rework: objectives like "sabotage 3 terminals" need interactables, and "retrieve the case" needs pickups.
 
@@ -935,6 +940,102 @@ sim. The seal now applies to the enemy only.
 **Still open:** the Clinic is a bit under its target (57% against about 65%). Every adjustment tried swung it by
 30 points: a fifth enemy as a camper walks to the console and turns the dispensary into a fortress. Revisit
 with a human playtest before more tuning.
+
+## 20. Acts 2-3: the Cinder Wardens and Halcyon Systems
+
+**Status: done.** Twenty-five story missions - Dockyards, Substation Hill and Old Town (Act 2), Uptown and the
+Spire (Act 3) - one file per district under `src/data/maps/story/`, their text in `data/campaign.ts`. Each
+district's five teach one new thing apiece (see STORY.md §8-§9 for the per-mission sheet and sim numbers).
+
+**New objective types** (`data/objectives.ts`, `core/objectives.ts`), each with tests in `objectives2.test.ts`:
+- `survive` - be alive at the start of round `rounds + 1`. Paired with `MapDef.reinforcements`.
+- `defend` - keep the enemy off the zone ('O' tiles) for `rounds`. The attackers know where it is from turn
+  one. The enemy wins only if one of its units is **still on the zone when its next phase begins** - reaching
+  it isn't enough, the squad always gets one phase to answer. Zones are twelve tiles, more than a squad of five
+  can stand on, so a defend can't be won by parking on it.
+- `retrieve` - throw every listed switch (the intel), then get N units onto the zone. The squad starts knowing
+  where the intel is (it is what the briefing is about).
+- `eliminateTargets` - several named targets, all of whom must die.
+
+**Targets are marked**: every named target (`eliminateTarget` and `eliminateTargets`) wears a gold crown on the
+board, and objective switches (sabotage, retrieve) get a ring in the objective colour. Before this, Vex was an
+unmarked tank among tanks.
+
+**Enemy-only hardware** (`data/units.ts` `ENEMY_ONLY_CLASSES`): the **sentry** (never moves - `effectiveMove`
+returns 0 - armor 2, vision 9, range 9) and the **drone** (move 7, 7 HP, vision 9). `CLASS_ORDER` stays the five
+playable classes; `ALL_CLASSES` is for the builder and the sim's table. Both have their own sprites (a round
+turret, a diamond).
+
+**Balance method changes.** Posted guards and bosses use the `defend` profile, not `camper`: a camper leaves its
+post whenever it has no shot, so an entire garrison - bosses included - used to walk out and meet the squad at
+the door (Dry Dock: 1.7% player wins). The sim now prints **squad lost per match**, which matters more than
+the win rate under permadeath: a survive mission "won" 100% can still cost three soldiers.
+
+**Tests:** `objectives2.test.ts`, `maps.test.ts` (validates every new map, reinforcement tiles, the new types),
+`campaign.test.ts` (every district has missions; the campaign can be finished).
+
+## 21. Campaign completion
+
+**Status: done.**
+- **Story missions unlock in order** within a district (`availableStoryMissions`). The debriefs set up the next
+  briefings (Abel is recruited in the first and knows the door codes in the third), and with all five open at
+  once the story could be read backwards.
+- **An ending.** Winning Grid Control shows the epilogue (`data/campaign.ts` `EPILOGUE`) once
+  (`CampaignState.endingSeen`); the campaign screen, the home tile and the Lore screen then show a finished
+  campaign. Supply runs stay available.
+- **Supply runs follow the act**: blurbs name the current act's enemy (`{foe}` in a template's text), the tier
+  never drops below the act's floor, and a new act clears the board and deals fresh jobs.
+- **Difficulty** (`data/base.ts` `DIFFICULTIES`), chosen when a campaign starts, changeable any time from the
+  campaign screen: Story (no permadeath - the fallen come home on 1 HP - free retreats, +25% salvage),
+  Standard (as before), Veteran (-20% salvage, volunteer floor 4, dearer retreats). Older saves are Standard.
+- **Recruits and volunteers arrive seasoned for the act** (`ACT_RECRUIT_XP`: Act 2 ~ level 3, Act 3 ~ level 4).
+  The roster floor used to refill an Act 3 squad with level-1 volunteers, which the campaign sim showed
+  spiralling.
+- **The record**: a memorial of everyone who died for good, and running totals, on the Lore screen.
+
+**Known limit of the tool, not the game:** `npm run campaign-sim -- --acts 3` does not finish the campaign - its
+AI draws a lot of the long Act 2-3 missions at the 40-turn cap (a human has no cap) and counts a draw as a
+loss. Per-map sims are the reliable measure; the campaign sim is still good for the economy.
+
+## 22. Mobile layout
+
+**Status: done.** Under 700px wide (`style.css`, the "Phones" block): the board gets the screen height, the
+action bar docks to the bottom (safe-area aware), the top bar goes icon-only, the auto-run order picker shows
+only while auto-run is on, key help and key badges are hidden on touch screens, and card grids / screen headers
+fit a 390px screen (the campaign screen was 541px wide). Pinch zoom and tap-to-preview already existed (10k).
+Checked with a driven headless Chromium at 390x844 on every screen.
+
+## 23. Versus: hotseat PvP
+
+**Status: done.** A second mode beside the campaign (home screen tile). Two people, one screen.
+
+**Done as:** hotseat, not networked - the game is a static site with no server. `core/pvp.ts` **flips** the
+state between turns: every team label and everything kept per team (memory, visibility, seen units, captures,
+scans) swaps, so whoever is about to move is always `'player'`. The renderer's fog, selection, undo and the
+log's seen-filter all work from that side's view with no other engine changes; each side keeps its own combat
+log (`Session.versus.logs`). A cover (`#handoff`) hides the board between turns. Both squads get gadgets and
+medkits; elimination only; never saved; no auto-run. Three mirror-symmetric arenas in `data/maps/pvp.ts`.
+
+**Tests:** `core/pvp.test.ts` (seating, rounds, per-side memory, winner by side); driven in Chromium on desktop
+and phone sizes.
+
+**Not done:** online play. The flip design would carry over to lockstep (both clients replay the same action
+list from the same seed), but it needs a relay/signalling server this project doesn't have.
+
+## 24. Game-loop fixes found this pass
+
+**Status: done.**
+- **The sim silently forced midday / clear / reserve x1 / no pods** on every run (`scripts/sim.ts` passed its
+  flag defaults as options, which override the map's own). Every balance number measured with it before this
+  was under the wrong conditions; Act 1 was re-measured (STORY.md §4-§5). Two maps were off because of it:
+  Signal Fire (a walkover at its real midnight storm) and the Pumphouse (~3 losses per run; now `easy`).
+- **Extraction soft-lock**: `reach`/`retrieve` needed N units on the zone even after the squad fell below N,
+  leaving only a wipeout as a way to win. The requirement now caps at whoever is alive (`unitsNeeded`).
+- **Dry stalemate**: a unit with no ammo left stood still, so two dry squads could stare at each other forever
+  (the AI and auto-run). It now heads for visible ammo or the objective.
+- **A hold in progress gives its position away** to the other side (the terminal is transmitting).
+- **Squad AI in a defend** goes after an attacker standing on the zone first (auto-run used to walk away).
+- Favicon (the only console error on load), the district rail no longer clips districts 6-7.
 
 ## After these: levels, campaign, multiplayer
 

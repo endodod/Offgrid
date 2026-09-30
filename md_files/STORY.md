@@ -36,7 +36,7 @@ that makes you visible.
 | **The Lamplighters** | The player squad. Five people who were not anybody before the Blackout. | A block that stays lit. Then another one. | You. |
 | **The Jackals** (Act 1) | Scavenger raiders — until Act 1 reveals they are being organised by somebody. | Whatever is not nailed down, and the people who are. | `easy` / `standard`. Aggressive, sloppy, punished by patience. |
 | **The Cinder Wardens** (Act 2) | An organised militia that carved the city into fiefs. Checkpoints, tithes, ledgers. | Fuel and food, taken on a schedule, from people who cannot refuse. | `camper` / `hard` / `ambush`. Fortified positions and prepared ground. |
-| **Halcyon Systems** (Act 3) | The utility and security contractor that ran Ashport's grid before the Blackout. | To keep the outage from ever being attributed. | Not yet designed. |
+| **Halcyon Systems** (Act 3) | The utility and security contractor that ran Ashport's grid before the Blackout. | To keep the outage from ever being attributed. | Machines: sentries (bolted-down guns) and drones, plus the last Wardens on a Halcyon payroll. |
 
 **The twist**, seeded from Riverside's fourth mission and paid off in Act 3: the Cinder Wardens are Halcyon's
 contracted enforcement arm, still executing the last orders they were given long after anyone was left to
@@ -63,8 +63,9 @@ The player is told nothing. They are shown the same stamp four times in four dif
 | 3 | Uptown, The Spire | Halcyon Systems | Payoff. The Wardens collapse once Halcyon is exposed; the last mission is retaking the Spire and handing grid control back to the districts. |
 
 District order is linear: Riverside → Market Row → Dockyards → Substation Hill → Old Town → Uptown → The
-Spire. Each district has **five story missions**; clearing all five unlocks the next district and shows its
-briefing. Acts 2 and 3 have districts, briefings and a shape but **no missions written yet** — see §6.
+Spire. Each district has **five story missions**, played in order; clearing all five unlocks the next district
+and shows its briefing. All seven are written: Act 1 in §4-§5, Act 2 in §8, Act 3 in §9. Winning the last
+one shows the epilogue (`data/campaign.ts` `EPILOGUE`).
 
 **District briefings** are a modal shown once, the first time a district unlocks (`District.intro` in
 `data/campaign.ts`, tracked by `CampaignState.seenIntros`). **Mission debriefs** are the same modal, shown
@@ -82,17 +83,22 @@ size, chosen for what the mission is about: small for a first mission, tall for 
 thin for a bridge.
 
 Balance figures are AI-vs-AI (`npm run sim -- --map <id> --objective player --player-profile friendly`),
-60-100 matches, each map's own shipped enemy profile, a fresh level-1 squad under the Balanced auto-run AI. The
-sim gives the player **no gadgets, no gear and no levels**, so treat every number as a floor. The target is a
-steady slope - about 80% at the first mission, easing to about 55% at a district's finale.
+60 matches, each map's own shipped conditions and enemy profile, a fresh level-1 squad under the Balanced
+auto-run AI. The sim gives the player **no gadgets and no gear**, so treat every number as a floor; a draw is
+the sim's 40-turn cap (the real game has none). "Lost" is soldiers killed per run - under permadeath, the
+number that matters most.
 
-| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) |
-|---|---|---|---|---|---|
-| 1 | **Lights Out** | 34×24 | `sabotage` ×2 | Afternoon, clear, `easy` | 77 / 12 / 12 |
-| 2 | **Signal Fire** | 30×30 | `hold` ×5 rounds | Midnight, storm | 75 / 25 / 0 |
-| 3 | **Cold Storage** | 46×22 | `reach` ×3 units | Midnight, fog | 73 / 10 / 17 |
-| 4 | **The Pumphouse** | 30×40 | `sabotage` ×3 | Morning, rain | 65 / 25 / 10 |
-| 5 | **The Tollgate** | 62×16 | `eliminateTarget` | Afternoon, fog | 72 / 2 / 27 |
+**Re-measured (ROADMAP #24).** Until then the sim silently forced midday and clear weather on every run, so
+the earlier figures in this section were measured under the wrong conditions. The table is the corrected
+one; Signal Fire and the Pumphouse were retuned as a result.
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **Lights Out** | 34×24 | `sabotage` ×2 | Afternoon, clear, `easy` | 82 / 8 / 10 | 1.5 |
+| 2 | **Signal Fire** | 30×30 | `hold` ×5 rounds | Midnight, storm | 97 / 2 / 2 | 1.1 |
+| 3 | **Cold Storage** | 46×22 | `reach` ×3 units | Midnight, fog | 97 / 0 / 3 | 0.7 |
+| 4 | **The Pumphouse** | 30×40 | `sabotage` ×3 | Morning, rain, `easy` | 73 / 12 / 15 | 1.5 |
+| 5 | **The Tollgate** | 62×16 | `eliminateTarget` | Afternoon, fog | 83 / 0 / 17 | 0.8 |
 
 ### 4.1 Lights Out — `lights-out`
 **Beat.** The substation two blocks from the safehouse still has a working feeder. The Jackals fenced it
@@ -188,13 +194,16 @@ and an open road. Word of that travels east.
 
 ## 5. Act 1, Market Row: the five levels
 
-| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) |
-|---|---|---|---|---|---|
-| 1 | **Supply Run: Market Row** | 56×24 | `reach` ×3 units | Morning, rain, `easy` | 80 / 12 / 8 |
-| 2 | **The Clinic** | 32×26 | `hold` ×3 rounds | Afternoon, clear | 57 / 31 / 12 |
-| 3 | **The Row Relay** | 40×36 | `sabotage` ×2 | Midnight, clear, `easy` | 66 / 22 / 12 |
-| 4 | **The Night Market** | 36×36 | `eliminateTarget` | Midnight, cloudy | 47 / 43 / 10 |
-| 5 | **The Jackals' Den** | 56×36 | `eliminateTarget` | Afternoon, cloudy | see below |
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **Supply Run: Market Row** | 56×24 | `reach` ×3 units | Morning, rain, `easy` | 70 / 10 / 20 | 1.5 |
+| 2 | **The Clinic** | 32×26 | `hold` ×3 rounds | Afternoon, clear | 50 / 32 / 18 | 2.9 |
+| 3 | **The Row Relay** | 40×36 | `sabotage` ×2 | Midnight, clear, `easy` | 62 / 8 / 30 | 1.4 |
+| 4 | **The Night Market** | 36×36 | `eliminateTarget` | Midnight, cloudy | 38 / 55 / 7 | 3.6 |
+| 5 | **The Jackals' Den** | 56×36 | `eliminateTarget` | Afternoon, cloudy | 23 / 27 / 50 | 3.3 |
+
+These are a fresh level-1 squad's numbers; by Market Row a real squad has a level or two, gear and gadgets. The
+Clinic and the Night Market are the two still worth a human playtest (see ROADMAP #19's own note).
 
 ### 5.1 Supply Run: Market Row — `supply-run-market-row`
 A west-to-east run down a covered market street. Shopfronts top and bottom, each with one doorway; stall
@@ -373,3 +382,108 @@ Sim check on the two layouts closest to symmetric:
 | Vance Street Underpass | player 88% | player 28% / enemy 39% |
 
 That gap is the intended curve: tier 0 is a warm-up, tier 1 onward expects the gear and levels banked by then.
+
+---
+
+## 8. Act 2: the Cinder Wardens
+
+Fifteen missions, one file per district (`src/data/maps/story/dockyards.ts`, `substationHill.ts`, `oldTown.ts`);
+each map's header comment has its design notes. Balance: the same sim as §4, with a **level-3 squad**
+(`--player-level 3`), 50 matches. The Wardens fight differently from the Jackals: posted guards and bosses on
+the `defend` profile (they hold a post rather than walk out to meet you - a `camper` leaves whenever it has no
+shot), reinforcement waves, dormant garrisons, and in Old Town a reduced reserve for both sides.
+
+**New verbs** (ROADMAP #20): `survive`, `defend` (the enemy has an objective, and it is yours), `retrieve`
+(take something, then get out) and `eliminateTargets`.
+
+### 8.1 Dockyards
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **The Checkpoint** | 40×24 | `retrieve` 2, extract 3 | Morning, fog, pods | 24 / 14 / 62 | 2.0 |
+| 2 | **Low Tide** | 30×30 | `survive` 6 | Midnight, rain, waves r2/r4 | 100 / 0 / 0 | 1.6 |
+| 3 | **The Harbourmasters** | 44×28 | `eliminateTargets` ×3 | Afternoon, clear, pods | 52 / 0 / 48 | 2.1 |
+| 4 | **The Coded Signal** | 32×32 | `hold` 3 | Midnight, storm, wave r4 | 88 / 2 / 10 | 1.5 |
+| 5 | **Dry Dock** | 54×30 | `eliminateTarget` (Marrow) | Afternoon, cloudy, wave r6 | 52 / 10 / 38 | 1.9 |
+
+**The beat.** First contact. The Wardens run the waterfront like a business - receipts, schedules - and the
+coded transmission that answered the Signal Fire turns out to be an automated handshake, sent every hour for
+three years to a relay on Substation Hill: CONTRACT ACTIVE. The tithes all go one place, marked FOR MAINTENANCE.
+New allies: Nell Aske, a ferry pilot.
+
+### 8.2 Substation Hill
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **The Switchback** | 26×44 | `reach` 3 | Morning, cloudy | 86 / 0 / 14 | 1.7 |
+| 2 | **Cold Feed** | 32×28 | `defend` 5 | Midnight, clear, waves r2/r4 | 84 / 16 / 0 | 0.7 |
+| 3 | **The Maintenance Log** | 44×26 | `retrieve` 2, extract 3 | Afternoon, rain, wave r7 | 44 / 8 / 48 | 2.4 |
+| 4 | **Breaker Yard** | 40×32 | `sabotage` ×3 | Morning, fog | 46 / 18 / 36 | 2.1 |
+| 5 | **Hilltop Control** | 48×34 | `eliminateTargets` ×2 | Afternoon, cloudy, wave r7 | 46 / 0 / 54 | 1.8 |
+
+**The beat.** The Wardens are maintaining the switchgear, not stripping it: the grid is energised, balanced, and
+switched off at the last breaker. Every work order reads MAINTAIN - DO NOT ENERGISE - REF HS-114. The
+superintendent's orders come from an office in Old Town under the cinder-and-wrench stamp. The first defend
+(Cold Feed) relights Saint Brigid's.
+
+### 8.3 Old Town
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **Narrow Streets** | 50×20 | `reach` 3 | Morning, fog, reserve ×0.7 | 52 / 0 / 48 | 1.5 |
+| 2 | **The Bell Tower** | 36×36 | `eliminateTarget` (Brand) | Midday, clear, reserve ×0.7 | 38 / 26 / 36 | 3.5 |
+| 3 | **The Armoury** | 38×28 | `retrieve` 2, extract 2 | Midnight, clear, reserve ×0.7, wave r6 | 62 / 20 / 18 | 2.4 |
+| 4 | **Saint Oriel's** | 34×30 | `survive` 7 | Afternoon, storm, reserve ×0.75, waves r3/r5 | 100 / 0 / 0 | 1.0 |
+| 5 | **Warden Command** | 52×34 | `eliminateTarget` (Vane) | Afternoon, cloudy, reserve ×0.85, wave r7 | 30 / 0 / 70 | 1.9 |
+
+**The beat.** The ammunition squeeze, and the name said out loud: the armoury's supplier column reads HALCYON
+SYSTEMS - SECURITY PROVISION - ACCOUNT HS-114. New ally: Mother Agnes Rook, who runs the resistance from a food
+bank. The finale's files are the contract itself - the Wardens were never a militia, they are a contract nobody
+cancelled, countersigned in Uptown.
+
+## 9. Act 3: Halcyon Systems
+
+Ten missions (`uptown.ts`, `spire.ts`), balanced with a **level-4 squad**. Halcyon's security is machines - the
+**sentry** (bolted down, armored, sees nine tiles) and the **drone** (fast, fragile, sees nine tiles - at night
+it finds you long before you see it) - plus the last Wardens on a Halcyon payroll.
+
+### 9.1 Uptown
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **Glass Canyon** | 48×24 | `reach` 3 | Midday, clear | 96 / 0 / 4 | 1.5 |
+| 2 | **The Contract Office** | 40×30 | `retrieve` 2, extract 3 | Midnight, clear, wave r6 | 58 / 4 / 38 | 1.0 |
+| 3 | **The Blackout Archive** | 36×28 | `hold` 4 | Afternoon, rain, waves r3/r5 | 100 / 0 / 0 | 0.7 |
+| 4 | **Security Perimeter** | 44×32 | `sabotage` ×3 | Morning, fog, wave r5 | 48 / 4 / 48 | 2.1 |
+| 5 | **The Director** | 50×30 | `eliminateTarget` (Crane) | Afternoon, storm, wave r6 | 44 / 6 / 50 | 2.3 |
+
+**The beat.** The proof. The contract renews itself each quarter unless an officer countermands it, and the signing
+keys do it automatically. The archive logs show the Blackout minute by minute: a fault at 21:04, an engineer
+asking to isolate it at 21:07, permission denied at 21:09 because isolation would register the fault against
+Halcyon's own asset. Regional Director Harlan Crane kept the grid off for three years to keep the logs from an
+inquiry. His card opens the Spire.
+
+### 9.2 The Spire
+
+| # | Mission | Size | Objective | Conditions | Sim (player / enemy / draw) | Lost |
+|---|---|---|---|---|---|---|
+| 1 | **Service Entrance** | 46×22 | `reach` 3 | Midnight, clear, wave r5 | 98 / 0 / 2 | 1.0 |
+| 2 | **Floor Forty** | 34×30 | `defend` 5 | Midday, clear, waves r2/r4 | 98 / 2 / 0 | 1.4 |
+| 3 | **The Cooling Plant** | 40×34 | `sabotage` ×3 | Afternoon, fog | 14 / 0 / 86 | 1.8 |
+| 4 | **Lockdown** | 32×32 | `survive` 6 | Midnight, clear, waves r2/r4 | 100 / 0 / 0 | 1.0 |
+| 5 | **Grid Control** | 44×36 | `hold` 4 | Afternoon, clear, waves r4/r5 | 76 / 24 / 0 | 3.4 |
+
+**The beat.** Abel Cortez - recruited in Lights Out - opens the lift, the squad forces Grid Control onto manual,
+survives the building's lockdown and holds the master console. At 21:04, three years to the minute, Abel closes
+the first breaker by hand, and every Warden radio reads out CONTRACT HS-114 COUNTERMANDED BY AUTHORISED OFFICER.
+The epilogue: seven keys on the console, one per district, four needed to switch anything off.
+
+### 9.3 Reading the numbers
+
+- **Draws** are the sim's 40-turn cap. The squad AI is slow at two-step objectives (retrieve) and at finding
+  things in fog (the Cooling Plant, 90%+ draws), and a human has no cap - those maps are not "hard", the AI is
+  just slow on them.
+- **Lost** is what a mission costs. The survive and defend missions win almost every time and still cost one to
+  two soldiers; finales cost two to three at the intended level.
+- The finales are the hardest fight in their district by design (Dry Dock, Hilltop Control, Warden Command,
+  The Director, Grid Control).
