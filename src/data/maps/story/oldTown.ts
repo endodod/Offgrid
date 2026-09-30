@@ -289,11 +289,11 @@ export const SAINT_ORIELS: MapDef = {
 
 // ------------------------------------------------------------------------------------------------ 5
 /**
- * Warden Command - `eliminateTarget`, Commander Idris Vane. 52x34, afternoon, cloudy, reserve x0.75. The Act 2
+ * Warden Command - `eliminateTarget`, Commander Idris Vane. 52x34, afternoon, cloudy, reserve x0.85. The Act 2
  * finale.
  *
  * The Guildhall: a forecourt, a colonnade, a great hall with two galleries, and the Commander's chamber at the
- * back behind a sealed door. Six Wardens, a relief force on round 7, and the commander a tank on `defend`.
+ * back behind a sealed door. Five Wardens, a relief force on round 7, and the commander a tank on `defend`.
  *
  * Teaches: all of Act 2 at once - campers and ambushers, a sniper on a gallery, the ammo squeeze, and a
  * reinforcement wave you have to have finished the fight before.
@@ -330,7 +330,7 @@ export const WARDEN_COMMAND: MapDef = {
     player: [['soldier', 2, 16], ['assault', 3, 16], ['medic', 2, 18], ['tank', 2, 14], ['sniper', 3, 14]],
     enemy: [
       ['tank', 41, 16, 'defend'], // Commander Vane
-      ['sniper', 28, 6, 'defend'], ['soldier', 25, 16], ['assault', 14, 20, 'ambush'],
+      ['sniper', 28, 6, 'defend'], ['soldier', 25, 16],
       ['soldier', 34, 18, 'defend'], ['assault', 47, 10],
     ],
   },
@@ -341,7 +341,7 @@ export const WARDEN_COMMAND: MapDef = {
   startTimeOfDay: 'afternoon',
   startWeather: 'cloudy',
   enemyProfile: 'standard',
-  reserveMult: 0.75,
+  reserveMult: 0.85,
   objective: { type: 'eliminateTarget', enemySpawnIndex: 0, label: 'Commander Idris Vane' },
   aiOpensDoors: false,
   reinforcements: [{ turn: 7, spawns: [['assault', 49, 16], ['soldier', 49, 17]] }],

@@ -1,10 +1,10 @@
 import { baseGameOptions } from '../core/base';
 import {
-  availableStoryMissions, districtStatus, markIntroSeen, newCampaign, resolveSupplyRun, unseenIntros, type CampaignState,
+  availableStoryMissions, campaignFinished, districtStatus, markIntroSeen, newCampaign, resolveSupplyRun, unseenIntros, type CampaignState,
 } from '../core/campaign';
 import type { Unit } from '../core/types';
 import {
-  DISTRICTS, STORY_MISSIONS, SUPPLY_RUN_TIER_LABELS, supplyRunComplication, supplyRunTemplate,
+  DISTRICTS, EPILOGUE, STORY_MISSIONS, SUPPLY_RUN_TIER_LABELS, supplyRunComplication, supplyRunTemplate,
   type GeneratedMissionDef, type StoryMissionDef,
 } from '../data/campaign';
 import { AI_PROFILES } from '../data/aiProfiles';
@@ -106,6 +106,12 @@ export class Campaign {
       saveCampaign(this.state);
       this.render();
     }
+    if (campaignFinished(this.state) && !this.state.endingSeen) {
+      await showModal({ eyebrow: 'Epilogue', title: EPILOGUE.title, body: EPILOGUE.body, cta: 'The end - for now' });
+      this.state.endingSeen = true;
+      saveCampaign(this.state);
+      this.render();
+    }
     if (this.lockerOver() > 0) this.hooks.onLockerFull();
   }
 
@@ -198,10 +204,12 @@ export class Campaign {
 
     const story = availableStoryMissions(this.state);
     $('campaign-story').innerHTML = story.length ? story.map((m) => this.storyCard(m)).join('')
-      : `<p class="section__note">Every story mission in the districts you hold is done. ${
-        DISTRICTS.some((d) => districtStatus(this.state, d.id) === 'locked')
-          ? 'The next district is not written yet - supply runs keep paying in the meantime.'
-          : ''}</p>`;
+      : campaignFinished(this.state)
+        ? `<article class="card card--accent"><div class="card__head"><div><h3 class="card__title">Ashport is lit</h3>
+            <span class="card__sub">Campaign complete · ${this.state.completedStoryMissions.length} story missions</span></div></div>
+            <p class="card__body">${EPILOGUE.body[EPILOGUE.body.length - 1]}</p>
+            <p class="card__body muted">Supply runs are still on the board, at the hardest tier, for anyone who wants to keep the squad sharp. The whole story can be re-read from the Lore screen.</p></article>`
+        : '<p class="section__note">Every story mission in the districts you hold is done.</p>';
 
     $('campaign-supply').innerHTML = this.state.supplyRunPool.map((m) => supplyCard(m)).join('');
     document.querySelectorAll<HTMLButtonElement>('#campaign [data-play]').forEach((b) => { b.disabled = !!pending; });

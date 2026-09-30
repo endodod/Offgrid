@@ -443,7 +443,7 @@ export const SUPPLY_RUN_TEMPLATES: SupplyRunTemplate[] = [
   },
   {
     id: 'rail-yard', name: 'Halstead Rail Yard',
-    blurb: 'A freight string the Jackals are stripping car by car. Cut both couplings and the rest of it is ours to come back for.',
+    blurb: 'A freight string {foe} are stripping car by car. Cut both couplings and the rest of it is ours to come back for.',
     objective: 'Throw both coupling releases. Or eliminate every enemy.',
     tags: ['sabotage', 'lanes', 'no flanks'],
     map: RAIL_YARD,
@@ -457,14 +457,14 @@ export const SUPPLY_RUN_TEMPLATES: SupplyRunTemplate[] = [
   },
   {
     id: 'waterworks', name: 'Cold Creek Waterworks',
-    blurb: 'The Jackals run their quartermaster out of a settling tank here. Kill the ledger and the district goes hungry.',
+    blurb: '{Foe} run their quartermaster out of a settling tank here. Kill the ledger and they go hungry.',
     objective: 'Eliminate the Jackal quartermaster. Or eliminate every enemy.',
     tags: ['target', 'bunkers', 'one way in'],
     map: WATERWORKS,
   },
   {
     id: 'corner-store', name: 'Hollis Corner Store',
-    blurb: 'A corner shop whose till still talks to a bank that does not exist. The Jackals use it to keep their tallies. A quick job.',
+    blurb: 'A corner shop whose till still talks to a bank that does not exist. {Foe} use it to keep their tallies. A quick job.',
     objective: 'Interact with the till and hold it. Or eliminate every enemy.',
     tags: ['hold', 'small', 'quick'],
     map: CORNER_STORE,
@@ -478,7 +478,7 @@ export const SUPPLY_RUN_TEMPLATES: SupplyRunTemplate[] = [
   },
   {
     id: 'parking-deck', name: 'Vance Street Parking Deck',
-    blurb: 'Three levels of concrete the Jackals use as a vehicle pound. Cut both gate controls and the trucks stay where they are.',
+    blurb: 'Three levels of concrete {foe} use as a vehicle pound. Cut both gate controls and the trucks stay where they are.',
     objective: 'Throw both gate controls. Or eliminate every enemy.',
     tags: ['sabotage', 'levels', 'pillars'],
     map: PARKING_DECK,
@@ -522,6 +522,21 @@ export const SUPPLY_RUN_PROFILE_TIERS: AiProfileId[][] = [
 
 /** What each tier is called on the mission card. */
 export const SUPPLY_RUN_TIER_LABELS = ['Light resistance', 'Contested', 'Dug in', 'Hostile territory'];
+
+/** Who a supply run is against, by act - substituted for `{foe}` / `{Foe}` in a template's blurb, so an Act 3
+ *  job is not still about the Jackals. */
+export const SUPPLY_RUN_FOES: Record<1 | 2 | 3, string> = { 1: 'the Jackals', 2: 'the Wardens', 3: 'Halcyon security' };
+
+/** The story's last word, shown once when the final story mission is won (and kept on the Lore screen). */
+export const EPILOGUE: { title: string; body: string[] } = {
+  title: 'Ashport, lit',
+  body: [
+    'The grid comes back one district at a time, over a night and a morning, because Abel insists on doing it by hand. Riverside first. It was always going to be Riverside first.',
+    'The Wardens stand down within the week. Most of them had never read the contract they were enforcing; a few of them cry when somebody reads it to them. Nell Aske runs the ferries again. Mother Agnes runs the food bank, and now it has refrigerators.',
+    "Grid Control stays manual. The master console on the dais has seven keys now, one per district, and it takes four of them to switch anything off. Nobody in the Spire can do it alone ever again. That was the point.",
+    'The lights going back on was never the reward. It was the thing that made you visible. Now everybody can see.',
+  ],
+};
 
 export const supplyRunTemplate = (id: string): SupplyRunTemplate | undefined => SUPPLY_RUN_TEMPLATES.find((t) => t.id === id);
 export const supplyRunComplication = (id: string): SupplyRunComplication | undefined => SUPPLY_RUN_COMPLICATIONS.find((c) => c.id === id);

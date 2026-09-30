@@ -32,12 +32,13 @@ const seed0 = num('--seed', 1);
 const maxMissions = num('--max-missions', 45);
 const profile = str('--profile', 'friendly') as AiProfileId;
 const verbose = args.includes('--verbose');
+const acts = num('--acts', 1); // how many acts the commander plays through (1-3)
 
 const BUILD_ORDER: FacilityId[] = [
   'infirmary', 'barracks', 'recruitment', 'medstation', 'workbench', 'trainingRoom', 'warRoom', 'commsRelay',
   'reconUplink', 'fabricator', 'locker', 'infirmary', 'barracks', 'medstation', 'workbench',
 ];
-const ACT1 = STORY_MISSIONS.filter((m) => m.act === 1).length;
+const ACT1 = STORY_MISSIONS.filter((m) => m.act <= acts).length;
 const fit = (cs: CampaignState) => cs.roster.filter((s) => soldierHp(s) / maxHp(s.cls) >= 0.6).length;
 
 interface Run {
@@ -74,7 +75,7 @@ function playOne(seed: number): Run {
     trimLocker(cs);
 
     // --- pick and play a mission ---
-    const story = availableStoryMissions(cs).find((x) => x.act === 1);
+    const story = availableStoryMissions(cs).find((x) => x.act <= acts);
     if (!story) { run.finishedAt = run.missions; break; }
     const useStory = fit(cs) >= 4 || !cs.supplyRunPool.length;
     const supply = [...cs.supplyRunPool].sort((a, b) => b.reward - a.reward)[0];
@@ -118,8 +119,8 @@ for (let i = 0; i < N; i++) {
 }
 const avg = (f: (r: Run) => number) => (runs.reduce((a, r) => a + f(r), 0) / runs.length).toFixed(1);
 const finished = runs.filter((r) => r.finishedAt !== null);
-console.log(`\n${N} Act 1 campaigns, squad AI '${profile}', up to ${maxMissions} missions each`);
-console.log(`Finished Act 1: ${finished.length}/${N}${finished.length ? `, in ${(finished.reduce((a, r) => a + (r.finishedAt ?? 0), 0) / finished.length).toFixed(1)} missions on average` : ''}`);
+console.log(`\n${N} campaigns through act ${acts}, squad AI '${profile}', up to ${maxMissions} missions each`);
+console.log(`Finished: ${finished.length}/${N}${finished.length ? `, in ${(finished.reduce((a, r) => a + (r.finishedAt ?? 0), 0) / finished.length).toFixed(1)} missions on average` : ''}`);
 console.log(`Missions played ${avg((r) => r.missions)} · won ${avg((r) => r.wins)} · lost ${avg((r) => r.losses)} (retreats ${avg((r) => r.retreats)}) · story done ${avg((r) => r.storyDone)}/${ACT1}`);
 console.log(`Soldiers killed ${avg((r) => r.deaths)} · hired ${avg((r) => r.hires)} · volunteer bailouts ${avg((r) => r.volunteers)} · lowest roster ${avg((r) => r.minRoster)}`);
 console.log(`Salvage earned ${avg((r) => r.salvageEarned)} · spent ${avg((r) => r.salvageSpent)} · left ${avg((r) => r.salvageAtEnd)} · stations built ${avg((r) => r.stations)}`);

@@ -5,7 +5,7 @@ import type { ArmorId } from '../data/armor';
 import type { EquipmentId } from '../data/equipment';
 import type { ClassId } from '../data/units';
 import {
-  applyMissionXp, availableStoryMissions, campaignFinished, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
+  applyMissionXp, availableStoryMissions, campaignFinished, currentAct, upgradeFacility, withdrawSupplyRun, completeStoryMission, completeSupplyRun, districtStatus, newCampaign,
   addGear, equipFromInventory, markIntroSeen, migrateCampaign, moveEquipped, perkSlots, progressFor,
   recordMissionGear, resolveSupplyRun, setPerkSlot, soldierById, stockOf, togglePerk, unequipToInventory, unseenIntros,
   type CampaignState,
@@ -370,5 +370,29 @@ describe('campaign (feature 5)', () => {
       expect(togglePerk(cs, 'assault', b)).toBe('No open perk slots'); // only 1 slot until level 3
       expect(togglePerk(cs, 'assault', 'tankPlating')).toBe('Not unlocked yet'); // a different class's perk
     });
+  });
+});
+
+describe('supply runs follow the act (Acts 2-3)', () => {
+  it('names the current act\'s enemy and never drops below the act\'s difficulty floor', async () => {
+    const { SUPPLY_RUN_FOES } = await import('../data/campaign');
+    const cs = newCampaign(7);
+    expect(currentAct(cs)).toBe(1);
+    for (const m of STORY_MISSIONS.filter((x) => x.act < 3)) completeStoryMission(cs, m.id);
+    expect(currentAct(cs)).toBe(3);
+    cs.supplyRunPool = [];
+    completeSupplyRun(cs, 'none'); // no-op
+    withdrawSupplyRun(cs, 'none');
+    // refill through a real completion path
+    cs.supplyRunPool = [];
+    cs.completedSupplyRuns = 0;
+    upgradeFacility(cs, 'warRoom'); // refills the pool (may be refused for salvage - then fill manually)
+    if (!cs.supplyRunPool.length) { cs.currency = 99999; upgradeFacility(cs, 'warRoom'); }
+    expect(cs.supplyRunPool.length).toBeGreaterThan(0);
+    for (const m of cs.supplyRunPool) {
+      expect(m.tier).toBeGreaterThanOrEqual(2);
+      expect(m.blurb).not.toMatch(/\{foe\}|\{Foe\}|Jackals/);
+    }
+    expect(SUPPLY_RUN_FOES[3]).toContain('Halcyon');
   });
 });

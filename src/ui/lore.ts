@@ -1,5 +1,5 @@
 import type { CampaignState } from '../core/campaign';
-import { DISTRICTS, STORY_MISSIONS } from '../data/campaign';
+import { DISTRICTS, EPILOGUE, STORY_MISSIONS } from '../data/campaign';
 import { LORE_HOW, LORE_WORLD, type LoreSection } from '../data/lore';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -50,5 +50,9 @@ function record(cs: CampaignState | null): string {
       ${d.intro.body.map((p) => `<p>${p}</p>`).join('')}
       ${done.map((m) => `<div class="lore-entry__mission"><b>${m.name}</b><p>${m.outcome}</p></div>`).join('')}
     </article>`;
-  }).join('');
+  }).join('') + (cs.endingSeen ? `<article class="lore-entry">
+      <div class="lore-entry__eyebrow">Epilogue</div>
+      <h3>${EPILOGUE.title}</h3>
+      ${EPILOGUE.body.map((p) => `<p>${p}</p>`).join('')}
+    </article>` : '');
 }

@@ -1,7 +1,7 @@
 import type { Mission } from '../data/missions';
 import type { MapDef } from '../data/trainingGrounds';
 import { icon } from './icons';
-import type { CampaignState } from '../core/campaign';
+import { campaignFinished, type CampaignState } from '../core/campaign';
 import { DISTRICTS, STORY_MISSIONS } from '../data/campaign';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -77,6 +77,11 @@ export function renderCampaignTile(cs: CampaignState | null) {
   if (!cs) {
     $('home-campaign-sub').textContent = 'Take Ashport back, one district at a time. First time? Read the lore below.';
     $('home-campaign-cta').textContent = 'Start';
+    return;
+  }
+  if (campaignFinished(cs)) {
+    $('home-campaign-sub').textContent = `Campaign complete · Ashport is lit · ${cs.currency} salvage`;
+    $('home-campaign-cta').textContent = 'Continue';
     return;
   }
   const current = [...DISTRICTS].reverse().find((d) => cs.unlockedDistricts.includes(d.id)) ?? DISTRICTS[0];

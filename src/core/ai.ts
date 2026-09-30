@@ -62,6 +62,15 @@ export function planAction(s: GameState, u: Unit): Action | null {
   const profile = AI_PROFILES[u.aiProfile ?? s.aiProfiles[u.team]];
   const enemies = s.units.filter((e) => e.alive && e.team !== u.team && s.seenUnits[u.team].has(e.id));
 
+  // Completely dry (no magazine, no reserve): a gun that can't fire is no reason to stand in the open. Go for
+  // the nearest ammo the team can see - or, failing that, the objective - even with enemies in sight. Without
+  // this, two dry squads could stare at each other until the turn cap.
+  if (!holding && u.ammo === 0 && u.reserve === 0 && !u.dormant) {
+    const ammo = s.pickups.filter((p) => p.type === 'ammo' && s.visible[u.team][idx(s, p.x, p.y)]);
+    const target = nearestOf(u, ammo) ?? nearestOf(u, objectiveGoalPositions(s, u.team));
+    if (target) { const mv = advance(s, u, target); if (mv) return mv; }
+  }
+
   // 'defend' (Act 2): an attacker standing on the zone is the only thing that matters - it takes the zone at
   // the start of its next phase. Shoot it if possible, otherwise go and get it. (The squad side only: the
   // attackers' own goal is the zone, see objectiveGoalPositions.)

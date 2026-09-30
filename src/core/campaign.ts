@@ -1,5 +1,5 @@
 import {
-  DISTRICT_ORDER, STORY_MISSIONS, SUPPLY_RUN_CALLSIGNS, SUPPLY_RUN_COMPLICATIONS, SUPPLY_RUN_PROFILE_TIERS,
+  DISTRICT_ORDER, DISTRICTS, STORY_MISSIONS, SUPPLY_RUN_FOES, SUPPLY_RUN_CALLSIGNS, SUPPLY_RUN_COMPLICATIONS, SUPPLY_RUN_PROFILE_TIERS,
   SUPPLY_RUN_TEMPLATES, supplyRunComplication, supplyRunTemplate,
   type GeneratedMissionDef, type StoryMissionDef,
 } from '../data/campaign';
@@ -43,6 +43,8 @@ export interface CampaignState {
   /** Soldier ids out on the campaign mission in progress (14). Their gear, bed and place on the roster are
    *  frozen until it ends, or gear could be duplicated: the mission still has them wearing what they left in. */
   deployed?: string[];
+  /** The epilogue (data/campaign.ts EPILOGUE) has been shown, once the last story mission was won. */
+  endingSeen?: boolean;
 }
 
 /** Whether soldier `id` is away on the mission in progress (14) - and so can't be re-equipped or dismissed. */
@@ -307,9 +309,21 @@ export function upgradeFacility(cs: CampaignState, id: FacilityId): string | nul
   return null;
 }
 
-/** Which difficulty tier newly generated missions draw from - one step harder every 3 completed supply runs. */
+/** The act the campaign has reached: the latest unlocked district's. */
+export function currentAct(cs: CampaignState): 1 | 2 | 3 {
+  let act: 1 | 2 | 3 = 1;
+  for (const d of DISTRICTS) if (cs.unlockedDistricts.includes(d.id) && d.act > act) act = d.act;
+  return act;
+}
+
+/**
+ * Which difficulty tier newly generated missions draw from - one step harder every 3 completed supply runs, and
+ * never below the act's own floor (Act 2: contested, Act 3: dug in), so a squad that skipped the side jobs in
+ * Act 1 doesn't meet Act 1 warm-ups in Act 3.
+ */
 function tierFor(cs: CampaignState): number {
-  return Math.min(SUPPLY_RUN_PROFILE_TIERS.length - 1, Math.floor(cs.completedSupplyRuns / 3));
+  const byRuns = Math.floor(cs.completedSupplyRuns / 3);
+  return Math.min(SUPPLY_RUN_PROFILE_TIERS.length - 1, Math.max(byRuns, currentAct(cs) - 1));
 }
 
 const pick = <T>(cs: CampaignState, list: readonly T[]): T => list[Math.floor(nextRandom(cs) * list.length)];
@@ -334,11 +348,14 @@ function generateOne(cs: CampaignState): GeneratedMissionDef {
     templateId: template.id,
     complicationId: complication.id,
     name: `${callsign}: ${template.name}`,
-    blurb: template.blurb,
+    blurb: withFoe(template.blurb, SUPPLY_RUN_FOES[currentAct(cs)]),
     objective: template.objective,
     enemyProfile, tier, reward,
   };
 }
+
+const withFoe = (text: string, foe: string): string =>
+  text.replace(/\{foe\}/g, foe).replace(/\{Foe\}/g, foe[0].toUpperCase() + foe.slice(1));
 
 /**
  * The playable map for a generated mission: its template's layout with the rolled enemy profile and
