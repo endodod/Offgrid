@@ -139,8 +139,8 @@ code { font-family: var(--font-mono); font-size: 0.9em; color: var(--accent); }
 .section__note { font-size: 13px; color: var(--text-dim); margin-bottom: var(--s-3); max-width: 70ch; }
 
 .grid { display: grid; gap: var(--s-4); }
-.grid--cards { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-.grid--wide { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+.grid--cards { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+.grid--wide { grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); }
 
 .dim { color: var(--text-dim); }
 .muted { color: var(--text-faint); font-size: 13px; }
@@ -808,3 +808,58 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .memorial { list-style: none; padding: 0; display: grid; gap: 6px; }
 .memorial li b { color: var(--text); }
 .memorial li span { color: var(--text-faint); font-size: 13px; }
+
+/* ==========================================================================
+   Phones (portrait). The board gets the screen: the top bar shrinks to icons, the action bar docks to the
+   bottom of the viewport, and the key help (useless without a keyboard) goes away. Everything else - the
+   squad, the unit card, the log - scrolls below.
+   ========================================================================== */
+@media (max-width: 700px) {
+  .screen__header { flex-wrap: wrap; gap: var(--s-2); padding: var(--s-2) var(--s-3); }
+  .screen__title { font-size: 16px; letter-spacing: 0.1em; }
+  .screen__title small { display: none; }
+  .screen__header button { min-height: 36px; padding: 0 10px; font-size: 13px; }
+  .screen__body { padding: var(--s-3); }
+  .section { margin-top: var(--s-5); }
+
+  #game { padding: var(--s-2); gap: var(--s-3); }
+  #topbar { gap: 6px; margin-bottom: var(--s-2); }
+  #phase { flex: 1 0 100%; min-width: 0; min-height: 34px; padding: 0 var(--s-3); font-size: 12px; line-height: 34px; letter-spacing: 0.06em; overflow: hidden; }
+  #phase .phase__meta { font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+  /* Icon-only buttons: the label is the tooltip (title) on a desktop and obvious from the icon on a phone. */
+  #topbar > button { font-size: 0; min-height: 36px; width: 40px; padding: 0; justify-content: center; }
+  #topbar > button svg { width: 18px; height: 18px; }
+  #topbar > button kbd { display: none; }
+  #topbar > #menu { width: auto; padding: 0 10px; }
+  #topbar > #menu .lbl { font-size: 12px; }
+  #auto-mode button { min-height: 32px; padding: 0 7px; font-size: 11px; }
+  /* The order picker only matters while auto-run is on; it drops to its own row below the buttons then. */
+  #topbar:not(:has(#auto-run-toggle.is-active)) #auto-mode { display: none; }
+  #auto-mode { order: 10; }
+  #game .cluster:has(#zoom) .field__label { display: none; }
+  #game .cluster:has(#zoom) { margin-bottom: var(--s-2) !important; }
+  #zoom button { min-height: 32px; padding: 0 10px; }
+  #objective { margin-bottom: var(--s-2); padding: 6px var(--s-3); font-size: 12px; }
+  .canvas-wrap { height: max(260px, calc(100svh - 300px)); max-height: none; border-radius: var(--r-md); }
+  #status { min-height: 18px; margin: 6px 0; font-size: 12px; }
+  #actionbar {
+    position: sticky; bottom: 0; z-index: 25;
+    grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+    margin: 0 calc(-1 * var(--s-2)); padding: 6px var(--s-2) calc(6px + env(safe-area-inset-bottom));
+    background: rgba(12, 15, 11, 0.94); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+  }
+  #actionbar button { min-height: 50px; gap: 2px; padding: 4px 2px; font-size: 10px; letter-spacing: 0; }
+  #actionbar button svg { width: 18px; height: 18px; }
+  #actionbar button kbd { display: none; }
+  #keyhelp { display: none; }
+  #banner { padding: var(--s-3); }
+  #banner-text { font-size: 28px !important; letter-spacing: 0.1em !important; }
+  #results table { font-size: 11px; }
+  #results th:nth-child(4), #results td:nth-child(4), #results th:nth-child(6), #results td:nth-child(6) { display: none; }
+
+  .modal__box { padding: var(--s-4); }
+  .modal__title { font-size: 22px; }
+  .district-rail { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+/* Touch screens of any size: no keyboard, so no key hints. */
+@media (pointer: coarse) { #keyhelp { display: none; } kbd { display: none; } }
