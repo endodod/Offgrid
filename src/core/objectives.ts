@@ -98,6 +98,8 @@ export function objectiveGoalPositions(s: GameState, team: Team): Pos[] {
   const def = s.objectiveDef;
   if (!def) return [];
   const mem = s.memory[team];
+  // A hold in progress gives itself away: the terminal is transmitting, so the other side knows where it is.
+  if (def.type === 'hold' && s.capture && s.capture.team !== team) return s.objectiveZone;
   if (def.type === 'hold' || def.type === 'reach') return mem.objectiveSeen ? s.objectiveZone : [];
   // The defenders' zone is what the attackers came for: they know where it is. The squad knows too - it is
   // standing next to it.

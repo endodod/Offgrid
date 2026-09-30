@@ -69,7 +69,9 @@ export const PUMPHOUSE: MapDef = {
   },
   startTimeOfDay: 'morning',
   startWeather: 'rain',
-  enemyProfile: 'standard',
+  // 'easy' since the sim fix: measured under its real conditions (morning rain) the standard garrison cost a
+  // fresh squad ~3 soldiers a run - too much for a district's fourth mission.
+  enemyProfile: 'easy',
   objective: { type: 'sabotage', interactableIds: [10, 11, 12] },
   interactables: [
     { id: 1, type: 'door', x: 5, y: 32, active: true },
