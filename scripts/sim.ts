@@ -114,7 +114,8 @@ console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   e
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +
   `timeout ${pct(count((r) => r.via === 'timeout'))}`);
-console.log(`Average length ${avg(results.map((r) => r.turns)).toFixed(1)} turns`);
+console.log(`Average length ${avg(results.map((r) => r.turns)).toFixed(1)} turns   ` +
+  `squad lost per match ${avg(results.map((r) => r.units.filter((u) => u.team === 'player' && !u.survived).length)).toFixed(2)}`);
 const allUnits = results.flatMap((r) => r.units);
 console.log(`Revives: ${avg(results.map((r) => r.units.reduce((a, u) => a + u.revives, 0))).toFixed(2)} per match   ` +
   `downed-but-not-revived at match end: ${pct(allUnits.filter((u) => u.downedAtEnd).length)} of all units`);

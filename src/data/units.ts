@@ -45,8 +45,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   sentry:  { name: 'Sentry',  letter: 'X', hp: 14, armor: 2, move: 0, vision: 9, reserve: 30, gadget: 'scan',
              weapon: { range: 9,  damage: 4, shots: 1, accuracy: 70, magazine: 10 } },
   // A quad-rotor with a carbine slung under it: fast, far-sighted, fragile. Spots for everything else.
-  drone:   { name: 'Drone',   letter: 'D', hp: 6,  armor: 0, move: 7, vision: 9, reserve: 12, gadget: 'scan',
-             weapon: { range: 5,  damage: 2, shots: 2, accuracy: 60, magazine: 4 } },
+  drone:   { name: 'Drone',   letter: 'D', hp: 7,  armor: 0, move: 7, vision: 9, reserve: 12, gadget: 'scan',
+             weapon: { range: 6,  damage: 2, shots: 2, accuracy: 65, magazine: 4 } },
 };
 
 export const isEnemyOnly = (cls: ClassId): boolean => ENEMY_ONLY_CLASSES.includes(cls);

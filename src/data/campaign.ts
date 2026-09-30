@@ -8,6 +8,7 @@ import {
   CHECKPOINT, LOW_TIDE, HARBOURMASTERS, CODED_SIGNAL, DRY_DOCK,
   SWITCHBACK, COLD_FEED, MAINTENANCE_LOG, BREAKER_YARD, HILLTOP_CONTROL,
   NARROW_STREETS, BELL_TOWER, ARMOURY, SAINT_ORIELS, WARDEN_COMMAND,
+  GLASS_CANYON, CONTRACT_OFFICE, BLACKOUT_ARCHIVE, SECURITY_PERIMETER, DIRECTOR,
 } from './maps';
 import type { MapDef } from './trainingGrounds';
 
@@ -318,6 +319,43 @@ export const STORY_MISSIONS: StoryMissionDef[] = [
     objective: 'Eliminate Commander Idris Vane. Or eliminate every enemy.',
     outcome: "Vane's files are a contract. Enforcement services, city of Ashport, for Halcyon Systems, the grid operator - renewed automatically each quarter until countermanded by an authorised officer of the company. No officer of the company has countermanded anything in three years. The Wardens were never a militia. They are a contract nobody has cancelled. The last countersignature is from Halcyon's regional office in Uptown.",
     map: WARDEN_COMMAND,
+  },
+  // ================================================================ Act 3: Halcyon Systems
+  // ---------------------------------------------------------------- Uptown
+  {
+    id: 'glass-canyon', name: 'Glass Canyon', district: 'uptown', act: 3,
+    blurb: "Halcyon Plaza still has power. Of course it does. The fountains are dry, the lobbies are dark, and two sentry guns on plinths sweep the boulevard exactly as they were set to three years ago - with a flight of drones that nobody is flying. The service gate at the far end is the way into Uptown.",
+    objective: 'Get 3 units to the Halcyon service gate. Or eliminate every enemy.',
+    outcome: "Every sentry on the plaza carries an asset tag: HALCYON SYSTEMS - PROPERTY PROTECTION - REMOTE. Somewhere there is a room those guns report to. Nell Aske, who has come as far as the river goes, says the regional office's legal floor is still lit at night, and nobody has worked there since the Blackout.",
+    map: GLASS_CANYON,
+  },
+  {
+    id: 'the-contract-office', name: 'The Contract Office', district: 'uptown', act: 3,
+    blurb: "Contract HS-114 - the enforcement contract every Warden in Ashport is still executing - was drawn up on the twelfth floor of Halcyon's regional office. The original is in the legal archive. The signing keys that renew it every quarter are in the managing partner's safe. Take both, and take the stairs.",
+    objective: 'Take contract HS-114 and the signing keys, then get 3 units to the stairwell. Or eliminate every enemy.',
+    outcome: "The contract renews itself. That is the whole trick: a clause that extends it each quarter unless an authorised officer countermands it, and a set of keys that sign the renewal automatically. With the keys in hand, you could countermand it. But the Wardens' radio net carries an order before you can: all posts, stand by for company instruction. Something in Uptown has noticed.",
+    map: CONTRACT_OFFICE,
+  },
+  {
+    id: 'blackout-archive', name: 'The Blackout Archive', district: 'uptown', act: 3,
+    blurb: "The incident records for the night of the Blackout are on one server in the operations archive, and they take four rounds to pull. The moment the download starts, every drone in the building is recalled to the machine hall. Hold the console until the logs are yours.",
+    objective: 'Take the archive console and hold it for 4 rounds. Or eliminate every enemy.',
+    outcome: "Eleven minutes. The logs show a fault on a Halcyon transformer at 21:04, a cascade beginning at 21:06, and an engineer on shift asking permission to isolate it at 21:07. Permission denied, 21:09: isolation would register the fault against Halcyon's own asset. At 21:15 there was nothing left to isolate. The Blackout was not a failure. It was a decision about whose name went on the invoice.",
+    map: BLACKOUT_ARCHIVE,
+  },
+  {
+    id: 'security-perimeter', name: 'Security Perimeter', district: 'uptown', act: 3,
+    blurb: "The man who made that decision is Harlan Crane, Halcyon's regional director, and he never left the tower. The grounds are covered by a sentry grid run from three node substations. Throw all three and the grid is blind. The fog off the river will do the rest.",
+    objective: 'Throw all three sentry-grid nodes. Or eliminate every enemy.',
+    outcome: "The grid goes down node by node, and every sentry on the grounds turns to face the same way: straight up, into the rest position, like something that has been told to wait. The tower's lobby doors unlock on a fault. Crane's terrace is sixty floors up.",
+    map: SECURITY_PERIMETER,
+  },
+  {
+    id: 'the-director', name: 'The Director', district: 'uptown', act: 3,
+    blurb: "Regional Director Harlan Crane is on his terrace garden at the top of Halcyon Tower, waiting for a helicopter that stopped answering three years ago. His guard is the company's own - sentries, drones, and the last Wardens still on a Halcyon payroll. In a storm, at sixty floors.",
+    objective: 'Eliminate Regional Director Harlan Crane. Or eliminate every enemy.',
+    outcome: "Crane did not have much to say. He had kept the grid alive and off for three years because switching it back on meant an inquiry, and an inquiry meant the logs. He had an access card for the Spire around his neck - Grid Control, all levels - and the last thing he said was that it would not help you, because the room at the top of the Spire does not take orders from a card. It takes them from whoever is sitting in it.",
+    map: DIRECTOR,
   },
 ];
 
