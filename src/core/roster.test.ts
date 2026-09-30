@@ -382,3 +382,12 @@ describe('difficulty', () => {
     expect(Math.min(...cs.recruits.map((r) => r.progress.level))).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('the record', () => {
+  it('remembers the fallen and counts the campaign', () => {
+    const cs = newCampaign(1, 'standard');
+    endMission(cs, STORY_MISSIONS[0].id, [{ ...gear(ended('medic', 0, { alive: false })), kills: 2 }], 'won');
+    expect(cs.fallen).toEqual([expect.objectContaining({ cls: 'medic', mission: STORY_MISSIONS[0].name })]);
+    expect(cs.stats).toEqual({ won: 1, lost: 0, kills: 2, retreats: 0 });
+  });
+});

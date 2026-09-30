@@ -804,3 +804,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .dbg-row label { display: inline-flex; align-items: center; gap: 6px; }
 
 .kv b.warn { color: var(--warn); }
+
+.memorial { list-style: none; padding: 0; display: grid; gap: 6px; }
+.memorial li b { color: var(--text); }
+.memorial li span { color: var(--text-faint); font-size: 13px; }

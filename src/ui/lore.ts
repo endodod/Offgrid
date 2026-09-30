@@ -1,4 +1,5 @@
 import type { CampaignState } from '../core/campaign';
+import { CLASSES } from '../data/units';
 import { DISTRICTS, EPILOGUE, STORY_MISSIONS } from '../data/campaign';
 import { LORE_HOW, LORE_WORLD, type LoreSection } from '../data/lore';
 
@@ -31,11 +32,25 @@ export class Lore {
         <span>${known ? d.blurb : 'Unknown until you get there.'}</span>
       </li>`;
     }).join('');
-    $('lore-record').innerHTML = record(cs);
+    $('lore-record').innerHTML = record(cs) + memorial(cs);
   }
 }
 
 const section = (s: LoreSection) => `<article class="lore-section"><h2>${s.title}</h2>${s.body.map((p) => `<p>${p}</p>`).join('')}</article>`;
+
+/** The campaign's running totals and the names of the dead. */
+function memorial(cs: CampaignState | null): string {
+  if (!cs?.stats) return '';
+  const st = cs.stats;
+  const fallen = cs.fallen ?? [];
+  return `<article class="lore-entry">
+    <div class="lore-entry__eyebrow">The record</div>
+    <h3>${st.won} missions won · ${st.lost} lost · ${st.retreats} retreats · ${st.kills} hostiles down</h3>
+    ${fallen.length ? `<p>In memory of the ${fallen.length === 1 ? 'one' : fallen.length} who did not come back:</p>
+      <ul class="memorial">${fallen.map((f) => `<li><b>${f.name}</b> <span>${CLASSES[f.cls].name}, level ${f.level} · ${f.mission}</span></li>`).join('')}</ul>`
+      : '<p>Nobody has been lost. Yet.</p>'}
+  </article>`;
+}
 
 /** Briefings and debriefs in play order: each district's briefing, then its completed missions' outcomes. */
 function record(cs: CampaignState | null): string {

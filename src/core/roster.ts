@@ -1,5 +1,6 @@
 import { HIRE_COST, PATCH_SHARE } from '../data/base';
 import type { MapDef } from '../data/trainingGrounds';
+import { STORY_MISSIONS } from '../data/campaign';
 import { CLASSES, type ClassId } from '../data/units';
 import { LEVEL_PATHS } from '../data/leveling';
 import { infirmaryBeds, infirmaryHeal, restRate, rosterCapacity, trainingXp } from './base';
@@ -140,6 +141,9 @@ export const RETREAT_FEE = 40; // Standard difficulty's; see data/base.ts DIFFIC
 export function endMission(cs: CampaignState, missionId: string, allUnits: EndedUnit[], outcome: MissionOutcome): string[] {
   const won = outcome === 'won';
   const diff = difficultyOf(cs);
+  const missionName = STORY_MISSIONS.find((m) => m.id === missionId)?.name
+    ?? cs.supplyRunPool.find((m) => m.id === missionId)?.name ?? 'a supply run';
+
   // Story difficulty: nobody dies for good. The fallen come home in critical condition (1 HP, as a downed
   // survivor would) and keep their kit; they still earn no XP for the mission.
   const evacuated = diff.permadeath ? [] : allUnits.filter((u) => u.team === 'player' && !u.alive);
@@ -162,6 +166,14 @@ export function endMission(cs: CampaignState, missionId: string, allUnits: Ended
     if (isSupplyRun) { withdrawSupplyRun(cs, missionId); lines.push('The client has found someone else: the job is off the board.'); }
   }
   cs.deployed = undefined; // back (or not): the roster is theirs to manage again
+  const stats = cs.stats ??= { won: 0, lost: 0, kills: 0, retreats: 0 };
+  if (won) stats.won++; else if (outcome === 'retreat') stats.retreats++; else stats.lost++;
+  stats.kills += allUnits.filter((u) => u.team === 'player').reduce((n, u) => n + u.kills, 0);
+  for (const u of units) {
+    if (u.team !== 'player' || u.alive) continue;
+    const s = soldierById(cs, u.soldierId ?? u.cls);
+    if (s) (cs.fallen ??= []).push({ name: s.name, cls: s.cls, level: s.progress.level, mission: missionName });
+  }
   recordMissionGear(cs, units, won);
   if (won) applyMissionXp(cs, units.filter((u) => !evacuated.includes(u as EndedUnit)));
   for (const u of evacuated) {

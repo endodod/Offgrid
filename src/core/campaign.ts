@@ -47,6 +47,10 @@ export interface CampaignState {
   endingSeen?: boolean;
   /** Missing on a save from before difficulties existed: Standard. */
   difficulty?: DifficultyId;
+  /** Everyone who died for good, in order - the memorial on the Lore screen. */
+  fallen?: { name: string; cls: ClassId; level: number; mission: string }[];
+  /** Running totals for the Lore screen's record. Missing on an older save: counted from now on. */
+  stats?: { won: number; lost: number; kills: number; retreats: number };
 }
 
 export const difficultyOf = (cs: CampaignState): DifficultyDef => DIFFICULTIES[cs.difficulty ?? 'standard'];
