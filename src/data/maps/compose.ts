@@ -78,3 +78,19 @@ export function stamp(g: Grid, x: number, y: number, pattern: string[]): void {
 export function coverPairs(g: Grid, y: number, xs: number[], ch = 'l'): void {
   for (const x of xs) { put(g, x, y, ch); put(g, x + 1, y, ch); }
 }
+
+/** The outer wall every story map has: a one-tile border of `#`. */
+export function border(g: Grid): void {
+  const w = g[0].length, h = g.length;
+  hRun(g, 0, 0, w, '#');
+  hRun(g, 0, h - 1, w, '#');
+  vRun(g, 0, 0, h, '#');
+  vRun(g, w - 1, 0, h, '#');
+}
+
+/** Every tile of a w x h rectangle as a coordinate list - for an objective zone, a reinforcement line. */
+export function tiles(x: number, y: number, w: number, h: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) out.push([i, j]);
+  return out;
+}

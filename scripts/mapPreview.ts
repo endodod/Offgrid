@@ -3,11 +3,13 @@
 //
 //   npm run map -- LIGHTS_OUT
 //
-// Legend: uppercase = player spawn (by class initial), lowercase = enemy spawn, D door, X switch, C chest,
+// Legend: uppercase = player spawn, lowercase = enemy spawn, by class letter (S sniper, A assault, R soldier, M medic,
+// T tank, x sentry, d drone); ! reinforcement arrival; D door, X switch, C chest,
 // + pickup, * player search waypoint, ~ enemy search waypoint.
 import * as maps from '../src/data/maps';
 import type { MapDef } from '../src/data/trainingGrounds';
 import { WALKABLE } from '../src/core/mapFormat';
+import { CLASSES } from '../src/data/units';
 
 const name = process.argv[2];
 const map = (maps as unknown as Record<string, MapDef>)[name];
@@ -16,8 +18,9 @@ if (!map) { console.error(`Unknown map "${name}". Known: ${Object.keys(maps).fil
 
 const grid = map.rows.map((r) => [...r]);
 const marks: [number, number, string][] = [];
-for (const [cls, x, y] of map.spawns.player) marks.push([x, y, cls[0].toUpperCase()]);
-for (const [cls, x, y] of map.spawns.enemy) marks.push([x, y, cls[0].toLowerCase()]);
+for (const [cls, x, y] of map.spawns.player) marks.push([x, y, CLASSES[cls].letter.toUpperCase()]);
+for (const [cls, x, y] of map.spawns.enemy) marks.push([x, y, CLASSES[cls].letter.toLowerCase()]);
+for (const w of map.reinforcements ?? []) for (const [, x, y] of w.spawns) marks.push([x, y, '!']);
 for (const it of map.interactables ?? []) marks.push([it.x, it.y, it.type === 'door' ? 'D' : it.type === 'switch' ? 'X' : 'C']);
 for (const p of map.pickups ?? []) marks.push([p.x, p.y, '+']);
 for (const team of ['player', 'enemy'] as const) for (const [x, y] of map.searchPoints[team]) marks.push([x, y, team === 'player' ? '*' : '~']);

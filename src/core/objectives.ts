@@ -26,6 +26,16 @@ export function unitsOnZone(s: GameState, team: Team): number {
   return s.units.filter((u) => u.team === team && u.alive && !u.downed && zone.has(`${u.x},${u.y}`)).length;
 }
 
+/**
+ * How many units a reach/retrieve extraction needs right now: the mission's number, or everyone still alive
+ * if the squad has fallen below it (downed units count - they can be revived). Without the cap a squad that
+ * lost people could no longer win by the objective at all, only by a wipeout.
+ */
+export function unitsNeeded(s: GameState, required: number): number {
+  const alive = s.units.filter((u) => u.team === 'player' && u.alive).length;
+  return Math.max(1, Math.min(required, alive));
+}
+
 /** survive / defend: the round the mission is won at the start of (the enemy's phase of `rounds` is the last one). */
 export function roundsLeft(s: GameState): number | null {
   const def = s.objectiveDef;
@@ -33,9 +43,13 @@ export function roundsLeft(s: GameState): number | null {
   return Math.max(0, def.rounds + 1 - s.turn);
 }
 
-/** 'defend' is the one objective the enemy can win by: standing on the zone. */
+/**
+ * 'defend' is the one objective the enemy can win by: still standing on the zone when their own next phase
+ * begins. Reaching it is not enough - the squad always gets one phase to kill or drive off whoever got there,
+ * the same grace the hold objective gives a capture. Checked at that phase change (core/state.ts endTurn).
+ */
 export function objectiveFailed(s: GameState): boolean {
-  return s.objectiveDef?.type === 'defend' && unitsOnZone(s, 'enemy') > 0;
+  return s.objectiveDef?.type === 'defend' && s.phase === 'enemy' && unitsOnZone(s, 'enemy') > 0;
 }
 
 export const holdRounds = (s: GameState): number => {
@@ -61,12 +75,12 @@ export function objectiveComplete(s: GameState): boolean {
     case 'sabotage':
       return def.interactableIds.length > 0 && def.interactableIds.every((id) => s.interactables.find((i) => i.id === id)?.active === true);
     case 'reach':
-      return unitsOnZone(s, 'player') >= def.unitsRequired;
+      return unitsOnZone(s, 'player') >= unitsNeeded(s, def.unitsRequired);
     case 'survive':
     case 'defend':
       return s.phase === 'player' && s.turn > def.rounds;
     case 'retrieve':
-      return switchesDone(s, def.interactableIds) === def.interactableIds.length && unitsOnZone(s, 'player') >= def.unitsRequired;
+      return switchesDone(s, def.interactableIds) === def.interactableIds.length && unitsOnZone(s, 'player') >= unitsNeeded(s, def.unitsRequired);
     case 'eliminateTargets': {
       const ts = targetUnits(s);
       return ts.length > 0 && ts.every((t) => !t.alive);
@@ -134,8 +148,9 @@ export function describeObjective(s: GameState): string {
     }
     case 'reach': {
       const here = unitsOnZone(s, 'player');
+      const need = unitsNeeded(s, def.unitsRequired);
       return seenObjective
-        ? `Objective: get ${def.unitsRequired} unit${def.unitsRequired > 1 ? 's' : ''} to the extraction zone at once (${here}/${def.unitsRequired} there now). ${fallback}`
+        ? `Objective: get ${need} unit${need > 1 ? 's' : ''} to the extraction zone at once (${here}/${need} there now). ${fallback}`
         : `Objective: find the extraction zone (not yet spotted). ${fallback}`;
     }
     case 'survive': {
@@ -144,16 +159,17 @@ export function describeObjective(s: GameState): string {
     }
     case 'defend': {
       const left = roundsLeft(s) ?? 0;
-      return `Objective: keep every enemy off ${def.label ?? 'the marked zone'} until the end of round ${def.rounds} (${left} to go). If one reaches it, the mission is lost. ${fallback}`;
+      return `Objective: keep every enemy off ${def.label ?? 'the marked zone'} until the end of round ${def.rounds} (${left} to go). An attacker still on it when their turn begins wins it for them. ${fallback}`;
     }
     case 'retrieve': {
       const total = def.interactableIds.length;
       const done = switchesDone(s, def.interactableIds);
       const what = def.label ?? 'the intel';
-      if (done < total) return `Objective: recover ${what} (${done}/${total}), then extract ${def.unitsRequired} units. ${fallback}`;
+      const need = unitsNeeded(s, def.unitsRequired);
+      if (done < total) return `Objective: recover ${what} (${done}/${total}), then extract ${need} unit${need > 1 ? 's' : ''}. ${fallback}`;
       const here = unitsOnZone(s, 'player');
       return seenObjective
-        ? `Objective: ${what} secured - get ${def.unitsRequired} units to the extraction zone at once (${here}/${def.unitsRequired} there now). ${fallback}`
+        ? `Objective: ${what} secured - get ${need} unit${need > 1 ? 's' : ''} to the extraction zone at once (${here}/${need} there now). ${fallback}`
         : `Objective: ${what} secured - find the extraction zone (not yet spotted). ${fallback}`;
     }
     case 'eliminateTargets': {

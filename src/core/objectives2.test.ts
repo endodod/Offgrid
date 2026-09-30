@@ -38,12 +38,25 @@ describe('Act 2 objective types', () => {
       type: 'defend', rounds: 2, label: 'the pump',
     });
 
-    it('is lost the moment an enemy stands on the zone', () => {
+    it('is lost when an attacker is still on the zone as their next phase begins', () => {
       const s = game();
       endTurns(s, 1);
       place(s, unit(s, 'enemy', 'assault'), 7, 1);
       act(s, { type: 'move', unit: unit(s, 'enemy', 'assault').id, to: { x: 6, y: 1 } });
+      expect(s.winner).toBeNull(); // reaching it is not enough: the squad gets a phase to answer
+      endTurns(s, 2); // enemy phase over, squad does nothing, enemy phase begins
       expect(s.winner).toBe('enemy');
+    });
+
+    it('is not lost if the squad drives the attacker off in time', () => {
+      const s = game();
+      endTurns(s, 1);
+      const a = unit(s, 'enemy', 'assault');
+      place(s, a, 6, 1);
+      endTurns(s, 1); // squad's phase
+      place(s, a, 9, 1); // driven off the zone
+      endTurns(s, 1);
+      expect(s.winner).toBeNull();
     });
 
     it('is won once the rounds run out with the zone clear', () => {
@@ -82,6 +95,21 @@ describe('Act 2 objective types', () => {
       place(s, unit(s, 'player', 'medic'), 10, 2);
       act(s, { type: 'endTurn' });
       expect(s.winner).toBe('player');
+    });
+
+    it('lowers the extraction requirement to whoever is left alive', () => {
+      const s = game();
+      const p = unit(s, 'player', 'soldier');
+      act(s, { type: 'move', unit: p.id, to: { x: 4, y: 1 } });
+      act(s, { type: 'interact', unit: p.id, target: 1 });
+      unit(s, 'player', 'medic').alive = false; // down to one: 2 required is no longer reachable
+      place(s, p, 10, 1);
+      act(s, { type: 'endTurn' });
+      expect(s.winner).toBe('player');
+    });
+
+    it('starts with the intel on the squad\'s map', () => {
+      expect(game().memory.player.doors[1]).toBe(false);
     });
 
     it('points the squad AI at the intel before the zone', () => {
