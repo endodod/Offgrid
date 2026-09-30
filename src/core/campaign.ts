@@ -492,7 +492,12 @@ export function completeStoryMission(cs: CampaignState, missionId: string): void
   cs.currency += Math.round(STORY_SALVAGE * difficultyOf(cs).rewardMult);
   if (districtStatus(cs, m.district) !== 'completed') return;
   const next = DISTRICT_ORDER[DISTRICT_ORDER.indexOf(m.district) + 1];
-  if (next && !cs.unlockedDistricts.includes(next)) cs.unlockedDistricts.push(next);
+  if (next && !cs.unlockedDistricts.includes(next)) {
+    const actBefore = currentAct(cs);
+    cs.unlockedDistricts.push(next);
+    // A new act: the jobs on the board were for the last one (its enemy, its difficulty). New ones come in.
+    if (currentAct(cs) !== actBefore) { cs.supplyRunPool = []; fillPool(cs); }
+  }
 }
 
 /** A supply run that was lost or abandoned: the client finds someone else. The job leaves the board and a new

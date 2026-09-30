@@ -610,11 +610,26 @@ function drawUnit(ctx: CanvasRenderingContext2D, v: View, u: Unit) {
   const hp = Math.min(CLASSES[u.cls].hp, u.hp + (a.hpPending.get(u.id) ?? 0));
   u = { ...u, downed, hp, bleedOut: downed ? u.bleedOut : 0 };
   // Downed: desaturated fill regardless of team, and a prone (squat) body instead of the standing square.
-  ctx.fillStyle = u.downed ? '#4a4638' : player ? C.playerDark : C.enemyDark;
-  ctx.fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
-  ctx.fillStyle = u.downed ? '#6b6656' : player ? C.player : C.enemy;
-  if (u.downed) ctx.fillRect(px + 7, py + TILE / 2 - 4, TILE - 14, 8);
-  else ctx.fillRect(px + 7, py + 7, TILE - 14, TILE - 14);
+  const cx = px + TILE / 2, cy = py + TILE / 2;
+  if (u.cls === 'sentry' && !u.downed) { // Halcyon hardware (Act 3): a round turret on a square base
+    ctx.fillStyle = C.enemyDark;
+    ctx.fillRect(px + 4, py + TILE - 11, TILE - 8, 6);
+    ctx.beginPath(); ctx.arc(cx, cy, TILE / 2 - 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.enemy;
+    ctx.beginPath(); ctx.arc(cx, cy, TILE / 2 - 8, 0, Math.PI * 2); ctx.fill();
+  } else if (u.cls === 'drone' && !u.downed) { // a diamond with rotor stubs
+    ctx.fillStyle = C.enemyDark;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) ctx.fillRect(cx + dx * 10 - 3, cy + dy * 10 - 3, 6, 6);
+    ctx.beginPath(); ctx.moveTo(cx, py + 5); ctx.lineTo(px + TILE - 5, cy); ctx.lineTo(cx, py + TILE - 5); ctx.lineTo(px + 5, cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.enemy;
+    ctx.beginPath(); ctx.moveTo(cx, py + 8); ctx.lineTo(px + TILE - 8, cy); ctx.lineTo(cx, py + TILE - 8); ctx.lineTo(px + 8, cy); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.fillStyle = u.downed ? '#4a4638' : player ? C.playerDark : C.enemyDark;
+    ctx.fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
+    ctx.fillStyle = u.downed ? '#6b6656' : player ? C.player : C.enemy;
+    if (u.downed) ctx.fillRect(px + 7, py + TILE / 2 - 4, TILE - 14, 8);
+    else ctx.fillRect(px + 7, py + 7, TILE - 14, TILE - 14);
+  }
   ctx.fillStyle = C.text;
   ctx.font = 'bold 15px monospace';
   ctx.textAlign = 'center';

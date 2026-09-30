@@ -305,9 +305,9 @@ kbd {
    Campaign screen
    ========================================================================== */
 
-.district-rail { display: flex; gap: var(--s-2); overflow-x: auto; padding-bottom: var(--s-2); }
+.district-rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s-2); padding-bottom: var(--s-2); }
 .district {
-  flex: none; min-width: 170px; padding: var(--s-3);
+  min-width: 0; padding: var(--s-3);
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
   border-top: 3px solid var(--line-strong);
 }
@@ -625,7 +625,8 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; 
 .modal__body p:last-child { margin-bottom: 0; }
 .modal__rule { height: 1px; margin: var(--s-5) 0; background: linear-gradient(90deg, var(--accent), transparent); }
 .modal__choices { display: grid; gap: var(--s-2); margin-top: var(--s-5); }
-.modal__choice { display: grid; gap: 2px; text-align: left; padding: var(--s-3) var(--s-4); background: var(--surface-2);
+.modal__choice { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 100%;
+  white-space: normal; height: auto; gap: 2px; text-align: left; padding: var(--s-3) var(--s-4); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 8px; cursor: pointer; color: var(--text); }
 .modal__choice b { font-size: 15px; }
 .modal__choice span { font-size: 13px; line-height: 1.5; color: var(--text-dim); font-weight: 400; }
