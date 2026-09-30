@@ -6,7 +6,7 @@ import { ITEMS } from '../data/items';
 import { EQUIPMENT } from '../data/equipment';
 import { refreshVision } from './vision';
 import { blocksMove } from './grid';
-import { holdRounds, objectiveComplete } from './objectives';
+import { holdRounds, objectiveComplete, objectiveFailed } from './objectives';
 import { lootOnDeath } from './loot';
 import { perkBonus } from './leveling';
 import type { Cover, EventBody, GameEvent, GameOptions, GameState, Interactable, Pickup, Pos, Team, Terrain, Unit } from './types';
@@ -206,6 +206,7 @@ export function checkWin(s: GameState) {
   if (!alive('player') && !alive('enemy')) declareWinner(s, 'draw');
   else if (!alive('player')) declareWinner(s, 'enemy');
   else if (!alive('enemy')) declareWinner(s, 'player');
+  else if (objectiveFailed(s)) declareWinner(s, 'enemy'); // 'defend': an attacker reached the zone
   // The other objective types (3) resolve here; 'hold' wins through tickCapture below instead, once its own
   // round counter runs out - so objectiveComplete() deliberately never reports 'hold' as complete.
   else if (objectiveComplete(s)) declareWinner(s, 'player');

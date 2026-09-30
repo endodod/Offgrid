@@ -79,12 +79,14 @@ describe.each(ALL_AUTHORED_MAPS.map((m) => [m.name, m] as const))('map: %s', (_n
     const def = map.objective;
     if (!def || def.type === 'hold') {
       expect(objectiveTiles.length, 'a hold objective needs exactly one terminal tile').toBe(1);
-    } else if (def.type === 'reach') {
+    } else if (def.type === 'reach' || def.type === 'retrieve') {
       expect(objectiveTiles.length).toBeGreaterThanOrEqual(def.unitsRequired);
+    } else if (def.type === 'defend') {
+      expect(objectiveTiles.length, 'a defend objective needs a zone').toBeGreaterThan(0);
     } else {
       expect(objectiveTiles.length, `${def.type} objectives use no 'O' tiles`).toBe(0);
     }
-    if (def?.type === 'sabotage') {
+    if (def?.type === 'sabotage' || def?.type === 'retrieve') {
       expect(def.interactableIds.length).toBeGreaterThan(0);
       for (const id of def.interactableIds) {
         const it = map.interactables?.find((i) => i.id === id);
@@ -96,10 +98,19 @@ describe.each(ALL_AUTHORED_MAPS.map((m) => [m.name, m] as const))('map: %s', (_n
       expect(def.enemySpawnIndex).toBeGreaterThanOrEqual(0);
       expect(def.enemySpawnIndex).toBeLessThan(map.spawns.enemy.length);
     }
+    if (def?.type === 'eliminateTargets') {
+      expect(def.enemySpawnIndices.length).toBeGreaterThan(1);
+      for (const i of def.enemySpawnIndices) expect(i).toBeLessThan(map.spawns.enemy.length);
+    }
+    if (def?.type === 'survive' || def?.type === 'defend') expect(def.rounds).toBeGreaterThan(1);
+    for (const w of map.reinforcements ?? []) {
+      expect(w.turn, 'reinforcements arrive after turn 1').toBeGreaterThan(1);
+      for (const [, x, y] of w.spawns) expect.soft(WALKABLE.includes(map.rows[y]?.[x] ?? '#'), `reinforcement at (${x},${y})`).toBe(true);
+    }
   });
 
   it('connects every spawn, objective, interactable and pickup to the player squad', () => {
-    const reachObjective = map.objective?.type === 'reach';
+    const reachObjective = ['reach', 'retrieve', 'defend'].includes(map.objective?.type ?? '');
     const [sx, sy] = [map.spawns.player[0][1], map.spawns.player[0][2]];
     const reach = floodFrom(map, [sx, sy], reachObjective);
     const reachable = (x: number, y: number) => reach.has(`${x},${y}`);

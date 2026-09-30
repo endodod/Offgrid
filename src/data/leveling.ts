@@ -35,6 +35,9 @@ export const LEVEL_PATHS: Record<ClassId, LevelDef[]> = {
   soldier: path(['soldierGrit', 'soldierMarksman', 'soldierScout', 'soldierHustle']),
   medic: path(['medicTriage', 'medicSharpshooter', 'medicFleetfoot', 'medicWard']),
   tank: path(['tankPlating', 'tankBrace', 'tankStrider', 'tankVigilance']),
+  // Enemy-only hardware (Act 3) never levels.
+  sentry: [{ level: 1, xpThreshold: 0, slotUnlock: true }],
+  drone: [{ level: 1, xpThreshold: 0, slotUnlock: true }],
 };
 
 export const MAX_LEVEL = 5;

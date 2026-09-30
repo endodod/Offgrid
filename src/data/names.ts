@@ -13,6 +13,6 @@ export const LAST_NAMES = [
 ];
 
 /** The five people who start the campaign (STORY.md: "four people who are still here" plus you). */
-export const FOUNDERS: Record<ClassId, string> = {
+export const FOUNDERS: Partial<Record<ClassId, string>> = {
   sniper: 'Mara Quill', assault: 'Dev Okafor', soldier: 'Jonah Reyes', medic: 'Ines Barros', tank: 'Tomas Varga',
 };

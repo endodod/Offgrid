@@ -47,6 +47,7 @@ export function effectiveVision(s: GameState, u: Unit): number {
 /** `u`'s move range after weather/time of day, its own equipment's flat bonus (e.g. boots, 7) and any equipped
  *  perk's move bonus (8), floored to at least 1. */
 export function effectiveMove(s: GameState, u: Unit): number {
+  if (CLASSES[u.cls].move === 0) return 0; // a sentry (Act 3) is bolted down: no weather or perk moves it
   const moveBonus = equippedItems(u).reduce((sum, e) => sum + (e.moveBonus ?? 0), 0) + perkBonus(u.equippedPerks).moveBonus;
   return scaledMove(s, CLASSES[u.cls].move) + moveBonus;
 }

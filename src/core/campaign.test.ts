@@ -54,12 +54,12 @@ describe('campaign (feature 5)', () => {
     expect(availableStoryMissions(a)).toEqual(availableStoryMissions(b));
   });
 
-  it('only lists available story missions (unlocked district, not yet completed)', () => {
+  it('offers only the next story mission of each unlocked district, in order', () => {
     const cs = newCampaign(1);
-    const ids = availableStoryMissions(cs).map((m) => m.id);
     const riverside = STORY_MISSIONS.filter((m) => m.district === 'riverside').map((m) => m.id);
-    expect(ids).toEqual(riverside); // every riverside mission; market-row is still locked
-    expect(ids).toHaveLength(5);
+    expect(availableStoryMissions(cs).map((m) => m.id)).toEqual([riverside[0]]); // market-row is still locked
+    completeStoryMission(cs, riverside[0]);
+    expect(availableStoryMissions(cs).map((m) => m.id)).toEqual([riverside[1]]);
   });
 
   it('completing every story mission in a district unlocks the next one', () => {
@@ -72,7 +72,7 @@ describe('campaign (feature 5)', () => {
     expect(districtStatus(cs, 'riverside')).toBe('completed');
     expect(cs.unlockedDistricts).toContain('market-row');
     expect(availableStoryMissions(cs).map((m) => m.id))
-      .toEqual(STORY_MISSIONS.filter((m) => m.district === 'market-row').map((m) => m.id));
+      .toEqual([STORY_MISSIONS.find((m) => m.district === 'market-row')!.id]);
   });
 
   it('gives every district that has missions at all exactly five of them', () => {

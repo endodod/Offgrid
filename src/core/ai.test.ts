@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TRAINING_GROUNDS, type MapDef } from '../data/trainingGrounds';
-import { CLASSES } from '../data/units';
+import { CLASS_ORDER } from '../data/units';
 import { runAiTurn } from './ai';
 import { distanceMap, idx } from './grid';
 import { playMatch } from './sim';
@@ -93,7 +93,7 @@ describe('Training Grounds map data', () => {
   const s = createGame(TRAINING_GROUNDS, 1);
   it('is 24 x 16: 5 friendly units (one per class) vs 5 enemies, all on open, uncovered, distinct tiles', () => {
     expect([s.width, s.height]).toEqual([24, 16]);
-    expect(s.units.filter((u) => u.team === 'player').map((u) => u.cls).sort()).toEqual(Object.keys(CLASSES).sort());
+    expect(s.units.filter((u) => u.team === 'player').map((u) => u.cls).sort()).toEqual([...CLASS_ORDER].sort());
     expect(s.units.filter((u) => u.team === 'enemy')).toHaveLength(5);
     for (const u of s.units) {
       expect(s.terrain[idx(s, u.x, u.y)]).not.toBe('wall');

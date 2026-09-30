@@ -9,7 +9,7 @@
 //                  [--no-ai-doors] (10j: the AI never opens doors) [--pods] (10j: enemies start dormant in pods)
 //                  [--reinforce <turn>] [--reinforce-count 2] (10j: a wave of enemies at the map's first enemy spawns)
 import { RULES, type ObjectiveCapture } from '../src/data/rules';
-import { CLASS_ORDER, CLASSES, type ClassId } from '../src/data/units';
+import { ALL_CLASSES, CLASSES, type ClassId } from '../src/data/units';
 import type { AiProfileId } from '../src/data/aiProfiles';
 import { TRAINING_GROUNDS, type ClassProgress, type MapDef } from '../src/data/trainingGrounds';
 import {
@@ -18,6 +18,7 @@ import {
   CORNER_STORE, CANAL_TOWPATH, PARKING_DECK,
 } from '../src/data/maps';
 import { LEVEL_PATHS } from '../src/data/leveling';
+import { STORY_MISSIONS, SUPPLY_RUN_TEMPLATES } from '../src/data/campaign';
 import type { TimeOfDayId } from '../src/data/timeOfDay';
 import type { WeatherId } from '../src/data/weather';
 import { playMatch, type MatchResult } from '../src/core/sim';
@@ -38,15 +39,17 @@ const maxTurns = num('--max-turns', RULES.maxTurns);
 // 'none' (default) = pure elimination, so the numbers measure combat balance. 'both' lets either AI win by capture.
 const oi = args.indexOf('--objective');
 const objectiveCapture = (oi >= 0 ? args[oi + 1] : 'none') as ObjectiveCapture;
-const timeOfDay = str('--time-of-day', 'midday') as TimeOfDayId;
-const weather = str('--weather', 'clear') as WeatherId;
+// Conditions default to the map's own (its startTimeOfDay / startWeather / reserveMult / enemyPods), so a run
+// measures the mission as it ships. Passing a flag overrides it.
+const timeOfDay = (str('--time-of-day', '') || undefined) as TimeOfDayId | undefined;
+const weather = (str('--weather', '') || undefined) as WeatherId | undefined;
 const aiRevive = !args.includes('--no-ai-revive');
 const enemyProfileFlag = str('--enemy-profile', '') as AiProfileId | '';
 const playerProfile = str('--player-profile', 'standard') as AiProfileId;
-const reserveMult = num('--reserve-mult', 1);
+const reserveMult = args.includes('--reserve-mult') ? num('--reserve-mult', 1) : undefined;
 const playerLevel = num('--player-level', 0);
 const aiDoors = !args.includes('--no-ai-doors');
-const enemyPods = args.includes('--pods');
+const enemyPods = args.includes('--pods') ? true : undefined;
 const reinforceTurn = num('--reinforce', 0);
 const reinforceCount = num('--reinforce-count', 2);
 
@@ -60,6 +63,10 @@ const MAPS: Record<string, MapDef> = {
   'fuel-depot': FUEL_DEPOT, 'pharmacy-row': PHARMACY_ROW, 'rail-yard': RAIL_YARD, 'underpass': UNDERPASS,
   'waterworks': WATERWORKS, 'corner-store': CORNER_STORE, 'canal-towpath': CANAL_TOWPATH, 'parking-deck': PARKING_DECK,
 };
+// Every campaign mission is also addressable by its own id (e.g. --map the-clinic), so new story maps need no
+// registration here.
+for (const m of STORY_MISSIONS) MAPS[m.id] ??= m.map;
+for (const t of SUPPLY_RUN_TEMPLATES) MAPS[t.id] ??= t.map;
 const mapId = str('--map', 'training-grounds');
 const baseMap = MAPS[mapId];
 if (!baseMap) {
@@ -98,9 +105,11 @@ const count = (f: (r: MatchResult) => boolean) => results.filter(f).length;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 console.log(`${baseMap.name}: ${n} AI-vs-AI matches (seeds ${seed0}..${seed0 + n - 1}), max ${maxTurns} turns, ` +
-  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay}, weather: ${weather}, AI revive: ${aiRevive}, ` +
-  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult}, player level: ${playerLevel || 1}, ` +
-  `AI doors: ${aiDoors}, pods: ${enemyPods}, reinforcements: ${reinforceTurn || 'none'}`);
+  `objective capture: ${objectiveCapture}, time of day: ${timeOfDay ?? map.startTimeOfDay ?? 'midday'}, ` +
+  `weather: ${weather ?? map.startWeather ?? 'clear'}, AI revive: ${aiRevive}, ` +
+  `enemy profile: ${enemyProfile}, player profile: ${playerProfile}, reserve mult: ${reserveMult ?? map.reserveMult ?? 1}, ` +
+  `player level: ${playerLevel || 1}, AI doors: ${aiDoors}, pods: ${enemyPods ?? !!map.enemyPods}, ` +
+  `reinforcements: ${reinforceTurn || (map.reinforcements?.length ? map.reinforcements.map((w) => w.turn).join('/') : 'none')}`);
 console.log(`\nWin rate   player ${pct(count((r) => r.winner === 'player'))}   enemy ${pct(count((r) => r.winner === 'enemy'))}   ` +
   `draw ${pct(count((r) => r.winner === 'draw'))}`);
 console.log(`Decided by elimination ${pct(count((r) => r.via === 'elimination'))}   objective ${pct(count((r) => r.via === 'objective'))}   ` +
@@ -113,7 +122,7 @@ console.log(`Revives: ${avg(results.map((r) => r.units.reduce((a, u) => a + u.re
 console.log('\nPer class (averages per match)');
 console.log('team    class    dmg dealt  dmg taken  kills  revives  survival  reserve used  ran dry');
 for (const team of ['player', 'enemy'] as Team[]) {
-  for (const cls of CLASS_ORDER as ClassId[]) {
+  for (const cls of ALL_CLASSES as ClassId[]) {
     const rows = results.flatMap((r) => r.units.filter((u) => u.team === team && u.cls === cls));
     if (!rows.length) continue; // this team does not field the class
     console.log(

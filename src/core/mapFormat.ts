@@ -1,4 +1,5 @@
 import type { InteractableDef, MapDef, PickupDef, Spawn } from '../data/trainingGrounds';
+import { ZONE_OBJECTIVES } from '../data/objectives';
 import { CLASSES, type ClassId } from '../data/units';
 import { AI_PROFILES, type AiProfileId } from '../data/aiProfiles';
 import { ITEM_ORDER } from '../data/items';
@@ -44,7 +45,7 @@ export function parseMap(raw: unknown, base: MapDef): MapDef {
   });
   // A 'reach' objective (3) marks a multi-tile extraction zone with 'O'; every other type (including the
   // legacy hold-a-terminal default) still means at most one.
-  if (base.objective?.type === 'reach') { if (objectives < 1) throw new Error('A reach objective needs at least one objective tile.'); }
+  if (base.objective && ZONE_OBJECTIVES.includes(base.objective.type)) { if (objectives < 1) throw new Error(`A ${base.objective.type} objective needs at least one objective tile.`); }
   else if (objectives > 1) throw new Error('At most one objective tile is allowed.');
 
   const taken = new Set<string>();

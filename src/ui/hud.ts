@@ -10,7 +10,7 @@ import { ARMOR } from '../data/armor';
 import { EQUIPMENT } from '../data/equipment';
 import { PERKS } from '../data/perks';
 import type { Unit } from '../core/types';
-import { describeObjective } from '../core/objectives';
+import { describeObjective, objectiveFailed } from '../core/objectives';
 import type { GameState } from '../core/types';
 import { keyFor } from './input';
 import { displayKey, type BindableAction } from './keybindings';
@@ -275,7 +275,8 @@ export class Hud {
     if (s.winner) {
       banner.className = s.winner;
       $('banner-text').textContent = s.winner === 'player' ? 'MISSION COMPLETE' : s.winner === 'enemy' ? 'SQUAD LOST' : 'DRAW';
-      $('banner-sub').textContent = `${s.map.name} · ${s.turn} turn${s.turn === 1 ? '' : 's'}`;
+      const why = s.winner === 'enemy' && objectiveFailed(s) ? ` · they reached ${s.objectiveDef?.type === 'defend' ? s.objectiveDef.label ?? 'the zone' : 'the zone'}` : '';
+      $('banner-sub').textContent = `${s.map.name} · ${s.turn} turn${s.turn === 1 ? '' : 's'}${why}`;
       $('results').innerHTML = this.results(s);
     }
 
