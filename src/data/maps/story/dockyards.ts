@@ -136,7 +136,7 @@ export const LOW_TIDE: MapDef = {
   enemyProfile: 'standard',
   objective: { type: 'survive', rounds: 6 },
   reinforcements: [
-    { turn: 2, spawns: [['assault', 22, 1], ['soldier', 28, 5], ['sniper', 9, 1]] },
+    { turn: 2, spawns: [['assault', 22, 1], ['soldier', 28, 5]] },
     { turn: 4, spawns: [['tank', 22, 28], ['soldier', 28, 24], ['assault', 9, 28]] },
   ],
   interactables: [{ id: 20, type: 'chest', x: 7, y: 27 }],

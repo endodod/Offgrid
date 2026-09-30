@@ -113,7 +113,8 @@ export const BELL_TOWER: MapDef = {
     player: [['soldier', 5, 33], ['assault', 6, 33], ['medic', 5, 34], ['tank', 6, 32], ['sniper', 6, 34]],
     enemy: [
       ['sniper', 18, 18, 'defend'], // Brand
-      ['soldier', 17, 13], ['assault', 27, 9], ['soldier', 9, 8, 'defend'], ['assault', 26, 27],
+      ['soldier', 17, 13, 'defend'], ['assault', 27, 9], ['soldier', 9, 8, 'defend'], ['assault', 26, 27],
+      ['soldier', 27, 18, 'defend'], ['assault', 10, 18],
     ],
   },
   searchPoints: {
@@ -144,13 +145,13 @@ export const BELL_TOWER: MapDef = {
 
 // ------------------------------------------------------------------------------------------------ 3
 /**
- * The Armoury - `retrieve`, extract 2. 38x28, midnight, clear, reserve x0.6.
+ * The Armoury - `retrieve`, extract 2. 38x28, midnight, clear, reserve x0.7.
  *
  * The Old Town garrison's armoury: a walled yard, a magazine building with two rooms, and the only way out
  * the loading gate in the north-east. Take the munitions ledger and the key register, and take as much of
  * their ammunition as you can carry - the magazine is full of caches.
  *
- * Teaches: the economy, turned round. The squad arrives starved (x0.6 reserve) and the objective is sitting
+ * Teaches: the economy, turned round. The squad arrives starved (x0.7 reserve) and the objective is sitting
  * in the middle of more ammunition than it has seen all act. Night means the magazine's interior is the
  * only lit place for fifty metres.
  */
@@ -182,7 +183,6 @@ export const ARMOURY: MapDef = {
     player: [['soldier', 2, 20], ['assault', 3, 20], ['medic', 2, 22], ['tank', 2, 18], ['sniper', 3, 18]],
     enemy: [
       ['soldier', 16, 13, 'defend'], ['sniper', 24, 15, 'defend'], ['assault', 9, 11], ['soldier', 30, 6],
-      ['tank', 26, 21],
     ],
   },
   searchPoints: {
@@ -192,7 +192,7 @@ export const ARMOURY: MapDef = {
   startTimeOfDay: 'midnight',
   startWeather: 'clear',
   enemyProfile: 'standard',
-  reserveMult: 0.6,
+  reserveMult: 0.7,
   objective: { type: 'retrieve', interactableIds: [10, 11], unitsRequired: 2, label: 'the munitions ledger and the key register' },
   reinforcements: [{ turn: 6, spawns: [['assault', 36, 12], ['soldier', 36, 14]] }],
   interactables: [
@@ -265,7 +265,7 @@ export const SAINT_ORIELS: MapDef = {
   objective: { type: 'survive', rounds: 7 },
   reinforcements: [
     { turn: 3, spawns: [['assault', 1, 13], ['soldier', 1, 15]] },
-    { turn: 5, spawns: [['tank', 16, 1], ['soldier', 18, 1], ['assault', 17, 28]] },
+    { turn: 5, spawns: [['tank', 16, 1], ['assault', 17, 28]] },
   ],
   interactables: [
     { id: 1, type: 'door', x: 8, y: 13, active: true },
@@ -293,7 +293,7 @@ export const SAINT_ORIELS: MapDef = {
  * finale.
  *
  * The Guildhall: a forecourt, a colonnade, a great hall with two galleries, and the Commander's chamber at the
- * back behind a sealed door. Seven Wardens, a relief force on round 7, and the commander a tank on `defend`.
+ * back behind a sealed door. Six Wardens, a relief force on round 7, and the commander a tank on `defend`.
  *
  * Teaches: all of Act 2 at once - campers and ambushers, a sniper on a gallery, the ammo squeeze, and a
  * reinforcement wave you have to have finished the fight before.
@@ -330,8 +330,8 @@ export const WARDEN_COMMAND: MapDef = {
     player: [['soldier', 2, 16], ['assault', 3, 16], ['medic', 2, 18], ['tank', 2, 14], ['sniper', 3, 14]],
     enemy: [
       ['tank', 41, 16, 'defend'], // Commander Vane
-      ['sniper', 28, 6, 'defend'], ['sniper', 28, 27, 'defend'], ['soldier', 25, 16], ['assault', 14, 20, 'ambush'],
-      ['soldier', 34, 18], ['assault', 47, 10],
+      ['sniper', 28, 6, 'defend'], ['soldier', 25, 16], ['assault', 14, 20, 'ambush'],
+      ['soldier', 34, 18, 'defend'], ['assault', 47, 10],
     ],
   },
   searchPoints: {
@@ -344,7 +344,7 @@ export const WARDEN_COMMAND: MapDef = {
   reserveMult: 0.75,
   objective: { type: 'eliminateTarget', enemySpawnIndex: 0, label: 'Commander Idris Vane' },
   aiOpensDoors: false,
-  reinforcements: [{ turn: 7, spawns: [['assault', 49, 16], ['soldier', 49, 17], ['soldier', 30, 1]] }],
+  reinforcements: [{ turn: 7, spawns: [['assault', 49, 16], ['soldier', 49, 17]] }],
   interactables: [
     { id: 1, type: 'door', x: 18, y: 15, active: true },
     { id: 2, type: 'door', x: 18, y: 16, active: true },
